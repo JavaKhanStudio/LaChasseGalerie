@@ -23,10 +23,11 @@ public class GVars_AudioManager
 	private static Sound touchingground;
 
 	private static FileHandle musicFile = Gdx.files.internal("musics/pagayez.mp3");
+	private static FileHandle ambianceFile = Gdx.files.internal("ambiance/courant1.mp3");
 
-	private static Music currentlyRunningMusic;
+	public static Music currentlyRunningMusic;
 	private static Music currentlyRunningMusicSecondary;
-	private static Music currentlyRunningAmbiance;
+	public static Music currentlyRunningAmbiance;
 
 	public static void init() 
 	{
@@ -119,6 +120,32 @@ public class GVars_AudioManager
 					currentlyRunningMusic = Gdx.audio.newMusic(musicFile);
 					currentlyRunningMusic.setLooping(false);
 					currentlyRunningMusic.play();
+				}
+				break;
+			
+			default:
+				System.out.println("Unknown Music requested in PlayMusic : " + whichOne);
+				break;
+		}
+	}
+	
+	public static void PlayAmbiance(Enum_Ambiance whichOne) 
+	{
+		if(GVars_Audio.muted)
+			return ;
+
+		if(GVars_Debug.soundDebug)
+			System.out.println("Trying to play Music : " + whichOne);
+		
+		switch (whichOne) 
+		{
+			case WATER:
+				if (currentlyRunningAmbiance == null) 
+				{
+					currentlyRunningAmbiance = Gdx.audio.newMusic(ambianceFile);
+					currentlyRunningAmbiance.setLooping(false);
+					currentlyRunningAmbiance.setVolume(0.25f);
+					currentlyRunningAmbiance.play();
 				}
 				break;
 			

@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.utils.Align;
 
 import jks.vinterface.GVars_Interface;
 
@@ -69,13 +70,13 @@ public class ScoreLabel extends Table
 			{return getPrefWidth() ; }
 		} ;
 
-		this.add(nameValue).row();
+		this.add(nameValue).colspan(2).row();
 		this.add(score);
-		this.add(scoreValue);
+		this.add(scoreValue).align(Align.left);
 		this.row() ; 
 		
 		this.add(death);
-		this.add(deathValue);
+		this.add(deathValue).align(Align.left);
 		update() ; 
 	}
 	

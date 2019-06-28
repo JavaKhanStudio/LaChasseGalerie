@@ -29,6 +29,7 @@ import jks.personnage.PhysicSpriteHeroes;
 import jks.physic.Gvars_Physic;
 import jks.physic.objects.PhysicSpriteCanoe;
 import jks.physic.objects.PhysicSpriteHp;
+import jks.sounds.Enum_Ambiance;
 import jks.sounds.Enum_Music;
 import jks.sounds.GVars_AudioManager;
 import jks.story.GVars_Story;
@@ -64,7 +65,7 @@ public class Vue_Game extends AVue_Model
     	Gdx.input.setInputProcessor(new InputMultiplexer(GVars_Interface.mainInterface, new IKM_Game_Keyboard()));
 		Controllers.clearListeners();
 		Controllers.addListener(new IKM_Game_XBoxController()) ; 
-		GVars_AudioManager.PlayMusic(Enum_Music.MUSIC);
+		GVars_AudioManager.PlayAmbiance(Enum_Ambiance.WATER);
 		
 //		if(GVars_Debug.collisionDebug)
 //		{this.toRender.add(new ShowFPS());}

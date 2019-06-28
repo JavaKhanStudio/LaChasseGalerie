@@ -8,6 +8,7 @@ import static jks.input.GVars_Controller.pcPlayer;
 import com.badlogic.gdx.InputAdapter;
 
 import jks.debug.GVars_Debug;
+import jks.sounds.GVars_AudioManager;
 import jks.vars.GVars_Game;
 import jks.vars.GVars_Heart;
 
@@ -53,6 +54,10 @@ public class IKM_Game_Keyboard extends InputAdapter
 						GVars_Heart.vue.restart();
 					}
 					return true ;	
+				case Keys.E : 
+				{
+					GVars_AudioManager.currentlyRunningAmbiance.setVolume(GVars_AudioManager.currentlyRunningAmbiance.getVolume() - 0.1f);
+				}
 			}
 
 			return false ; 

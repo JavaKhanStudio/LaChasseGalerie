@@ -37,8 +37,4 @@ public class GVars_Debug
 		
 	}
 
-	
-	
-	
-
 }

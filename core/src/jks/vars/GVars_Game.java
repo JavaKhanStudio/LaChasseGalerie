@@ -6,7 +6,6 @@ import java.util.Random;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.controllers.Controller;
-import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.Joint;
 
@@ -76,7 +75,8 @@ public class GVars_Game
 		ScoreLabel label = playerRegister.get(controller) ; 
 		if(label == null)
 		{
-			label = new ScoreLabel("Player " + currentPlayerIndex) ;
+			label = new ScoreLabel("   Player " + currentPlayerIndex + "   ") ;
+			currentPlayerIndex ++ ; 
 			GVars_Interface.bottomScore.add(label);
 			System.out.println("adding label");
 			playerRegister.put(controller, label) ; 
