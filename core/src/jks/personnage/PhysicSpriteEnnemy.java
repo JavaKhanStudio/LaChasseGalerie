@@ -14,7 +14,7 @@ import jks.personnage.index.Enum_AnimState;
 import jks.personnage.index.SIW_Data;
 import jks.personnage.model.SpriteModel;
 import jks.vars.GVars_Game;
-import testing.BoxBodyBuilder; 
+import jks.physic.tools.BoxBodyBuilder; 
 
 public class PhysicSpriteEnnemy extends SpriteModel
 {
@@ -45,8 +45,6 @@ public class PhysicSpriteEnnemy extends SpriteModel
 	}
 	
 
-	float groundedThreshold = 0.1f ;
-	
 	public void act(float delta)
 	{
 		if(target != null)

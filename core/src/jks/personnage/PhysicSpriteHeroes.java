@@ -24,8 +24,8 @@ import jks.personnage.index.Index_Sprite;
 import jks.personnage.index.SIW_Data;
 import jks.personnage.model.SpriteModel;
 import jks.vars.GVars_Game;
-import testing.BoxBodyBuilder;
-import testing.RevoluteJoint; 
+import jks.physic.tools.BoxBodyBuilder;
+import jks.physic.tools.RevoluteJoint; 
 
 public class PhysicSpriteHeroes extends SpriteModel
 {
@@ -180,13 +180,6 @@ public class PhysicSpriteHeroes extends SpriteModel
 		axe.bodyAxe.applyForce(new Vector2(left ? -power : power, left ? power : -power), axe.bodyAxe.getLocalCenter(), true);
 	}
 	
-	int powerADV = 50 ;
-	
-	public void moveAxe(boolean left)
-	{
-		axe.bodyAxe.setLinearVelocity(new Vector2(left ? -powerADV : powerADV, left ? powerADV : -powerADV));
-	}
-	
 	@Override
 	public void draw(Batch batch) 
 	{
@@ -273,7 +266,6 @@ public class PhysicSpriteHeroes extends SpriteModel
 	{return (frame.getRegionHeight() * index.scale);}
 
 	
-	Vector2 savedVolocity ;
 	public void jump() 
 	{
 		if(jump_remaining == 0)
@@ -293,13 +285,6 @@ public class PhysicSpriteHeroes extends SpriteModel
 		jump_remaining -- ; 
 	}
 	
-	public void setPlayerName(String name)
-	{
-//		fixture_Main.setUserData(name);
-//		fixture_Left.setUserData(name + "_Right");
-//		fixture_Right.setUserData(name + "_Left");
-	}
-
 	public void getHurt(PhysicSpriteHeroes player)
 	{
 		if(invulnerable)
@@ -329,6 +314,12 @@ public class PhysicSpriteHeroes extends SpriteModel
 		}
 		
 		GVars_Game.heroes.remove(this) ; 
+		for(PhysicSpriteEnnemy ennemy : GVars_Game.ennemies)
+		{
+			if(ennemy.target == this)
+				ennemy.target = null ; 
+		}
+		
 		GVars_Game.toBeDestroy_Body.add(body) ;
 		GVars_Game.toBeDestroy_Body.add(axe.bodyAxe) ;
 		GVars_Game.toBeDestroy_Jointure.add(joint) ;

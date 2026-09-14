@@ -1,20 +1,9 @@
-apply plugin: "java"
+apply plugin: 'java-library'
 
-sourceCompatibility = 1.8
-[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+sourceSets.main.java.srcDirs = ['src']
 
-sourceSets 
-{
-    main 
-    {
-        java 
-        {
-            srcDir 'src'
-            srcDir 'testFolder'     
-        }
-    }
+dependencies {
+    api "com.badlogicgames.gdx:gdx:$gdxVersion"
+    api "com.badlogicgames.gdx:gdx-box2d:$gdxVersion"
+    api "com.badlogicgames.gdx-controllers:gdx-controllers-core:$gdxControllersVersion"
 }
-eclipse.project {
-    name = appName + "-core"
-}
-

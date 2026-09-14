@@ -1,127 +1,51 @@
-apply plugin: "java"
+apply plugin: 'application'
 
-sourceCompatibility = 1.8
-sourceSets 
-{
-    main 
-    {
-        java 
-        {
-            srcDir 'src'
-            srcDir 'assets'     
-        }
+sourceSets.main {
+    java.srcDirs = ['src']
+    resources.srcDirs = ['assets']
+}
+
+application {
+    mainClass = 'jks.launcher.Launcher_Game'
+    applicationName = 'LaChasseGalerie'
+    // LWJGL and libGDX load native libraries; Java 24+ warns about that unless it is allowed explicitly.
+    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
+}
+
+configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == 'org.lwjgl') useVersion(lwjglVersion)
     }
 }
 
-project.ext.mainClassName = "jks.launcher.Launcher_Test"
-project.ext.assetsDir = new File("../desktop/assets");
+dependencies {
+    implementation project(':core')
+    implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:$gdxVersion"
+    implementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+    implementation "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-desktop"
+    implementation "com.badlogicgames.gdx-controllers:gdx-controllers-desktop:$gdxControllersVersion"
+}
 
-eclipse {
-    project {
-        name = appName + "-desktop"
-        linkedResource name: 'assets', type: '2', location: 'PARENT-1-PROJECT_LOC/desktop/assets'
+tasks.named('run', JavaExec) {
+    workingDir = file('assets')
+    if (JavaVersion.current() >= JavaVersion.VERSION_24) {
+        // LWJGL 3.3 still uses sun.misc.Unsafe
+        jvmArgs '--sun-misc-unsafe-memory-access=allow'
+    }
+    if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('mac')) {
+        jvmArgs '-XstartOnFirstThread'
     }
 }
 
-task run(dependsOn: classes, type: JavaExec) {
-    main = project.mainClassName
-    classpath = sourceSets.main.runtimeClasspath
-    standardInput = System.in
-    workingDir = project.assetsDir
-    ignoreExitValue = true
-}
-
-task debug(dependsOn: classes, type: JavaExec) {
-    main = project.mainClassName
-    classpath = sourceSets.main.runtimeClasspath
-    standardInput = System.in
-    workingDir = project.assetsDir
-    ignoreExitValue = true
-    debug = true
-}
-
-task dist(type: Jar) {
-    from files(sourceSets.main.output.classesDir)
-    from files(sourceSets.main.output.resourcesDir)
-    from {configurations.compile.collect {zipTree(it)}}
-    from files(project.assetsDir);
- 
-    manifest {
-        attributes 'Main-Class': project.mainClassName
-    }
-}
-
-dist.dependsOn classes
-
-task javaPackager(type : Exec, dependsOn : dist) {
-	workingDir project.projectDir
-	def commands = [
-        'javapackager',
-        '-deploy',
-        '-nosign',
-        '-outdir', "${buildDir}/distribution",
-        '-srcdir', "${buildDir}/libs",
-        '-native', 'image',
-        '-outfile', 'testing',
-        '-name', project.appName,
-        '-appclass', project.mainClassName
-    ]
-    
-    def osName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
-    if (osName.contains('windows')) {
-        commands << "-Bicon=${project.projectDir}/logo.ico"
-    } else if (osName.contains('linux')) {
-        commands << "-Bicon=${project.projectDir}/logo.png"
-    } else if (osName.contains('mac')) {
-        commands << "-Bicon=${project.projectDir}/logo.icns"
-        commands << "-BjvmOptions=-XstartOnFirstThread"
-    }
-    
-    commandLine = commands
-}
-
-
-// removes bloated runtime created by javapackager
-task cleanPackagerRuntime(dependsOn: javaPackager) {
-    doLast() {
-        File runtimeFile = new File("${buildDir}/distribution/${project.appName}/runtime")
-        runtimeFile.deleteDir()
-        System.out.println("deleting bloated runtime in " + runtimeFile)
-    }
-}
-
-// creates a replacement runtime via jlink command (much smaller than jpackager)
-task createFinalAppBundle(type: Exec, dependsOn: [cleanPackagerRuntime]) {
-    def jdk = System.getProperty("java.home")
-
-    workingDir project.projectDir
-    commandLine = [
-        'jlink',
-        '-p', "${jdk}/jmods",
-        '--add-modules', 'java.base,java.desktop,jdk.unsupported',
-        '--strip-debug',
-        '--no-header-files',
-        '--no-man-pages',
-        '--strip-native-commands',
-        "--vm=server",
-        "--compress=2",
-        '--output', "${buildDir}/distribution/${project.appName}/runtime"
-    ]
-
-    doLast{
-        System.out.println("Application '${project.name}' packaged.")
-        System.out.println(" -> location: ${buildDir}/distribution/${project.name}/")
-    }
-}
-
-
-task afterEclipseImport(description: "Post processing after project generation", group: "IDE") {
-  doLast {
-    def classpath = new XmlParser().parse(file(".classpath"))
-    new Node(classpath, "classpathentry", [ kind: 'src', path: 'assets' ]);
-    def writer = new FileWriter(file(".classpath"))
-    def printer = new XmlNodePrinter(new PrintWriter(writer))
-    printer.setPreserveWhitespace(true)
-    printer.print(classpath)
-  }
+// Single runnable jar with all dependencies and assets: desktop/build/libs/LaChasseGalerie-1.0.jar
+tasks.register('dist', Jar) {
+    group = 'distribution'
+    description = 'Builds a self-contained runnable jar.'
+    archiveBaseName = 'LaChasseGalerie'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest { attributes 'Main-Class': application.mainClass, 'Enable-Native-Access': 'ALL-UNNAMED' }
+    from sourceSets.main.output
+    dependsOn configurations.runtimeClasspath
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
 }

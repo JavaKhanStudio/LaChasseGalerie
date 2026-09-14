@@ -1,8 +1,6 @@
 package jks.input;
 
 import jks.personnage.PhysicSpriteHeroes;
-import jks.vinterface.GVars_Interface;
-import jks.vinterface.controlling.Utils_Controllable; 
 
 public class Player_Inputs 
 {
@@ -11,12 +9,8 @@ public class Player_Inputs
 		jumpPressed,
 		upPressed, downPressed,
 		leftPressed, rightPressed,
-		powerLeft, powerRight,
-		triggerPowerLeft, triggerPowerRight,
-		jumpSupression
+		powerLeft, powerRight
 		;
-
-	public boolean blockActionForClick ; // Considere s'il faut annuler toute autre action de click
 
 	PhysicSpriteHeroes ref ; 
 	
@@ -64,23 +58,6 @@ public class Player_Inputs
 			jumpPressed = false ; 
 		}
 		
-		if(jumpSupression)
-		{
-
-		}
-		
-		/*
-		if(triggerPowerLeft)
-		{
-			ref.moveAxe(true) ; 
-			triggerPowerLeft = false ; 
-		}
-		if(triggerPowerRight)
-		{
-			ref.moveAxe(false) ; 
-			triggerPowerRight = false ; 
-		}
-		*/
 		if(powerLeft)
 		{
 			ref.pushAxe(true) ; 
@@ -95,12 +72,6 @@ public class Player_Inputs
 		
 	}
 	
-	public static void updateInput_ControllingInterface()
-	{
-		if(GVars_Interface.currentControllable != null)
-		{Utils_Controllable.decodeInterfaceController();}
-	}
-
 	public void resetInputs()
 	{
 		touched = false ;

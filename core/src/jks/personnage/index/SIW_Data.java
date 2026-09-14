@@ -20,7 +20,7 @@ public class SIW_Data
 		
 		for(Enum_AnimState finalName : animationName.keySet())
 		{
-			animationList.put(finalName, new Animation(animationSpeed, textureAtlas.findRegions(animationName.get(finalName)))) ;
+			animationList.put(finalName, new Animation<TextureRegion>(animationSpeed, textureAtlas.findRegions(animationName.get(finalName)))) ;
 		}
 	
 		this.color = color ;

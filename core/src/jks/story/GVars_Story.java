@@ -6,7 +6,6 @@ import java.util.Random;
 
 import jks.camera.GVars_Camera;
 import jks.sounds.Enum_Music;
-import jks.sounds.GVars_Audio;
 import jks.sounds.GVars_AudioManager;
 import jks.tools2d.parallax.heart.Parallax_Heart;
 import jks.vars.GVars_Game;
@@ -15,12 +14,6 @@ import jks.vue.models.Vue_Game;
 public class GVars_Story 
 {
 
-	public void init()
-	{
-		
-	}
-	
-	
 	static Random random = new Random();
 	
 	
@@ -68,7 +61,8 @@ public class GVars_Story
 			Parallax_Heart.worldCamera.position.add(0, delta * flyingSpeed, 0) ; 
 			GVars_Camera.screenMovementSpeed += accelerationGoingUp * delta ; 
 			Vue_Game.star1.setPosition(Vue_Game.star1.getX(), Vue_Game.star1.getY() - delta * flyingSpeed/3);
-			GVars_AudioManager.currentlyRunningAmbiance.setVolume(GVars_AudioManager.currentlyRunningAmbiance.getVolume() - faddingPower * delta);			
+			if(GVars_AudioManager.currentlyRunningAmbiance != null)
+				GVars_AudioManager.currentlyRunningAmbiance.setVolume(Math.max(0, GVars_AudioManager.currentlyRunningAmbiance.getVolume() - faddingPower * delta));
 		}
 		else if(timming_currentStoryTime > timming_timeUntil_Stabilise && canoe.body.getAngle() >= 0)
 		{

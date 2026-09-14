@@ -1,5 +1,7 @@
 package jks.input;
 
+import com.badlogic.gdx.controllers.ControllerMapping;
+
 import jks.vars.GVars_Game;
 
 public class Utils_Controller 
@@ -9,14 +11,14 @@ public class Utils_Controller
 	
 	
 	
-	public static boolean axisController(int axisCode, float value, Player_Inputs player)
+	public static boolean axisController(ControllerMapping mapping, int axisCode, float value, Player_Inputs player)
 	{
 		if(GVars_Game.inCinematic)
 		{
 			return true; 
 		}
 		
-		if(axisCode == KeysXbox.AXIS_LEFT_X)
+		if(axisCode == mapping.axisLeftX)
 		{
 			if(value > minForceMoveX)
 			{
@@ -35,7 +37,7 @@ public class Utils_Controller
 			}
 		}
 		
-		if(axisCode == KeysXbox.AXIS_LEFT_Y)
+		if(axisCode == mapping.axisLeftY)
 		{
 			if(value > minForceMoveY)
 			{

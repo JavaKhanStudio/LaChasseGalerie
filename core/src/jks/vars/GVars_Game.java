@@ -2,6 +2,7 @@ package jks.vars;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Random;
 
 import com.badlogic.gdx.Gdx;
@@ -29,9 +30,11 @@ public class GVars_Game
 	
 	public static ArrayList<PhysicSpriteHp> hpStack ; 
 	public static ArrayList<PhysicSpriteEnnemy> ennemies ; 
-	public static ArrayList<PhysicSpriteHeroes> toDie ; 
-	public static ArrayList<Body> toBeDestroy_Body ; 
-	public static ArrayList<Joint> toBeDestroy_Jointure ;
+	// Sets : two contacts in the same physics step can queue the same object twice,
+	// and destroying a Box2D body twice crashes the native library.
+	public static LinkedHashSet<PhysicSpriteHeroes> toDie ; 
+	public static LinkedHashSet<Body> toBeDestroy_Body ; 
+	public static LinkedHashSet<Joint> toBeDestroy_Jointure ;
 	
 	public static HashMap<Controller,ScoreLabel> playerRegister ; 
 	public static int currentPlayerIndex = 1 ; 
@@ -40,9 +43,9 @@ public class GVars_Game
 	{
 		heroes = new ArrayList<PhysicSpriteHeroes>() ; 
 		ennemies = new ArrayList<PhysicSpriteEnnemy>() ;
-		toBeDestroy_Body = new ArrayList<Body>() ; 
-		toBeDestroy_Jointure = new ArrayList<Joint>() ;
-		toDie = new ArrayList<PhysicSpriteHeroes>() ;
+		toBeDestroy_Body = new LinkedHashSet<Body>() ; 
+		toBeDestroy_Jointure = new LinkedHashSet<Joint>() ;
+		toDie = new LinkedHashSet<PhysicSpriteHeroes>() ;
 		hpStack = new ArrayList<PhysicSpriteHp>() ; 
 		playerRegister = new  HashMap<Controller,ScoreLabel>()  ;
 	}
@@ -63,9 +66,6 @@ public class GVars_Game
 	{
 		PhysicSpriteHeroes physicSprite = new PhysicSpriteHeroes(Index_Sprite.getRandomHeroColor(),controller, getScoreLabel(controller)) ; 
 		heroes.add(physicSprite) ; 
-		
-		String name = "player_" + heroes.size() ; 
-		physicSprite.setPlayerName(name);
 
 		return new Player_Inputs(physicSprite) ; 
 	}
@@ -78,7 +78,6 @@ public class GVars_Game
 			label = new ScoreLabel("   Player " + currentPlayerIndex + "   ") ;
 			currentPlayerIndex ++ ; 
 			GVars_Interface.bottomScore.add(label);
-			System.out.println("adding label");
 			playerRegister.put(controller, label) ; 
 		}
 		return label;

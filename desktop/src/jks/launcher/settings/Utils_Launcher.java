@@ -1,44 +1,44 @@
 package jks.launcher.settings;
 
-import static jks.launcher.settings.GVars_Laucher.finalHeight;
-import static jks.launcher.settings.GVars_Laucher.finalWidth;
-import static jks.launcher.settings.GVars_Laucher.sample;
-import static jks.launcher.settings.GVars_Laucher.tailleTest;
+import org.lwjgl.glfw.GLFW;
 
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Graphics.DisplayMode;
-import com.badlogic.gdx.Graphics.Monitor;
-import com.badlogic.gdx.backends.lwjgl.LwjglApplicationConfiguration;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 
 import jks.vars.FVars_Heart;
 
 public class Utils_Launcher 
 {
+	public static final int windowScale = 80 ; 
+	public static final int samples = 4; 
 
-	public static void basicConfig(LwjglApplicationConfiguration config)
+	/**
+	 * GLFW picks native Wayland when it can. With GNOME and the NVIDIA driver that path loses the
+	 * window decorations and can stall rendering, so use XWayland whenever an X display exists.
+	 * Must run before the application initialises GLFW.
+	 */
+	public static void preferX11OnLinux()
 	{
-		config.samples = sample; 
-		config.vSyncEnabled = true ;
-		config.resizable = false ;
-		config.useGL30 = false ;
-		config.title = "La chasse galerie" ; 
-		
+		if(System.getProperty("os.name").toLowerCase().contains("linux") && System.getenv("DISPLAY") != null)
+			GLFW.glfwInitHint(GLFW.GLFW_PLATFORM, GLFW.GLFW_PLATFORM_X11);
+	}
+
+	public static void basicConfig(Lwjgl3ApplicationConfiguration config)
+	{
+		config.setTitle("La chasse galerie");
+		config.setBackBufferConfig(8, 8, 8, 8, 16, 0, samples);
+		config.useVsync(true);
+		// The game logic advances a fixed amount every frame, so it is tuned for 60 fps.
+		config.setForegroundFPS(FVars_Heart.fps);
+		config.setResizable(false);
 	}
 	
-	public static void setFullScreen(LwjglApplicationConfiguration config)
+	public static void setFullScreen(Lwjgl3ApplicationConfiguration config)
 	{
-
-		config.width = finalWidth ;
-		config.height = finalHeight ;
-		config.fullscreen = true ;
-		
+		config.setFullscreenMode(Lwjgl3ApplicationConfiguration.getDisplayMode());
 	}
 	
-	public static void setSideTestScreen(LwjglApplicationConfiguration config)
+	public static void setWindowed(Lwjgl3ApplicationConfiguration config)
 	{
-		config.width = (int) (FVars_Heart.screenXModel * tailleTest) ;
-		config.height = (int) (FVars_Heart.screenYModel * tailleTest) ;
-		config.x = 0 ;
-		config.y = 0 ;
+		config.setWindowedMode(FVars_Heart.screenXModel * windowScale, FVars_Heart.screenYModel * windowScale);
 	}
 }

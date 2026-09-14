@@ -9,7 +9,7 @@ import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef.BodyType;
 
-import testing.BoxBodyBuilder;
+import jks.physic.tools.BoxBodyBuilder;
 
 public class Weapon_AXE 
 {

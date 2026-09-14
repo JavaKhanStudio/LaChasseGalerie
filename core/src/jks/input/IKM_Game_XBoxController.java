@@ -3,29 +3,27 @@ package jks.input;
 import static jks.input.GVars_Controller.getPlayer;
 
 import com.badlogic.gdx.controllers.Controller;
-import com.badlogic.gdx.controllers.ControllerListener;
-import com.badlogic.gdx.controllers.PovDirection;
-import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.controllers.ControllerAdapter;
+import com.badlogic.gdx.controllers.ControllerMapping;
 
 import jks.debug.GVars_Debug;
 import jks.vars.GVars_Game;
-import jks.vars.GVars_Heart; 
 
-public class IKM_Game_XBoxController implements ControllerListener
+public class IKM_Game_XBoxController extends ControllerAdapter
 {
 	
 	@Override
 	public void connected(Controller controller) 
 	{
 		if(GVars_Debug.coreInformationDebug)
-			System.out.println("Connecte controller");
+			System.out.println("Connected controller : " + controller.getName());
 	}
 
 	@Override
 	public void disconnected(Controller controller) 
 	{
 		if(GVars_Debug.coreInformationDebug)
-			System.out.println("Disconnected controller");
+			System.out.println("Disconnected controller : " + controller.getName());
 	}
 
 	@Override
@@ -38,49 +36,20 @@ public class IKM_Game_XBoxController implements ControllerListener
 			return false; 
 		}
 
-		switch (buttonCode) 
-		{
-			case KeysXbox.A :
-				inputing.jumpPressed = true ; 
-				return true ;
-			case KeysXbox.B :
-				inputing.powerLeft = true ; 
-				return true ;
-			case KeysXbox.X :
-				inputing.powerRight = true ; 
-				return true ;
-			case KeysXbox.START :
-				return true ;
-			case KeysXbox.BACK :
-				if(GVars_Debug.coreInformationDebug)
-				{
-					GVars_Heart.vue.restart();
-				}
-				return true ;
-		}
+		ControllerMapping mapping = controller.getMapping() ; 
 		
-		return false;
+		if(buttonCode == mapping.buttonA)
+			inputing.jumpPressed = true ; 
+		else if(buttonCode == mapping.buttonB)
+			inputing.powerLeft = true ; 
+		else if(buttonCode == mapping.buttonX)
+			inputing.powerRight = true ; 
+		else
+			return false ; 
+		
+		return true ;
 	}
 
-	@Override
-	public boolean buttonUp(Controller controller, int buttonCode) 
-	{
-		if(GVars_Game.inCinematic)
-			return true; 
-		/*
-		switch (buttonCode) 
-		{
-			case KeysXbox.A :
-				jumpPressed = false ;
-				jumpSupression = true ; 
-				return true ;
-			case KeysXbox.BACK :
-				return true ;
-		}
-		*/
-		return false;	
-	}
-	
 	@Override
 	public boolean axisMoved(Controller controller, int axisCode, float value) 
 	{
@@ -89,31 +58,7 @@ public class IKM_Game_XBoxController implements ControllerListener
 		if(inputing == null)
 		{return false;}
 		
-		return Utils_Controller.axisController(axisCode,value,inputing) ;
-	}
-
-	@Override
-	public boolean povMoved(Controller controller, int povCode, PovDirection value) 
-	{
-		return false;
-	}
-
-	@Override
-	public boolean xSliderMoved(Controller controller, int sliderCode, boolean value) 
-	{
-		return false;
-	}
-
-	@Override
-	public boolean ySliderMoved(Controller controller, int sliderCode, boolean value) 
-	{
-		return false;
-	}
-
-	@Override
-	public boolean accelerometerMoved(Controller controller, int accelerometerCode, Vector3 value) 
-	{
-		return false;
+		return Utils_Controller.axisController(controller.getMapping(), axisCode, value, inputing) ;
 	}
 
 }

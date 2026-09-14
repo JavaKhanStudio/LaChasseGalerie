@@ -5,11 +5,9 @@ import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.Animation.PlayMode;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
-import com.badlogic.gdx.math.Vector2;
 
 import jks.personnage.index.Enum_AnimState;
 import jks.personnage.index.SIW_Data;
-import jks.vars.GVars_Heart;
 
 public class SpriteModel extends AnimationModel {
 
@@ -29,9 +27,7 @@ public class SpriteModel extends AnimationModel {
 	@Override
 	public void draw(Batch batch) {
 
-		if ((!GVars_Heart.isPaused || currentAnimState == Enum_AnimState.DEATH)) {
-			stateTime += Gdx.graphics.getDeltaTime(); // Accumulate elapsed animation time
-		}
+		stateTime += Gdx.graphics.getDeltaTime(); // Accumulate elapsed animation time
 		try
 		{
 			if (currentState != null) {
