@@ -24,3 +24,10 @@ hs_err_pid*
 ## OS
 .DS_Store
 Thumbs.db
+
+## Atelier board skills (absolute symlinks into the atelier checkout)
+.claude/skills/board
+.claude/skills/digest-contexts
+.claude/skills/start-worker
+.claude/skills/write-context-pack
+.claude/skills/write-lexicon
