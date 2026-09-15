@@ -11,7 +11,8 @@ import jks.debug.GVars_Debug;
 
 public class Index_Sprite 
 {
-	public static ArrayList<Boolean> colorSelected ; 
+	// How many living heroes wear each colour : past the last free one, colours are shared
+	public static ArrayList<Integer> colorUsers ; 
 	public static ArrayList<SIW_Data> persoModel ; 
 	
 	public static ArrayList<SIW_Data> monsterModel ; 
@@ -24,7 +25,7 @@ public class Index_Sprite
 	
 	public static void init()
 	{
-		colorSelected = new ArrayList<Boolean>() ;
+		colorUsers = new ArrayList<Integer>() ;
 		persoModel = new ArrayList<SIW_Data>() ; 
 		monsterModel = new ArrayList<SIW_Data>() ; 
 		addColor("Red",Color.RED) ; 
@@ -51,7 +52,7 @@ public class Index_Sprite
 	private static void addColor(String colorName,Color color)
 	{
 		persoModel.add(SIW_Data.getHeroData(scale,colorName,color)) ;
-		colorSelected.add(false) ;
+		colorUsers.add(0) ;
 	}
 	
 	private static void addMonster(int number)
@@ -67,25 +68,16 @@ public class Index_Sprite
 	
 	public static SIW_Data getRandomHeroColor()
 	{
-		int value = random.nextInt(persoModel.size()) ; 
-		return gettingData(value) ; 
-	}
-
-	private static SIW_Data gettingData(int value) 
-	{
-		if(colorSelected.get(value))
+		int start = random.nextInt(persoModel.size()) ; 
+		int chosen = start ; 
+		for(int step = 1 ; step < persoModel.size() ; step++)
 		{
-			value++ ;
-			if(value == persoModel.size())
-			{value = 0 ;}	
-			return gettingData(value) ; 
+			int value = (start + step) % persoModel.size() ; 
+			if(colorUsers.get(value) < colorUsers.get(chosen))
+			{chosen = value ;}
 		}
-		else
-		{
-			colorSelected.set(value, Boolean.TRUE)  ;
-			return persoModel.get(value) ; 
-		}
-
+		colorUsers.set(chosen, colorUsers.get(chosen) + 1) ; 
+		return persoModel.get(chosen) ; 
 	}
 	
 }

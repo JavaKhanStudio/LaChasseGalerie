@@ -310,7 +310,7 @@ public class PhysicSpriteHeroes extends SpriteModel
 		for(int x = 0 ; x < Index_Sprite.persoModel.size() ; x++)
 		{
 			if(Index_Sprite.persoModel.get(x) == index)
-			{Index_Sprite.colorSelected.set(x, false) ;}
+			{Index_Sprite.colorUsers.set(x, Index_Sprite.colorUsers.get(x) - 1) ;}
 		}
 		
 		GVars_Game.heroes.remove(this) ; 
