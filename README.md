@@ -69,6 +69,6 @@ The jar bundles every dependency and asset, so it runs from any directory.
 
 ```
 core/      game code (shared, backend independent)
-  src/jks/tools2d/parallax/   the parallax background library
+  src/jks/parralax/           the night river scene, drawn with io.github.javakhanstudio:parallax-background
 desktop/   LWJGL3 launcher and all game assets (desktop/assets)
 ```

@@ -5,9 +5,9 @@ import static jks.vars.GVars_Game.canoe;
 import java.util.Random;
 
 import jks.camera.GVars_Camera;
+import jks.parralax.GVars_Parralax;
 import jks.sounds.Enum_Music;
 import jks.sounds.GVars_AudioManager;
-import jks.tools2d.parallax.heart.Parallax_Heart;
 import jks.vars.GVars_Game;
 import jks.vue.models.Vue_Game;
 
@@ -62,7 +62,7 @@ public class GVars_Story
 				canoe.body.setTransform(canoe.body.getPosition(), canoe.body.getAngle() + ((float)Math.toRadians(delta) * timming_angleSpeed));
 			}
 				
-			Parallax_Heart.worldCamera.position.add(0, delta * flyingSpeed, 0) ; 
+			GVars_Parralax.scroll(delta, 0, delta * flyingSpeed) ; 
 			GVars_Camera.screenMovementSpeed += accelerationGoingUp * delta ; 
 			Vue_Game.star1.setPosition(Vue_Game.star1.getX(), Vue_Game.star1.getY() - delta * flyingSpeed/3);
 			if(GVars_AudioManager.currentlyRunningAmbiance != null)
@@ -77,7 +77,7 @@ public class GVars_Story
 			else 
 			{canoe.body.setTransform(canoe.body.getPosition(), 0);}
 			
-			Parallax_Heart.worldCamera.position.add(0, delta * flyingSpeed, 0) ; 
+			GVars_Parralax.scroll(delta, 0, delta * flyingSpeed) ; 
 			Vue_Game.star1.setPosition(Vue_Game.star1.getX(), Vue_Game.star1.getY() - delta * flyingSpeed/3);
 		}
 		

@@ -2,127 +2,53 @@ package jks.parralax;
 
 import java.util.ArrayList;
 
+import jks.tools2d.parallax.heart.Gvars_Parallax;
 import jks.tools2d.parallax.pages.Parallax_Model;
 
 public class ColdNightModel
 {
+	/**
+	 * One layer, in the values this scene was tuned with on the old library, converted to parallax-background 2.x.
+	 * 
+	 * ratioX/Y   : how much of the scroll the layer follows (parallaxScalingSpeed)
+	 * speed      : world units per second the layer drifts ON SCREEN on its own (+ = right). The 2.x speed at rest is
+	 *              scaled by the ratio, so it is divided by it here.
+	 * padX/YRatio: start offset, in world HEIGHTS, from the left and from the drawing height
+	 * 
+	 * The world size is read when the enum is first used, after GVars_Parralax.init.
+	 */
+	private static Parallax_Model layer(String regionName, int regionPosition, float sizeRatio, float ratioX, float ratioY, float speed, float padXRatio, float padYRatio)
+	{
+		Parallax_Model model = new Parallax_Model() ; 
+		model.regionName = regionName ; 
+		model.regionPosition = regionPosition ; 
+		model.sizeRatio = sizeRatio ; 
+		model.parallaxScalingSpeedX = ratioX ; 
+		model.parallaxScalingSpeedY = ratioY ; 
+		model.speedXAtRest = ratioX == 0 ? 0 : -speed / ratioX ; 
+		model.decal_X_Ratio = padXRatio * 100 * Gvars_Parallax.getWorldHeight() / Gvars_Parallax.getWorldWidth() ; 
+		model.decal_Y_Ratio = padYRatio * 100 ; 
+		return model ; 
+	}
+	
 
 	public static ArrayList<Parallax_Model> buildPages() 
 	{
 		ArrayList<Parallax_Model> returningList = new ArrayList<Parallax_Model>() ; 
 		
-		Parallax_Model cloudsTop0 = new Parallax_Model() ; 
-		cloudsTop0.region_Name = "clouds" ;
-		cloudsTop0.sizeRatio = 0.5f ;
-		cloudsTop0.region_Position = 0 ; 
-		cloudsTop0.speed = 0.5f ;
-		cloudsTop0.movementSpeedX = .01f ; 
-		cloudsTop0.movementSpeedY = .01f ; 
-		cloudsTop0.pad_Y_Ratio = 1.8f ;
-		cloudsTop0.pad_X_Ratio = .1f ; 
-		
-		Parallax_Model cloudsTop1 = new Parallax_Model() ; 
-		cloudsTop1.region_Name = "clouds" ;
-		cloudsTop1.sizeRatio = 0.5f ;
-		cloudsTop1.region_Position = 1 ; 
-		cloudsTop1.speed = 0.5f ;
-		cloudsTop1.movementSpeedX = .01f ; 
-		cloudsTop1.movementSpeedY = .01f ; 
-		cloudsTop1.pad_Y_Ratio = 1.4f ;
-		cloudsTop1.pad_X_Ratio = .50f ; 
-		
-		Parallax_Model cloudsTop2 = new Parallax_Model() ; 
-		cloudsTop2.region_Name = "clouds" ;
-		cloudsTop2.sizeRatio = 0.5f ;
-		cloudsTop2.region_Position = 0 ; 
-		cloudsTop2.speed = 0.5f ;
-		cloudsTop2.movementSpeedX = .01f ; 
-		cloudsTop2.movementSpeedY = .01f ; 
-		cloudsTop2.pad_Y_Ratio = 1.2f ;
-		cloudsTop2.pad_X_Ratio = .20f ; 
-		
-		Parallax_Model clouds0 = new Parallax_Model() ; 
-		clouds0.region_Name = "clouds" ;
-		clouds0.sizeRatio = 0.5f ;
-		clouds0.region_Position = 0 ; 
-		clouds0.speed = 0.5f ;
-		clouds0.movementSpeedX = .01f ; 
-		clouds0.movementSpeedY = .01f ; 
-		clouds0.pad_Y_Ratio = .70f ;
-		
-		Parallax_Model clouds1 = new Parallax_Model() ; 
-		clouds1.region_Name = "clouds" ;
-		clouds1.sizeRatio = 0.5f ;
-		clouds1.region_Position = 1 ; 
-		clouds1.speed = 0.5f ;
-		clouds1.movementSpeedX = .01f ; 
-		clouds1.movementSpeedY = .01f ; 
-		clouds1.pad_Y_Ratio = .70f ;
-		
-		Parallax_Model rocks = new Parallax_Model() ; 
-		rocks.region_Name = "rocks" ; 
-		rocks.sizeRatio = 0.5f ;
-		rocks.region_Position = 0 ; 
-		rocks.movementSpeedX = .005f ; 
-		rocks.movementSpeedY = .006f ; 
-		rocks.pad_Y_Ratio = .40f ; 
-		
-		Parallax_Model ground0 = new Parallax_Model() ; 
-		ground0.region_Name = "ground" ; 
-		ground0.sizeRatio = 0.27f ;
-		ground0.region_Position = 1 ; 
-		ground0.movementSpeedX = .008f ; 
-		ground0.movementSpeedY = .006f ; 
-		ground0.pad_Y_Ratio = .38f ; 
-		
-		Parallax_Model ground1 = new Parallax_Model() ; 
-		ground1.region_Name = "ground" ; 
-		ground1.sizeRatio = 0.32f ;
-		ground1.region_Position = 2 ; 
-		ground1.movementSpeedX = .0105f ; 
-		ground1.movementSpeedY = .006f ; 
-		ground1.pad_Y_Ratio = .35f ; 
-		
-		Parallax_Model ground2 = new Parallax_Model() ; 
-		ground2.region_Name = "ground" ; 
-		ground2.sizeRatio = 0.40f ;
-		ground2.region_Position = 1 ; 
-		ground2.movementSpeedX = .0135f ; 
-		ground2.movementSpeedY = .006f ; 
-		ground2.pad_Y_Ratio = .30f ; 
-
-		Parallax_Model ground3 = new Parallax_Model() ; 
-		ground3.region_Name = "ground" ; 
-		ground3.sizeRatio = 0.45f ;
-		ground3.region_Position = 0 ; 
-		ground3.movementSpeedX = .015f ; 
-		ground3.movementSpeedY = .006f ; 
-		ground3.pad_Y_Ratio = .25f ; 
-		
-		Parallax_Model ground4 = new Parallax_Model() ; 
-		ground4.region_Name = "ground" ; 
-		ground4.sizeRatio = 0.6f ;
-		ground4.region_Position = 1 ; 
-		ground4.movementSpeedX = .020f ; 
-		ground4.movementSpeedY = .006f ; 
-		ground4.pad_Y_Ratio = .20f ; 
-		
-		Parallax_Model ground5 = new Parallax_Model() ; 
-		ground5.region_Name = "ground" ; 
-		ground5.sizeRatio = 0.6f ;
-		ground5.region_Position = 2 ; 
-		ground5.movementSpeedX = .024f ; 
-		ground5.movementSpeedY = .006f ; 
-		ground5.pad_Y_Ratio = .20f ; 
-		
-		Parallax_Model water = new Parallax_Model() ; 
-		water.region_Name = "waterDark" ; 
-		water.sizeRatio = 0.7f ;
-		water.region_Position = 0 ; 
-		water.movementSpeedX = .04f ; 
-		water.movementSpeedY = .006f ; 
-		water.pad_Y_Ratio = .08f ; 
-		water.speed = -0.4f ;
+		Parallax_Model cloudsTop0 = layer("clouds", 0, 0.5f, .01f, .01f, 0.5f, .1f, 1.8f) ;
+		Parallax_Model cloudsTop1 = layer("clouds", 1, 0.5f, .01f, .01f, 0.5f, .50f, 1.4f) ;
+		Parallax_Model cloudsTop2 = layer("clouds", 0, 0.5f, .01f, .01f, 0.5f, .20f, 1.2f) ;
+		Parallax_Model clouds0 = layer("clouds", 0, 0.5f, .01f, .01f, 0.5f, 0, .70f) ;
+		Parallax_Model clouds1 = layer("clouds", 1, 0.5f, .01f, .01f, 0.5f, 0, .70f) ;
+		Parallax_Model rocks = layer("rocks", 0, 0.5f, .005f, .006f, 0, 0, .40f) ;
+		Parallax_Model ground0 = layer("ground", 1, 0.27f, .008f, .006f, 0, 0, .38f) ;
+		Parallax_Model ground1 = layer("ground", 2, 0.32f, .0105f, .006f, 0, 0, .35f) ;
+		Parallax_Model ground2 = layer("ground", 1, 0.40f, .0135f, .006f, 0, 0, .30f) ;
+		Parallax_Model ground3 = layer("ground", 0, 0.45f, .015f, .006f, 0, 0, .25f) ;
+		Parallax_Model ground4 = layer("ground", 1, 0.6f, .020f, .006f, 0, 0, .20f) ;
+		Parallax_Model ground5 = layer("ground", 2, 0.6f, .024f, .006f, 0, 0, .20f) ;
+		Parallax_Model water = layer("waterDark", 0, 0.7f, .04f, .006f, -0.4f, 0, .08f) ;
 		
 		returningList.add(cloudsTop0) ; 
 		returningList.add(cloudsTop1) ; 
@@ -145,55 +71,11 @@ public class ColdNightModel
 	{
 		ArrayList<Parallax_Model> returningList = new ArrayList<Parallax_Model>() ; 
 		
-		Parallax_Model water1 = new Parallax_Model() ; 
-		water1.region_Name = "waterDark" ; 
-		water1.sizeRatio = 0.7f ;
-		water1.region_Position = 0 ; 
-		water1.movementSpeedX = .044f ; 
-		water1.movementSpeedY = .006f ; 
-		water1.pad_X_Ratio = .20f ; 
-		water1.pad_Y_Ratio = .10f ; 
-		water1.speed = -.8f ;
-		
-		Parallax_Model water2 = new Parallax_Model() ; 
-		water2.region_Name = "waterDark" ; 
-		water2.sizeRatio = 0.7f ;
-		water2.region_Position = 0 ; 
-		water2.movementSpeedX = .048f ; 
-		water2.movementSpeedY = .006f ; 
-		water2.pad_X_Ratio = .30f ; 
-		water2.pad_Y_Ratio = .00f ; 
-		water2.speed = -0.4f ;
-		
-		Parallax_Model cloudsTop0 = new Parallax_Model() ; 
-		cloudsTop0.region_Name = "clouds" ;
-		cloudsTop0.sizeRatio = 0.5f ;
-		cloudsTop0.region_Position = 0 ; 
-		cloudsTop0.speed = 0.5f ;
-		cloudsTop0.movementSpeedX = .01f ; 
-		cloudsTop0.movementSpeedY = .01f ; 
-		cloudsTop0.pad_Y_Ratio = 1.6f ;
-		cloudsTop0.pad_X_Ratio = .70f ; 
-		
-		Parallax_Model cloudsTop1 = new Parallax_Model() ; 
-		cloudsTop1.region_Name = "clouds" ;
-		cloudsTop1.sizeRatio = 0.5f ;
-		cloudsTop1.region_Position = 0 ; 
-		cloudsTop1.speed = 0.5f ;
-		cloudsTop1.movementSpeedX = .01f ; 
-		cloudsTop1.movementSpeedY = .01f ; 
-		cloudsTop1.pad_Y_Ratio = 1.3f ;
-		cloudsTop1.pad_X_Ratio = .50f ; 
-		
-		Parallax_Model cloudsTop2 = new Parallax_Model() ; 
-		cloudsTop2.region_Name = "clouds" ;
-		cloudsTop2.sizeRatio = 0.5f ;
-		cloudsTop2.region_Position = 0 ; 
-		cloudsTop2.speed = 0.5f ;
-		cloudsTop2.movementSpeedX = .01f ; 
-		cloudsTop2.movementSpeedY = .01f ; 
-		cloudsTop2.pad_Y_Ratio = 1.1f ;
-		cloudsTop2.pad_X_Ratio = .20f ; 
+		Parallax_Model water1 = layer("waterDark", 0, 0.7f, .044f, .006f, -.8f, .20f, .10f) ;
+		Parallax_Model water2 = layer("waterDark", 0, 0.7f, .048f, .006f, -0.4f, .30f, .00f) ;
+		Parallax_Model cloudsTop0 = layer("clouds", 0, 0.5f, .01f, .01f, 0.5f, .70f, 1.6f) ;
+		Parallax_Model cloudsTop1 = layer("clouds", 0, 0.5f, .01f, .01f, 0.5f, .50f, 1.3f) ;
+		Parallax_Model cloudsTop2 = layer("clouds", 0, 0.5f, .01f, .01f, 0.5f, .20f, 1.1f) ; 
 		
 		returningList.add(cloudsTop0) ; 
 		returningList.add(cloudsTop1) ; 

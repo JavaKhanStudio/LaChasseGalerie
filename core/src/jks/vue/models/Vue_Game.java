@@ -25,6 +25,7 @@ import jks.input.GVars_Controller;
 import jks.input.IKM_Game_Keyboard;
 import jks.input.IKM_Game_XBoxController;
 import jks.parralax.Enum_ColdNight;
+import jks.parralax.GVars_Parralax;
 import jks.personnage.PhysicSpriteEnnemy;
 import jks.personnage.PhysicSpriteHeroes;
 import jks.physic.Gvars_Physic;
@@ -33,8 +34,6 @@ import jks.physic.objects.PhysicSpriteHp;
 import jks.sounds.Enum_Ambiance;
 import jks.sounds.GVars_AudioManager;
 import jks.story.GVars_Story;
-import jks.tools2d.parallax.heart.Parallax_Heart;
-import jks.tools2d.parallax.heart.Parallax_Utils_Page;
 import jks.vars.GVars_Game;
 import jks.vars.GVars_Heart;
 import jks.vinterface.GVars_Interface;
@@ -52,8 +51,7 @@ public class Vue_Game extends AVue_Model
     {
     	GVars_Heart.init();
     	GVars_Game.init();
-    	Parallax_Utils_Page.setPage(Enum_ColdNight.COLD_NIGHT.wholePage) ;
-    	Parallax_Utils_Page.setSecondPage(Enum_ColdNight.COLD_WATER.wholePage) ;
+    	GVars_Parralax.setPages(Enum_ColdNight.COLD_NIGHT, Enum_ColdNight.COLD_WATER) ;
     	canoe = new PhysicSpriteCanoe() ; 
     	
     	if(GVars_Debug.collisionDebug)
@@ -80,8 +78,7 @@ public class Vue_Game extends AVue_Model
 
         staticBatch.setProjectionMatrix(camera.combined);
     	
-    	Parallax_Heart.worldCamera.position.add(screenMovementSpeed, 0, 0);
-    	Parallax_Heart.renderMainPage();
+    	GVars_Parralax.background.render();
     	
     	staticBatch.begin();
     	star1.draw(staticBatch);
@@ -95,7 +92,7 @@ public class Vue_Game extends AVue_Model
     	canoe.drawFront(staticBatch);
     	staticBatch.end();
     	
-    	Parallax_Heart.renderSecondePage();
+    	GVars_Parralax.foreground.render();
     	
     	staticBatch.begin();
     	for(PhysicSpriteHeroes model : GVars_Game.heroes)
@@ -129,7 +126,8 @@ public class Vue_Game extends AVue_Model
     	
     	GVars_Controller.act(delta);
     	
-    	Parallax_Heart.act(delta);	
+    	GVars_Parralax.scroll(delta, screenMovementSpeed, 0);
+    	GVars_Parralax.act(delta);	
 	}
 	
 	public void cleanUp()

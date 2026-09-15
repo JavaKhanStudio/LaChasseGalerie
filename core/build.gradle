@@ -6,4 +6,6 @@ dependencies {
     api "com.badlogicgames.gdx:gdx:$gdxVersion"
     api "com.badlogicgames.gdx:gdx-box2d:$gdxVersion"
     api "com.badlogicgames.gdx-controllers:gdx-controllers-core:$gdxControllersVersion"
+    // Brings gdx 1.14.2 itself: keep gdxVersion on the same version, a mix fails at runtime only.
+    api "io.github.javakhanstudio:parallax-background:$parallaxVersion"
 }
