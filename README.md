@@ -25,6 +25,22 @@ Launcher options (combine as needed):
 | `--mute`       | No music or river ambiance                               |
 | `--debug`      | Box2D collision shapes, FPS counter, reduced asset load  |
 
+### When an agent runs it
+
+When a board agent runs `:desktop:run` (`ATELIER_AGENT` is set), nobody is watching, so the
+window goes offscreen. It runs inside [`cage`](https://www.hjdskes.nl/projects/cage/), a
+headless wlroots compositor, and gets an invisible display of its own with GPU rendering intact.
+The sound goes too: it plays into `desktop/build/audio/run.wav` instead of your speakers,
+through OpenAL Soft's WAV writer (LWJGL ships it). The file is overwritten on each run and
+grows about 10 MB a minute. If the game is killed rather than quit, the WAV header keeps its
+early length, so read past it.
+
+When you run it, or click the board's "Play it" button, it opens on your screen.
+`CHASSE_OFFSCREEN=1` sends your run offscreen anyway, and `CHASSE_NO_OFFSCREEN=1` keeps an
+agent's run on screen, sound included. Without cage it opens on the screen as before.
+The mechanism is in `gradle/offscreen.gradle`, and it is the same one `../onboard` uses. Anything
+started outside Gradle, such as the dist jar, needs the wrapper: `tools/offscreen.sh <command>`.
+
 ## Controls
 
 Press any key or gamepad button to join. Press again after dying to jump back in.

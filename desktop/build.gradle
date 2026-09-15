@@ -35,6 +35,8 @@ tasks.named('run', JavaExec) {
     if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('mac')) {
         jvmArgs '-XstartOnFirstThread'
     }
+    // A board agent checking its work runs this too, and nobody is watching that window.
+    rootProject.offscreen(it, 'unattended')
 }
 
 // Single runnable jar with all dependencies and assets: desktop/build/libs/LaChasseGalerie-1.0.jar

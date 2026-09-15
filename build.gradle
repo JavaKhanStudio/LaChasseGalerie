@@ -1,3 +1,6 @@
+// offscreen(task, when): windows nobody is meant to watch go to a headless display.
+apply from: 'gradle/offscreen.gradle'
+
 subprojects {
     apply plugin: 'java'
 
