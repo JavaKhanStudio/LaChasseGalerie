@@ -1,35 +1,40 @@
 // Offscreen by default: windows nobody is meant to watch get a display of their own.
 //
-// A board agent checking its work runs the game, and nobody is watching that window. It
-// opened on Simon's desktop, in front of whatever he was doing, with the music and the river
-// coming out of his speakers. The same trick already worked in ../onboard: run the JVM inside
-// cage, a headless wlroots compositor, so it gets an invisible display of its own and keeps
-// GPU rendering.
+// Copied from the Atelier skill run-offscreen (skills/run-offscreen/offscreen.gradle). Change
+// it there first when the change is not about this project, so every game gets the fix.
 //
-// One cage is started per build, the first time a task asks for it, and closed when the build
-// ends, including a failed one. The task's JVM is pointed at it through WAYLAND_DISPLAY and
-// DISPLAY (the launcher prefers X11, which cage provides through XWayland).
+// A board agent checking its work runs the game, and the GL tests each open a real window to
+// get a GPU surface. Nobody is watching either one, yet they opened on Simon's desktop in front
+// of whatever he was doing, with the music coming out of his speakers. Here the build keeps
+// them off it by itself, so nobody has to remember a wrapper.
 //
-//   offscreen(task, 'always')       nobody ever watches it
-//   offscreen(task, 'unattended')   :desktop:run - offscreen for a board agent (ATELIER_AGENT
-//                                   set); on the screen for anyone else, including the
-//                                   board's own "Play it" buttons
+// One cage (a headless wlroots compositor) is started per build, the first time a task asks
+// for it, and closed when the build ends, including a failed one. The task's JVM is pointed at
+// it through WAYLAND_DISPLAY and DISPLAY, so rendering keeps the GPU.
 //
-// CHASSE_NO_OFFSCREEN=1 puts the window back when you want to watch, and the sound with it;
-// CHASSE_OFFSCREEN=1 sends an 'unattended' task offscreen for you too. Without cage (Windows,
-// macOS, a Linux machine that lacks it) the window opens on the screen as it always did - but
-// the sound still goes to a file, see captureAudio below.
+//   apply from: 'gradle/offscreen.gradle'          in the root build.gradle, then:
+//   rootProject.offscreen(task, 'always')          GL tests: nobody ever watches those
+//   rootProject.offscreen(task, 'unattended')      run tasks: offscreen for a board agent
+//                                                  (ATELIER_AGENT set); on the screen for
+//                                                  anyone else, including the board's own
+//                                                  "Play it" buttons
 //
-// Everything here is a class rather than a script closure because this build runs with the
-// configuration cache, which cannot store a reference back into a build script.
+// ATELIER_NO_OFFSCREEN=1 puts the windows back when you want to watch, and the sound with
+// them; ATELIER_OFFSCREEN=1 sends an 'unattended' task offscreen for you too. Without cage
+// (Windows, macOS, a Linux machine that lacks it) everything opens on the screen as it always
+// did, but the sound still goes to a file.
+//
+// Everything is a class rather than a script closure so that it works with the configuration
+// cache, which cannot store a reference back into a build script.
 
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
+import org.gradle.process.ProcessForkOptions
 
-abstract class ChasseOffscreenDisplay implements BuildService<BuildServiceParameters.None>, AutoCloseable
+abstract class AtelierOffscreenDisplay implements BuildService<BuildServiceParameters.None>, AutoCloseable
 {
 	private Process cage
 	private Map<String, String> display
@@ -74,7 +79,7 @@ abstract class ChasseOffscreenDisplay implements BuildService<BuildServiceParame
 		{
 			close()
 			failure = 'cage is installed but did not start a headless display (got ' + line + '). ' +
-				'Set CHASSE_NO_OFFSCREEN=1 to open the window on your screen instead.'
+				'Set ATELIER_NO_OFFSCREEN=1 to open the windows on your screen instead.'
 			throw new GradleException(failure)
 		}
 		display = [WAYLAND_DISPLAY: parts[0], DISPLAY: parts[1]]
@@ -90,44 +95,47 @@ abstract class ChasseOffscreenDisplay implements BuildService<BuildServiceParame
 	}
 }
 
-class ChasseOffscreenAction implements Action<Task>
+class AtelierOffscreenAction implements Action<Task>
 {
-	Provider<ChasseOffscreenDisplay> service
+	Provider<AtelierOffscreenDisplay> service
 	String when
 	File audioDir
 
 	@Override
-	void execute(Task t)
+	void execute(Task task)
 	{
-		JavaExec task = (JavaExec) t
+		ProcessForkOptions fork = (ProcessForkOptions) task   // JavaExec, Test, Exec
 		Map<String, String> env = System.getenv()
-		if (env.CHASSE_NO_OFFSCREEN == '1') return   // watching, and listening
-		if (when == 'unattended' && !env.ATELIER_AGENT && env.CHASSE_OFFSCREEN != '1') return
+		if (env.ATELIER_NO_OFFSCREEN == '1') return   // watching, and listening
+		if (when == 'unattended' && !env.ATELIER_AGENT && env.ATELIER_OFFSCREEN != '1') return
 
-		captureAudio(task)
+		captureAudio(task, fork)
 
-		if (env.CHASSE_INSIDE_CAGE == '1') return   // tools/offscreen.sh already put us in one
+		if (env.ATELIER_INSIDE_CAGE == '1') return   // offscreen.sh already put us in one
 		if (!System.getProperty('os.name').toLowerCase().contains('linux')) return
 
 		Map<String, String> display = service.get().display()
 		if (display == null)
 		{
-			task.logger.warn("offscreen: cage not found, so ${task.path} opens its window on your screen")
+			task.logger.warn("offscreen: cage not found, so ${task.path} opens its windows on your screen")
 			return
 		}
-		task.environment(display)
+		fork.environment(display)
 		task.logger.lifecycle("offscreen: ${task.path} renders to a headless display " +
-			"(cage, ${display.WAYLAND_DISPLAY} / ${display.DISPLAY}); CHASSE_NO_OFFSCREEN=1 to watch")
+			"(cage, ${display.WAYLAND_DISPLAY} / ${display.DISPLAY}); ATELIER_NO_OFFSCREEN=1 to watch")
 	}
 
 	// Nobody is listening either. LWJGL ships OpenAL Soft, which takes its output from the
 	// environment: ALSOFT_DRIVERS=wave is a real playback device, running in real time, that
-	// writes a WAV file instead of reaching the sound card. The game hears nothing different -
-	// music plays as it would - and what it played is left in build/audio/<task>.wav, where an
-	// agent can hand it back. The path is in CHASSE_AUDIO_CAPTURE. It works on every OS.
+	// writes a WAV file instead of reaching the sound card. The app hears nothing different -
+	// music plays, isPlaying() answers as it would - and what it played is left in
+	// build/audio/<task>.wav, where a test can check it and an agent can hand it back
+	// (`atelier attach`). The path is in ATELIER_AUDIO_CAPTURE. It works on every OS.
 	//
-	// A file per task, overwritten each run: about 10 MB a minute of play.
-	private void captureAudio(JavaExec task)
+	// It has to be set on the TASK: a forked JVM takes the daemon's environment, not the shell's.
+	// A file per task, overwritten each run: about 10 MB a minute of play. A run that is killed
+	// rather than quit leaves the WAV header claiming a wrong length; read to the end of file.
+	private void captureAudio(Task task, ProcessForkOptions fork)
 	{
 		audioDir.mkdirs()
 		File wav = new File(audioDir, "${task.name}.wav")
@@ -136,18 +144,18 @@ class ChasseOffscreenAction implements Action<Task>
 		conf.text = "# Written by gradle/offscreen.gradle for ${task.path}.\n" +
 			"[general]\nsample-type = int16\nchannels = stereo\nfrequency = 44100\n\n" +
 			"[wave]\nfile = ${wav.absolutePath}\n"
-		task.environment(ALSOFT_DRIVERS: 'wave', ALSOFT_CONF: conf.absolutePath,
-			CHASSE_AUDIO_CAPTURE: wav.absolutePath)
+		fork.environment(ALSOFT_DRIVERS: 'wave', ALSOFT_CONF: conf.absolutePath,
+			ATELIER_AUDIO_CAPTURE: wav.absolutePath)
 		task.logger.lifecycle("offscreen: ${task.path} plays its sound into ${wav} rather than your speakers")
 	}
 }
 
-def offscreenDisplay = gradle.sharedServices.registerIfAbsent('chasseOffscreenDisplay', ChasseOffscreenDisplay) {}
+def atelierOffscreenDisplay = gradle.sharedServices.registerIfAbsent('atelierOffscreenDisplay', AtelierOffscreenDisplay) {}
 
-ext.offscreen = { JavaExec task, String when ->
-	task.usesService(offscreenDisplay)
-	task.doFirst(new ChasseOffscreenAction(
-		service: offscreenDisplay,
+ext.offscreen = { Task task, String when ->
+	task.usesService(atelierOffscreenDisplay)
+	task.doFirst(new AtelierOffscreenAction(
+		service: atelierOffscreenDisplay,
 		when: when,
 		audioDir: task.project.layout.buildDirectory.dir('audio').get().asFile))
 }

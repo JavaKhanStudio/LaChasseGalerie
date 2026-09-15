@@ -31,3 +31,5 @@ Thumbs.db
 .claude/skills/start-worker
 .claude/skills/write-context-pack
 .claude/skills/write-lexicon
+.claude/skills/capture-audio
+.claude/skills/run-offscreen
