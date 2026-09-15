@@ -14,6 +14,20 @@ worth fixing anyway.
 
 Everything below is measured against the code as of `58d8c79`.
 
+**Decisions settled on the board**, and written into the sections they change:
+
+- **d5 → A (r22): a machine brings one player.** Online, one connection is one hero. The local
+  co-op the game has today — a keyboard and any number of pads sharing one screen — stays an
+  offline mode. So a `PlayerId` is a peer id and nothing more, a lobby seat is a machine, and the
+  snapshot is sized by the number of connections (§1.4, §4, §6). The cheapest reading of A, left
+  as an assumption for phase 1 rather than treated as a second decision: on a machine that is in
+  an online game, whichever local device is touched drives that machine's one hero — a pad can be
+  handed across the couch — instead of a second device being refused or spawning a second hero.
+- **d6 is still open**: what happens when two players cannot punch through to each other (§3, §7).
+  Simon answered it with questions rather than a letter — how often punching actually fails, how
+  early we can detect it, whether a player can be warned *before* the game starts, and what it
+  would cost in CPU to host the games ourselves. Those want numbers, not another proposal.
+
 ---
 
 ## 1. What the game is today, in the terms this decision needs
@@ -44,7 +58,9 @@ prerequisite that costs the most, and it is a real single-player bug already.
 `HashMap<Controller, Player_Inputs>` with `null` meaning "the keyboard"; `GVars_Game.playerRegister`
 keys score labels the same way; `PhysicSpriteHeroes.controller` holds the device. A remote player has
 no `Controller`. Every one of these needs a `PlayerId` instead, with the `Controller` living only at
-the local input edge (`IKM_Game_Keyboard`, `IKM_Game_XBoxController`).
+the local input edge (`IKM_Game_Keyboard`, `IKM_Game_XBoxController`). Under d5 → A that id is simply
+the peer: online there is one hero per connection, and the `Controller` map survives as the offline
+local-co-op path and as the way a machine's own devices reach its one hero.
 
 **1.5 — World coordinates are window coordinates.** Nine places multiply `Gdx.graphics.getWidth()/getHeight()`
 by `GVars_Camera.worldMutiplier` to get world positions: the camera ortho, hero spawn
@@ -140,7 +156,7 @@ have nowhere to go. So:
 
 Sizes from the real object set, quantized (positions as 16-bit fixed point, ids 16-bit):
 
-| what | per entity | count at 8 players | bytes |
+| what | per entity | count at 8 connections | bytes |
 |---|---|---|---|
 | hero (pos, vel, hp, flags, anim, score) | ~13 B | 8 | 104 |
 | axe (pos + angle) | ~6 B | 8 | 48 |
@@ -148,6 +164,9 @@ Sizes from the real object set, quantized (positions as 16-bit fixed point, ids 
 | potion (id, pos) | ~6 B | ~8 | 48 |
 | canoe, story clock, parallax offset, header | — | — | ~20 |
 | **snapshot** | | | **~430 B** |
+
+Under d5 → A a hero is a machine, so those 8 heroes are 8 machines: the host plus 7 clients, which
+is the busiest session worth planning for.
 
 At 20 snapshots/s that is **~9 kB/s (70 kbit/s) per client**, so a host with 7 clients sends
 **~0.5 Mbit/s upstream** — comfortable on any home connection, and one packet stays far under the
@@ -195,7 +214,7 @@ the invariants that a refactor of this shape breaks.
 |---|---|---|---|
 | 0.1 | Fixed-step sim clock: an accumulator in `Main_Game.render`, `simulate(1/60)` separate from `render()`, animation time fed by the sim clock, not `Gdx.graphics.getDeltaTime()` | `Main_Game`, `AVue_Model`, `Vue_Game`, `Gvars_Physic`, `SpriteModel` | smoke passes; the game plays the same at 60 fps and *keeps* playing the same when frames drop |
 | 0.2 | A world of fixed size, window as viewport | `GVars_Camera` (+ a `Viewport`), the 9 sites listed in §1.5 | smoke passes; run at 1280×720 and fullscreen and compare |
-| 0.3 | `PlayerId` instead of `Controller` as identity | `GVars_Controller`, `GVars_Game`, `PhysicSpriteHeroes`, both `IKM_*`, `Smoke_Run` | smoke passes with keyboard + 2 pads |
+| 0.3 | `PlayerId` instead of `Controller` as identity — a peer id online (d5 → A), the local device offline | `GVars_Controller`, `GVars_Game`, `PhysicSpriteHeroes`, both `IKM_*`, `Smoke_Run` | smoke passes with keyboard + 2 pads |
 | 0.4 | Session teardown: dispose the world and clear every `GVars_*`, so a second run starts clean | all `GVars_*` | a smoke variant that plays two runs in one JVM |
 | 0.5 | One seeded RNG stream, seed settable | the 4 `Random`s of §1.6 | `smoke -Pseed=42` twice gives identical reports |
 | 0.6 | Extract the headless loop out of `Smoke_Run` into a runner the host can use with no window | `smoke/`, new `core` entry point | smoke still runs through it |
@@ -208,8 +227,9 @@ velocities and spawns land). Do them one ticket at a time, each with a smoke run
 Snapshot/input protocol, `HostSession` (owns the sim, applies remote inputs, broadcasts at 20 Hz),
 `ClientSession` (sends inputs at 60 Hz, interpolates snapshots, owns no physics), entity ids, join and
 leave as network events — the game already lets people join and rejoin mid-run, which maps straight
-onto it. Everything over loopback, two JVMs on one machine, plus an automated host+2-clients test in
-one process that asserts the clients' positions track the host's within tolerance. **No lobby, no NAT,
+onto it, one hero per connection (d5 → A). Everything over loopback, two JVMs on one machine, plus
+an automated host+2-clients test in one process that asserts the clients' positions track the host's
+within tolerance. **No lobby, no NAT,
 no internet in this phase.**
 
 ### Phase 2 — lobbies and the real internet
@@ -257,7 +277,8 @@ Nothing here needs a cloud account or a managed service at this scale.
 3. **The axe.** Physics interactions between players are the least latency-tolerant thing in the game
    and the hardest to predict. If it feels bad at 60 ms, the options are prediction (expensive) or a
    design change (the axe hits on the host's word, with a local animation that fires immediately).
-4. **Untested at scale.** Nobody has played this with 8 players even locally. Monster spawn counts
+4. **Untested at scale.** Nobody has played this with 8 players even locally, and under d5 → A
+   8 online heroes means 8 machines, which is a bigger party than this game has ever had. Monster spawn counts
    scale with player count (`getBaseNumber()` returns `heroes.size()`), so 8 players means far more
    bodies than the §4 estimate assumes. Worth a local 8-pad smoke run before sizing the protocol.
 5. **Cheating.** Host-authoritative means the host is trusted. Fine for friends, not for public lobbies.
