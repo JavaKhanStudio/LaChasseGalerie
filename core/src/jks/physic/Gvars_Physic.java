@@ -21,9 +21,12 @@ public class Gvars_Physic
 		world.setContactListener(contractListener) ; 
 	}
 	
-	public static void act() 
+	/** Stepped with the simulated time, never with the length of a frame : Main_Game calls
+	 *  update in fixed steps of FVars_Heart.step, so the world advances at the same rate
+	 *  whatever the frame rate. */
+	public static void act(float delta) 
 	{
-		world.step(1f/60f, 6, 2);
+		world.step(delta, 6, 2);
 	}
 
 }

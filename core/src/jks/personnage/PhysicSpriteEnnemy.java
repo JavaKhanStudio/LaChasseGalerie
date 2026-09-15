@@ -47,6 +47,8 @@ public class PhysicSpriteEnnemy extends SpriteModel
 
 	public void act(float delta)
 	{
+		update(delta) ; 
+		
 		if(target != null)
 		{
 			Vector2 myPosition = body.getPosition() ;

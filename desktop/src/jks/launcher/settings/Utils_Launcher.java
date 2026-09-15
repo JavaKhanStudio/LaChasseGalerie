@@ -27,7 +27,8 @@ public class Utils_Launcher
 		config.setTitle("La chasse galerie");
 		config.setBackBufferConfig(8, 8, 8, 8, 16, 0, samples);
 		config.useVsync(true);
-		// The game logic advances a fixed amount every frame, so it is tuned for 60 fps.
+		// The world advances in fixed steps whatever the frame rate (Main_Game), so this is only
+		// about how often the game is drawn: no reason to burn a GPU on more than the screen shows.
 		config.setForegroundFPS(FVars_Heart.fps);
 		config.setResizable(false);
 	}

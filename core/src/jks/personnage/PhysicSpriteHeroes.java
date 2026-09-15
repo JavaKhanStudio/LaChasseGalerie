@@ -132,6 +132,8 @@ public class PhysicSpriteHeroes extends SpriteModel
 	
 	public void act(float delta)
 	{
+		update(delta) ; 
+		
 		if(checkForGround && Math.abs(body.getLinearVelocity().y) < groundedThreshold)
 		{
 			resetJump() ; 

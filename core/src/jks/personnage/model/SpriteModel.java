@@ -1,6 +1,5 @@
 package jks.personnage.model;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.Animation.PlayMode;
 import com.badlogic.gdx.graphics.g2d.Batch;
@@ -27,7 +26,8 @@ public class SpriteModel extends AnimationModel {
 	@Override
 	public void draw(Batch batch) {
 
-		stateTime += Gdx.graphics.getDeltaTime(); // Accumulate elapsed animation time
+		// Animation time is advanced by act(), with the rest of the simulation : drawing the same
+		// frame twice must not age the animation, and a dropped frame must not freeze it.
 		try
 		{
 			if (currentState != null) {

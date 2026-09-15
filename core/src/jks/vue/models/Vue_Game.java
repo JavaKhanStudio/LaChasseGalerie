@@ -114,7 +114,7 @@ public class Vue_Game extends AVue_Model
 	public void update(float delta) 
 	{
 		cleanUp() ; 
-		Gvars_Physic.act();
+		Gvars_Physic.act(delta);
     	GVars_Story.act(delta);
     	canoe.act(delta);
     	
