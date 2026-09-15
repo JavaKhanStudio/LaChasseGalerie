@@ -39,14 +39,18 @@ public class GVars_Story
 	
 	static float screenSpeed ; 
 	
+	// The Music object stays null under --mute, so it cannot tell whether the cue already fired
+	static boolean musicCueFired ; 
+	
 	static float timming_timeUntil_Stabilise = 8f + timming_timeUntil_TakeOff ; 
 	
 	private static void storyTelling(float delta) 
 	{
 		timming_currentStoryTime += delta ; 
 		
-		if(timming_currentStoryTime > timming_timeUntil_Music && GVars_AudioManager.currentlyRunningMusic == null) 
+		if(timming_currentStoryTime > timming_timeUntil_Music && !musicCueFired) 
 		{
+			musicCueFired = true ; 
 			GVars_AudioManager.PlayMusic(Enum_Music.MUSIC);
 			GVars_Camera.screenMovementSpeed += 0.7f ; 
 		}
