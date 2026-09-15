@@ -16,6 +16,8 @@ public class Weapon_AXE
 	
 	public Body bodyAxe ; 
 	public Sprite spriteAxe ; 
+	// Shared by every hero : one per join would leak a GPU texture each time
+	public static Texture axeTexture ; 
 	PhysicSpriteHeroes ref ; 
 	
 	public Weapon_AXE(PhysicSpriteHeroes ref) 
@@ -23,8 +25,9 @@ public class Weapon_AXE
 		this.ref = ref ; 
 		bodyAxe = BoxBodyBuilder.CreateCircleBody(world, BodyType.DynamicBody, ref.position.x/PPM,ref.position.y/PPM + 30/PPM, 100);
 		bodyAxe.getFixtureList().get(0).setUserData(this);
-		Texture img = new Texture("tools/double_axe.png");
-        spriteAxe = new Sprite(img) ;
+		if(axeTexture == null)
+			axeTexture = new Texture("tools/double_axe.png") ; 
+        spriteAxe = new Sprite(axeTexture) ;
 	}
 	
 	public void act(float delta)
