@@ -1,0 +1,26 @@
+// ./gradlew smoke : plays the real game loop headless for a minute of game time, with players
+// joining, fighting and dying, and fails on the first broken invariant or native crash.
+// Not part of build (Simon's choice on r4): build only compiles it.
+
+sourceSets.main.java.srcDirs = ['src']
+
+dependencies {
+    implementation project(':core')
+    implementation "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
+    implementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+    implementation "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-desktop"
+}
+
+tasks.register('smoke', JavaExec) {
+    group = 'verification'
+    description = 'Plays 60s of the game loop headless with joining and dying players.'
+    mainClass = 'jks.smoke.Smoke_Run'
+    classpath = sourceSets.main.runtimeClasspath
+    // The game loads its textures and atlases by relative path
+    workingDir = rootProject.file('desktop/assets')
+    def crashLog = layout.buildDirectory.file('smoke/hs_err_pid%p.log').get().asFile
+    // A Box2D crash kills the JVM with no Java stack: keep its log out of the assets
+    jvmArgs '--enable-native-access=ALL-UNNAMED', "-XX:ErrorFile=$crashLog"
+    // ./gradlew smoke -Pseed=42 -Pseconds=120
+    args providers.gradleProperty('seed').orElse('1').get(), providers.gradleProperty('seconds').orElse('60').get()
+}

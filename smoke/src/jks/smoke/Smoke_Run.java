@@ -1,0 +1,341 @@
+package jks.smoke;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Proxy;
+import java.nio.IntBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.backends.headless.HeadlessApplication;
+import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
+import com.badlogic.gdx.backends.headless.mock.graphics.MockGraphics;
+import com.badlogic.gdx.controllers.Controller;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.GL30;
+import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.utils.Array;
+
+import jks.amain.Main_Game;
+import jks.input.GVars_Controller;
+import jks.input.Player_Inputs;
+import jks.personnage.PhysicSpriteEnnemy;
+import jks.personnage.PhysicSpriteHeroes;
+import jks.personnage.ScoreLabel;
+import jks.personnage.index.Index_Sprite;
+import jks.physic.Gvars_Physic;
+import jks.physic.objects.PhysicSpriteCanoe;
+import jks.sounds.GVars_Audio;
+import jks.story.GVars_Story;
+import jks.vars.GVars_Game;
+import jks.vars.GVars_Heart;
+
+/**
+ * Plays the real game loop headless: Main_Game.create, then Vue_Game.update and render at 1/60
+ * with a stubbed GL, for a minute of game time. A keyboard player and two fake gamepads join,
+ * move, jump and swing at random, rejoin once a second after dying, and are killed on purpose
+ * at fixed times (by hearts, by the river, all at once).
+ *
+ * A native Box2D crash does not reliably happen when the rules are broken, so every frame checks
+ * the invariants that prevent one instead. The first broken one exits 1.
+ *
+ * Static game state is never reset, so this is one run per JVM.
+ */
+public class Smoke_Run extends ApplicationAdapter
+{
+	static final float DELTA = 1 / 60f;
+	static final int WIDTH = 1280, HEIGHT = 720;
+
+	final long seed;
+	final int seconds;
+	final Random random;
+
+	final List<Controller> pads = List.of(fakeController("pad1"), fakeController("pad2"));
+	int frame, joins, forcedDeaths, monstersKilled, mostMonsters;
+
+	public static void main(String[] args)
+	{
+		long seed = args.length > 0 ? Long.parseLong(args[0]) : 1;
+		int seconds = args.length > 1 ? Integer.parseInt(args[1]) : 60;
+		GVars_Audio.muted = true;
+
+		HeadlessApplicationConfiguration config = new HeadlessApplicationConfiguration();
+		// The loop is driven from create, frame by frame: the backend's own loop never runs
+		config.updatesPerSecond = -1;
+		new HeadlessApplication(new Smoke_Run(seed, seconds), config);
+	}
+
+	Smoke_Run(long seed, int seconds)
+	{
+		this.seed = seed;
+		this.seconds = seconds;
+		this.random = new Random(seed);
+	}
+
+	@Override
+	public void create()
+	{
+		// An exception on the HeadlessApplication thread would not fail the process
+		try
+		{
+			run();
+			System.exit(0);
+		}
+		catch (Throwable t)
+		{
+			System.out.println("SMOKE FAILED at frame " + frame + " (t=" + frame / 60f + "s, seed " + seed + ")");
+			t.printStackTrace(System.out);
+			System.exit(1);
+		}
+	}
+
+	void run() throws Exception
+	{
+		Gdx.gl = Gdx.gl20 = stubGl();
+		// Spawn points, the canoe and the HUD come from the window size: at 0 everyone spawns at 0 and drowns
+		Gdx.graphics = new MockGraphics()
+		{
+			@Override public int getWidth() { return WIDTH; }
+			@Override public int getHeight() { return HEIGHT; }
+			@Override public int getBackBufferWidth() { return WIDTH; }
+			@Override public int getBackBufferHeight() { return HEIGHT; }
+		};
+		seedRandoms();
+
+		long start = System.currentTimeMillis();
+		new Main_Game().create();
+		System.out.println("SMOKE seed " + seed + ", " + seconds + "s of game time, init in " + (System.currentTimeMillis() - start) + " ms");
+
+		Set<PhysicSpriteEnnemy> monstersBefore = Collections.newSetFromMap(new IdentityHashMap<>());
+		for (frame = 0; frame < seconds * 60; frame++)
+		{
+			if (frame % 60 == 0)
+				joinEveryone();
+			if (frame % 20 == 0)
+				pressButtons();
+			forceDeaths();
+
+			checkDestroyQueue();
+			monstersBefore.clear();
+			monstersBefore.addAll(GVars_Game.ennemies);
+
+			GVars_Heart.vue.update(DELTA);
+			GVars_Heart.vue.render();
+
+			monstersBefore.removeAll(GVars_Game.ennemies);
+			monstersKilled += monstersBefore.size();
+			mostMonsters = Math.max(mostMonsters, GVars_Game.ennemies.size());
+			checkInvariants();
+
+			if (frame % 600 == 0)
+				report("t=" + frame / 60 + "s");
+		}
+
+		report("done in " + (System.currentTimeMillis() - start) + " ms:");
+		// A run that spawned nothing or killed nobody proves nothing
+		if (seconds >= 30 && mostMonsters == 0)
+			throw new IllegalStateException("no monster ever spawned");
+		if (deaths() < forcedDeaths)
+			throw new IllegalStateException(forcedDeaths + " deaths forced but only " + deaths() + " counted");
+	}
+
+	void joinEveryone()
+	{
+		if (GVars_Controller.getPlayer(null) == null)
+		{
+			GVars_Game.addPlayer();
+			joins++;
+		}
+		for (Controller pad : pads)
+		{
+			if (GVars_Controller.getPlayer(pad) == null)
+			{
+				GVars_Game.addPlayer(pad);
+				joins++;
+			}
+		}
+	}
+
+	void pressButtons()
+	{
+		// playerList is a HashMap on identity hashes: walk it in a fixed order so a seed replays
+		List<Controller> everyone = new ArrayList<>(pads);
+		everyone.add(0, null);
+		for (Controller controller : everyone)
+		{
+			Player_Inputs player = GVars_Controller.getPlayer(controller);
+			if (player == null)
+				continue;
+			int move = random.nextInt(3);
+			player.leftPressed = move == 0;
+			player.rightPressed = move == 1;
+			player.jumpPressed = random.nextInt(3) == 0;
+			player.powerLeft = random.nextInt(3) == 0;
+			player.powerRight = random.nextInt(3) == 0;
+		}
+	}
+
+	/** Monsters from 15s, take-off 37s to 45s: one death of each kind lands in a different phase. */
+	void forceDeaths()
+	{
+		if (GVars_Game.heroes.isEmpty())
+			return;
+
+		if (frame == 20 * 60)
+		{
+			loseEveryHeart(GVars_Game.heroes.get(0));
+		}
+		else if (frame == 40 * 60)
+		{
+			PhysicSpriteHeroes hero = GVars_Game.heroes.get(GVars_Game.heroes.size() - 1);
+			hero.body.setTransform(hero.body.getPosition().x, -1, 0);
+			forcedDeaths++;
+		}
+		else if (frame == 50 * 60)
+		{
+			for (PhysicSpriteHeroes hero : new ArrayList<>(GVars_Game.heroes))
+				loseEveryHeart(hero);
+		}
+	}
+
+	void loseEveryHeart(PhysicSpriteHeroes hero)
+	{
+		while (hero.hp_left > 0)
+		{
+			hero.invulnerable = false;
+			hero.getHurt(hero);
+		}
+		forcedDeaths++;
+	}
+
+	/** Before cleanUp runs: destroying a body the world no longer holds is the double-destroy crash. */
+	void checkDestroyQueue()
+	{
+		Array<Body> bodies = new Array<>();
+		Gvars_Physic.world.getBodies(bodies);
+		for (Body queued : GVars_Game.toBeDestroy_Body)
+			if (!bodies.contains(queued, true))
+				throw new IllegalStateException("a body queued for destruction is already gone from the world");
+	}
+
+	void checkInvariants()
+	{
+		for (PhysicSpriteEnnemy monster : GVars_Game.ennemies)
+		{
+			if (monster.target != null && !GVars_Game.heroes.contains(monster.target))
+				throw new IllegalStateException("a monster chases a hero who was removed");
+			if (!Float.isFinite(monster.body.getPosition().x) || !Float.isFinite(monster.body.getPosition().y))
+				throw new IllegalStateException("a monster position is not finite");
+		}
+
+		for (PhysicSpriteHeroes hero : GVars_Game.heroes)
+		{
+			if (hero.hp_left < 0 || hero.hp_left > hero.hp_max)
+				throw new IllegalStateException("a hero has " + hero.hp_left + " hearts");
+			if (!Float.isFinite(hero.body.getPosition().x) || !Float.isFinite(hero.body.getPosition().y))
+				throw new IllegalStateException("a hero position is not finite");
+		}
+
+		// Canoe, a body and an axe per hero, monsters, potions, and whatever waits in the queue
+		int expectedBodies = 1 + GVars_Game.heroes.size() * 2 + GVars_Game.ennemies.size() + GVars_Game.hpStack.size() + GVars_Game.toBeDestroy_Body.size();
+		if (Gvars_Physic.world.getBodyCount() != expectedBodies)
+			throw new IllegalStateException("world holds " + Gvars_Physic.world.getBodyCount() + " bodies, the game tracks " + expectedBodies);
+
+		int expectedJoints = GVars_Game.heroes.size() + GVars_Game.toBeDestroy_Jointure.size();
+		if (Gvars_Physic.world.getJointCount() != expectedJoints)
+			throw new IllegalStateException("world holds " + Gvars_Physic.world.getJointCount() + " joints, the game tracks " + expectedJoints);
+
+		// A dying hero keeps its player until cleanUp kills it, at the start of the next update
+		if (GVars_Controller.playerList.size() != GVars_Game.heroes.size())
+			throw new IllegalStateException(GVars_Controller.playerList.size() + " players for " + GVars_Game.heroes.size() + " heroes");
+	}
+
+	int deaths()
+	{
+		int deaths = 0;
+		for (ScoreLabel label : GVars_Game.playerRegister.values())
+			deaths += label.deathNumber;
+		return deaths;
+	}
+
+	void report(String when)
+	{
+		System.out.println("SMOKE " + when
+				+ " heroes=" + GVars_Game.heroes.size()
+				+ " monsters=" + GVars_Game.ennemies.size()
+				+ " potions=" + GVars_Game.hpStack.size()
+				+ " bodies=" + Gvars_Physic.world.getBodyCount()
+				+ " joins=" + joins
+				+ " deaths=" + deaths() + " (" + forcedDeaths + " forced)"
+				+ " monstersKilled=" + monstersKilled);
+	}
+
+	/** Every source of randomness in the game, so a failing seed replays the same run. */
+	void seedRandoms() throws Exception
+	{
+		Class<?>[] owners = { GVars_Story.class, GVars_Game.class, Index_Sprite.class, PhysicSpriteCanoe.class };
+		for (int i = 0; i < owners.length; i++)
+		{
+			Field field = owners[i].getDeclaredField("random");
+			field.setAccessible(true);
+			field.set(null, new Random(seed + i + 1));
+		}
+	}
+
+	/** Shaders compile, programs link with no attributes or uniforms, everything else is a no-op. */
+	static GL20 stubGl()
+	{
+		return (GL20) Proxy.newProxyInstance(Smoke_Run.class.getClassLoader(), new Class<?>[] { GL20.class, GL30.class }, (proxy, method, args) ->
+		{
+			String name = method.getName();
+			if ((name.equals("glGetShaderiv") || name.equals("glGetProgramiv")) && args[2] instanceof IntBuffer buffer)
+			{
+				int query = (Integer) args[1];
+				boolean isCount = query == GL20.GL_ACTIVE_ATTRIBUTES || query == GL20.GL_ACTIVE_UNIFORMS;
+				buffer.put(buffer.position(), isCount ? 0 : 1);
+				return null;
+			}
+			if (name.equals("glGetIntegerv") && args[1] instanceof IntBuffer buffer)
+			{
+				buffer.put(buffer.position(), 8192);
+				return null;
+			}
+			if (name.equals("glGetShaderInfoLog") || name.equals("glGetProgramInfoLog") || name.equals("glGetString"))
+				return "";
+			if (name.equals("glGetAttribLocation") || name.equals("glGetUniformLocation"))
+				return 0;
+			return defaultValue(method.getReturnType());
+		});
+	}
+
+	static Controller fakeController(String name)
+	{
+		return (Controller) Proxy.newProxyInstance(Smoke_Run.class.getClassLoader(), new Class<?>[] { Controller.class }, (proxy, method, args) ->
+		{
+			switch (method.getName())
+			{
+				case "hashCode": return System.identityHashCode(proxy);
+				case "equals": return proxy == args[0];
+				case "toString": case "getName": return name;
+				default: break;
+			}
+			// No button held, no stick moved
+			Class<?> type = method.getReturnType();
+			return type == int.class ? 0 : type == boolean.class ? false : type == float.class ? 0f : null;
+		});
+	}
+
+	static Object defaultValue(Class<?> type)
+	{
+		if (type == int.class) return 1;
+		if (type == boolean.class) return true;
+		if (type == float.class) return 0f;
+		if (type == long.class) return 0L;
+		return null;
+	}
+}

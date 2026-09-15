@@ -1,2 +1,2 @@
 rootProject.name = 'LaChasseGalerie'
-include 'core', 'desktop'
+include 'core', 'desktop', 'smoke'

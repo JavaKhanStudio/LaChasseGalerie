@@ -56,6 +56,20 @@ Press any key or gamepad button to join. Press again after dying to jump back in
 Each hero has four hearts. Hitting a monster with your axe scores a point; a potion heals you, or scores two points
 at full health. Falling into the river or losing every heart costs a death and halves your score.
 
+## Smoke run
+
+```sh
+./gradlew smoke                          # a minute of game time, headless, in a few seconds
+./gradlew smoke -Pseed=42 -Pseconds=120  # another run, or a longer one
+```
+
+There are no unit tests. `smoke` runs the real game loop with no window and no sound, and a stubbed GL.
+A keyboard player and two fake gamepads join, move, jump and swing at random, and are killed on purpose.
+It fails as soon as the game's bookkeeping is off: a monster chasing a removed hero, a Box2D body or joint
+the game has lost track of, a body queued to be destroyed twice. Those are the bugs that otherwise crash the
+JVM with only an `hs_err_pid*.log`, which lands in `smoke/build/smoke/`. The seed replays the same run.
+It cannot see rendering bugs. `./gradlew build` compiles it but does not run it.
+
 ## Building a standalone jar
 
 ```sh
@@ -71,4 +85,5 @@ The jar bundles every dependency and asset, so it runs from any directory.
 core/      game code (shared, backend independent)
   src/jks/parralax/           the night river scene, drawn with io.github.javakhanstudio:parallax-background
 desktop/   LWJGL3 launcher and all game assets (desktop/assets)
+smoke/     the headless smoke run (./gradlew smoke)
 ```
