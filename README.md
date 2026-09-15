@@ -86,5 +86,6 @@ core/      game code (shared, backend independent)
   src/jks/parralax/           the night river scene, drawn with io.github.javakhanstudio:parallax-background
 desktop/   LWJGL3 launcher and all game assets (desktop/assets)
 smoke/     the headless smoke run (./gradlew smoke)
-docs/      design notes: docs/online-multiplayer.md is the analysis and plan for going online
+docs/      design notes: online-multiplayer.md (the plan for going online),
+           browser-target.md (whether this can run in a browser, and what it would cost)
 ```
