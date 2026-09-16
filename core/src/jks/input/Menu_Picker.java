@@ -11,15 +11,15 @@ import jks.vars.GVars_Game;
  * Local play is player 1 and never presses a second time, so the choice has to carry who made it
  * all the way from the listener that heard it to the run it opens.
  *
- * The game already knows the keyboard player as the one with no controller (GVars_Controller keys
- * its map by Controller, null for the PC). A pointer is null too, which is why the two cannot be
+ * The game already knows the keyboard as the device with no controller (GVars_Controller maps
+ * local devices to players, null for the PC). A pointer is null too, which is why the two cannot be
  * told apart by the controller alone : a mouse is not a player, and joins nobody.
  */
 public class Menu_Picker
 {
 	/** A mouse or a finger : it can choose a run, but it cannot paddle one. */
 	public static final Menu_Picker POINTER = new Menu_Picker(null, false) ;
-	/** The keyboard, which the game already knows as the player with no controller. */
+	/** The keyboard, which the game already knows as the device with no controller. */
 	public static final Menu_Picker KEYBOARD = new Menu_Picker(null, true) ;
 
 	public static Menu_Picker pad(Controller controller)
@@ -47,9 +47,6 @@ public class Menu_Picker
 		if(!player)
 			return ;
 
-		if(pad == null)
-			GVars_Game.addPlayer() ;
-		else
-			GVars_Game.addPlayer(pad) ;
+		GVars_Game.addPlayer(GVars_Controller.identify(pad)) ;
 	}
 }

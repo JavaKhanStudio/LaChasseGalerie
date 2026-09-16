@@ -105,18 +105,16 @@ public class Smoke_Run implements Headless_Runner.Session
 			throw new IllegalStateException(forcedDeaths + " deaths forced but only " + deaths() + " counted");
 	}
 
+	/** Joins the way the input edge does: the keyboard (null) first, then each pad, by device. */
 	void joinEveryone()
 	{
-		if (GVars_Controller.getPlayer(null) == null)
+		List<Controller> devices = new ArrayList<>(pads);
+		devices.add(0, null);
+		for (Controller device : devices)
 		{
-			GVars_Game.addPlayer();
-			joins++;
-		}
-		for (Controller pad : pads)
-		{
-			if (GVars_Controller.getPlayer(pad) == null)
+			if (GVars_Controller.getLocalPlayer(device) == null)
 			{
-				GVars_Game.addPlayer(pad);
+				GVars_Game.addPlayer(GVars_Controller.identify(device));
 				joins++;
 			}
 		}
@@ -124,14 +122,9 @@ public class Smoke_Run implements Headless_Runner.Session
 
 	void pressButtons()
 	{
-		// playerList is a HashMap on identity hashes: walk it in a fixed order so a seed replays
-		List<Controller> everyone = new ArrayList<>(pads);
-		everyone.add(0, null);
-		for (Controller controller : everyone)
+		// playerList is sorted by PlayerId, so walking it replays from a seed as it is
+		for (Player_Inputs player : GVars_Controller.playerList.values())
 		{
-			Player_Inputs player = GVars_Controller.getPlayer(controller);
-			if (player == null)
-				continue;
 			int move = random.nextInt(3);
 			player.leftPressed = move == 0;
 			player.rightPressed = move == 1;
@@ -214,7 +207,19 @@ public class Smoke_Run implements Headless_Runner.Session
 		// A dying hero keeps its player until cleanUp kills it, at the start of the next update
 		if (GVars_Controller.playerList.size() != GVars_Game.heroes.size())
 			throw new IllegalStateException(GVars_Controller.playerList.size() + " players for " + GVars_Game.heroes.size() + " heroes");
+		for (PhysicSpriteHeroes hero : GVars_Game.heroes)
+			if (!GVars_Controller.playerList.containsKey(hero.player))
+				throw new IllegalStateException(hero.player + " has a hero but no inputs");
+			else if (GVars_Game.playerRegister.get(hero.player) != hero.score)
+				throw new IllegalStateException(hero.player + " writes into someone else's score label");
+
+		// One label per player ever joined, and three devices never make a fourth player
+		if (GVars_Game.playerRegister.size() > devices())
+			throw new IllegalStateException(GVars_Game.playerRegister.size() + " score labels for " + devices() + " devices");
 	}
+
+	int devices()
+	{return pads.size() + 1;}
 
 	int deaths()
 	{

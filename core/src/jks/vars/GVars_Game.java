@@ -1,15 +1,15 @@
 package jks.vars;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.TreeMap;
 
-import com.badlogic.gdx.controllers.Controller;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.Joint;
 
 import jks.camera.GVars_Camera;
 import jks.input.GVars_Controller;
+import jks.input.PlayerId;
 import jks.input.Player_Inputs;
 import jks.personnage.PhysicSpriteEnnemy;
 import jks.personnage.PhysicSpriteHeroes;
@@ -34,8 +34,8 @@ public class GVars_Game
 	public static LinkedHashSet<Body> toBeDestroy_Body ; 
 	public static LinkedHashSet<Joint> toBeDestroy_Jointure ;
 	
-	public static HashMap<Controller,ScoreLabel> playerRegister ; 
-	public static int currentPlayerIndex = 1 ; 
+	/** Sorted by PlayerId, like GVars_Controller.playerList. */
+	public static TreeMap<PlayerId,ScoreLabel> playerRegister ; 
 	
 	public static void init()
 	{
@@ -45,38 +45,29 @@ public class GVars_Game
 		toBeDestroy_Jointure = new LinkedHashSet<Joint>() ;
 		toDie = new LinkedHashSet<PhysicSpriteHeroes>() ;
 		hpStack = new ArrayList<PhysicSpriteHp>() ; 
-		playerRegister = new  HashMap<Controller,ScoreLabel>()  ;
+		playerRegister = new TreeMap<PlayerId,ScoreLabel>() ;
 	}
 
 
-	public static void addPlayer(Controller controller)
+	/**
+	 * Gives this player a hero. Local devices get their PlayerId from GVars_Controller.identify ;
+	 * a remote player will come with one. The label stays theirs across deaths.
+	 */
+	public static void addPlayer(PlayerId player)
 	{
-		GVars_Controller.playerList.put(controller, buildPlayer(controller)) ; 
-	}
-	
-	public static void addPlayer()
-	{
-		GVars_Controller.pcPlayer = buildPlayer(null) ;
-		GVars_Controller.playerList.put(null,GVars_Controller.pcPlayer) ; 
-	}
-	
-	private static Player_Inputs buildPlayer(Controller controller)
-	{
-		PhysicSpriteHeroes physicSprite = new PhysicSpriteHeroes(Index_Sprite.getRandomHeroColor(),controller, getScoreLabel(controller)) ; 
+		PhysicSpriteHeroes physicSprite = new PhysicSpriteHeroes(Index_Sprite.getRandomHeroColor(), player, getScoreLabel(player)) ; 
 		heroes.add(physicSprite) ; 
-
-		return new Player_Inputs(physicSprite) ; 
+		GVars_Controller.playerList.put(player, new Player_Inputs(physicSprite)) ; 
 	}
 	
-	private static ScoreLabel getScoreLabel(Controller controller) 
+	private static ScoreLabel getScoreLabel(PlayerId player) 
 	{
-		ScoreLabel label = playerRegister.get(controller) ; 
+		ScoreLabel label = playerRegister.get(player) ; 
 		if(label == null)
 		{
-			label = new ScoreLabel("   Player " + currentPlayerIndex + "   ") ;
-			currentPlayerIndex ++ ; 
+			label = new ScoreLabel("   Player " + player.number() + "   ") ;
 			GVars_Interface.bottomScore.add(label);
-			playerRegister.put(controller, label) ; 
+			playerRegister.put(player, label) ; 
 		}
 		return label;
 	}

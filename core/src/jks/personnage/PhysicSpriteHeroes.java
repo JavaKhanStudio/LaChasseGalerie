@@ -3,7 +3,6 @@ package jks.personnage;
 import static jks.physic.FVars_Physic.PPM;
 import static jks.physic.Gvars_Physic.world;
 
-import com.badlogic.gdx.controllers.Controller;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
@@ -18,6 +17,7 @@ import com.badlogic.gdx.physics.box2d.PolygonShape;
 
 import jks.camera.GVars_Camera;
 import jks.input.GVars_Controller;
+import jks.input.PlayerId;
 import jks.personnage.index.Enum_AnimState;
 import jks.personnage.index.Index_Sprite;
 import jks.personnage.index.SIW_Data;
@@ -53,7 +53,8 @@ public class PhysicSpriteHeroes extends SpriteModel
 	public int hp_left = hp_max ; 
 //	public int hp_left = 1 ; 
 	
-	public Controller controller ; 
+	/** Who this hero is. The device driving it, if any, is GVars_Controller's business. */
+	public final PlayerId player ; 
 	public boolean invulnerable ; 
 	public float invulnerable_Timmer ;
 	public final float invulnerable_Base = 3.0f ;
@@ -67,12 +68,12 @@ public class PhysicSpriteHeroes extends SpriteModel
 	
 	public ScoreLabel score ; 
 	
-	public PhysicSpriteHeroes(SIW_Data index, Controller controller, ScoreLabel scoreRegister) 
+	public PhysicSpriteHeroes(SIW_Data index, PlayerId player, ScoreLabel scoreRegister) 
 	{
 		super(index);
 		score = scoreRegister ;
 		score.setColor(index.color);
-		this.controller = controller ; 
+		this.player = player ; 
 		this.position.add(GVars_Camera.viewWidth/2 * GVars_Camera.worldMutiplier,GVars_Camera.viewHeight/2 * GVars_Camera.worldMutiplier) ; 
 		currentFrame = currentState.getKeyFrame(0,false) ;
 		
@@ -324,7 +325,7 @@ public class PhysicSpriteHeroes extends SpriteModel
 		GVars_Game.toBeDestroy_Body.add(body) ;
 		GVars_Game.toBeDestroy_Body.add(axe.bodyAxe) ;
 		GVars_Game.toBeDestroy_Jointure.add(joint) ;
-		GVars_Controller.playerList.remove(controller) ;
+		GVars_Controller.playerList.remove(player) ;
 	}
 	
 	float lastHp_ColorTimmmer ; 

@@ -2,7 +2,7 @@ package jks.input;
 
 import com.badlogic.gdx.Input.Keys;
 
-import static jks.input.GVars_Controller.getPlayer;
+import static jks.input.GVars_Controller.getLocalPlayer;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputAdapter;
@@ -23,10 +23,10 @@ public class IKM_Game_Keyboard extends InputAdapter
 				return true ;
 			}
 			
-			Player_Inputs inputing = getPlayer(null) ; 
+			Player_Inputs inputing = getLocalPlayer(null) ; 
 			if(inputing == null)
 			{
-				GVars_Game.addPlayer();
+				GVars_Game.addPlayer(GVars_Controller.identify(null));
 				return false; 
 			}
 			
@@ -65,7 +65,7 @@ public class IKM_Game_Keyboard extends InputAdapter
 			if(GVars_Game.inCinematic)
 				return true; 
 			
-			Player_Inputs inputing = getPlayer(null) ;  
+			Player_Inputs inputing = getLocalPlayer(null) ;  
 			if(inputing == null)
 				return false ; 
 			

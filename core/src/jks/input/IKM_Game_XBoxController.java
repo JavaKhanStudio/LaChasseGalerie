@@ -1,6 +1,6 @@
 package jks.input;
 
-import static jks.input.GVars_Controller.getPlayer;
+import static jks.input.GVars_Controller.getLocalPlayer;
 
 import com.badlogic.gdx.controllers.Controller;
 import com.badlogic.gdx.controllers.ControllerAdapter;
@@ -29,10 +29,10 @@ public class IKM_Game_XBoxController extends ControllerAdapter
 	@Override
 	public boolean buttonDown(Controller controller, int buttonCode) 
 	{
-		Player_Inputs inputing = getPlayer(controller) ; 
+		Player_Inputs inputing = getLocalPlayer(controller) ; 
 		if(inputing == null)
 		{
-			GVars_Game.addPlayer(controller);
+			GVars_Game.addPlayer(GVars_Controller.identify(controller));
 			return false; 
 		}
 
@@ -53,7 +53,7 @@ public class IKM_Game_XBoxController extends ControllerAdapter
 	@Override
 	public boolean axisMoved(Controller controller, int axisCode, float value) 
 	{
-		Player_Inputs inputing = getPlayer(controller) ; 
+		Player_Inputs inputing = getLocalPlayer(controller) ; 
 		
 		if(inputing == null)
 		{return false;}
