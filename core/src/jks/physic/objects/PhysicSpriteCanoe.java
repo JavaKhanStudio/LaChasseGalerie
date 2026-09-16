@@ -3,8 +3,6 @@ package jks.physic.objects;
 import static jks.physic.FVars_Physic.PPM;
 import static jks.physic.Gvars_Physic.world;
 
-import java.util.Random;
-
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
@@ -61,7 +59,6 @@ public class PhysicSpriteCanoe
 //        body.setTransform(body.getWorldCenter(), body.getAngle() + (float)Math.toRadians(30));
     }
 	
-	static Random random = new Random(); 
 	static int shakingStrenght = 1 ;
 	
 	public void act(float delta)

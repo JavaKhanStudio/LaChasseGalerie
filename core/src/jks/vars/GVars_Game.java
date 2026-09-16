@@ -3,7 +3,6 @@ package jks.vars;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
-import java.util.Random;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.controllers.Controller;
@@ -83,14 +82,12 @@ public class GVars_Game
 		return label;
 	}
 
-	static Random random = new Random() ; 
-	
 	public static void addEnnemy_Top()
 	{
 		PhysicSpriteEnnemy physic = 
 				new PhysicSpriteEnnemy(
 						Index_Sprite.getRandomEnnemy(),
-						Gdx.graphics.getWidth() * GVars_Camera.worldMutiplier * (random.nextInt(100) + 1)/100,
+						Gdx.graphics.getWidth() * GVars_Camera.worldMutiplier * (GVars_Random.random.nextInt(100) + 1)/100,
 						Gdx.graphics.getHeight() * GVars_Camera.worldMutiplier
 						) ;
 		ennemies.add(physic) ; 
@@ -101,8 +98,8 @@ public class GVars_Game
 		PhysicSpriteEnnemy physic = 
 				new PhysicSpriteEnnemy(
 						Index_Sprite.getRandomEnnemy(),
-						random.nextBoolean() ? Gdx.graphics.getWidth() * 2 : 0,
-						Gdx.graphics.getHeight() * GVars_Camera.worldMutiplier / (random.nextInt(2) + 2)
+						GVars_Random.random.nextBoolean() ? Gdx.graphics.getWidth() * 2 : 0,
+						Gdx.graphics.getHeight() * GVars_Camera.worldMutiplier / (GVars_Random.random.nextInt(2) + 2)
 						) ;
 		ennemies.add(physic) ; 
 	}
@@ -111,7 +108,7 @@ public class GVars_Game
 	{
 		PhysicSpriteHp physic = 
 				new PhysicSpriteHp(	
-						random.nextInt(Gdx.graphics.getWidth()) * GVars_Camera.worldMutiplier ,
+						GVars_Random.random.nextInt(Gdx.graphics.getWidth()) * GVars_Camera.worldMutiplier ,
 						Gdx.graphics.getHeight() * GVars_Camera.worldMutiplier
 						) ;
 		hpStack.add(physic) ; 
@@ -121,7 +118,7 @@ public class GVars_Game
 	{
 		if(heroes.size() == 0)
 			return null ; 
-		return heroes.get(random.nextInt(heroes.size())) ; 
+		return heroes.get(GVars_Random.random.nextInt(heroes.size())) ; 
 	}
 	
 }

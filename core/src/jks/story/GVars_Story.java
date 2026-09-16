@@ -2,20 +2,16 @@ package jks.story;
 
 import static jks.vars.GVars_Game.canoe;
 
-import java.util.Random;
-
 import jks.camera.GVars_Camera;
 import jks.parralax.GVars_Parralax;
 import jks.sounds.Enum_Music;
 import jks.sounds.GVars_AudioManager;
 import jks.vars.GVars_Game;
+import jks.vars.GVars_Random;
 import jks.vue.models.Vue_Game;
 
 public class GVars_Story 
 {
-
-	static Random random = new Random();
-	
 	
 	public static void act(float delta)
 	{
@@ -96,7 +92,7 @@ public class GVars_Story
 		if(currentTimmer_HpDrop > timming_HpDrop)
 		{
 			currentTimmer_HpDrop = 0 ; 
-			numberHp = random.nextInt(getBaseNumber() + 1) ; 
+			numberHp = GVars_Random.random.nextInt(getBaseNumber() + 1) ; 
 			while(numberHp > 0)
 			{
 				GVars_Game.dropHp() ; 
@@ -129,7 +125,7 @@ public class GVars_Story
 	private static void topEnnemy()
 	{
 		numberEnnemies = getBaseNumber() ;
-		int sendingX = random.nextInt(numberEnnemies + 1) + numberEnnemies ; 
+		int sendingX = GVars_Random.random.nextInt(numberEnnemies + 1) + numberEnnemies ; 
 		while(sendingX > 0)
 		{
 			GVars_Game.addEnnemy_Top();
@@ -142,7 +138,7 @@ public class GVars_Story
 	private static void sideEnnemy()
 	{
 		numberEnnemies = getBaseNumber() ;
-		int sendingX = random.nextInt(numberEnnemies + 1) ; 
+		int sendingX = GVars_Random.random.nextInt(numberEnnemies + 1) ; 
 		while(sendingX > 0)
 		{
 			GVars_Game.addEnnemy_Side();

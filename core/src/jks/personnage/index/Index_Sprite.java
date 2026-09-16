@@ -1,13 +1,13 @@
 package jks.personnage.index;
 
 import java.util.ArrayList;
-import java.util.Random;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 
 import jks.debug.GVars_Debug;
+import jks.vars.GVars_Random;
 
 public class Index_Sprite 
 {
@@ -19,7 +19,6 @@ public class Index_Sprite
 	public static Sprite hpBottle ; 
 	private static float scale = 0.5f; 
 	private static float scaleMonster = 0.3f; 
-	private static Random random = new Random() ; 
 	
 	private static float bottleScaling = 3.6f ;
 	
@@ -62,13 +61,13 @@ public class Index_Sprite
 	
 	public static SIW_Data getRandomEnnemy()
 	{
-		return monsterModel.get(random.nextInt(monsterModel.size())) ;
+		return monsterModel.get(GVars_Random.random.nextInt(monsterModel.size())) ;
 	}
 
 	
 	public static SIW_Data getRandomHeroColor()
 	{
-		int start = random.nextInt(persoModel.size()) ; 
+		int start = GVars_Random.random.nextInt(persoModel.size()) ; 
 		int chosen = start ; 
 		for(int step = 1 ; step < persoModel.size() ; step++)
 		{

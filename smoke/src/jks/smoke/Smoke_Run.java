@@ -1,6 +1,5 @@
 package jks.smoke;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
@@ -27,13 +26,11 @@ import jks.input.Player_Inputs;
 import jks.personnage.PhysicSpriteEnnemy;
 import jks.personnage.PhysicSpriteHeroes;
 import jks.personnage.ScoreLabel;
-import jks.personnage.index.Index_Sprite;
 import jks.physic.Gvars_Physic;
-import jks.physic.objects.PhysicSpriteCanoe;
 import jks.sounds.GVars_Audio;
-import jks.story.GVars_Story;
 import jks.vars.GVars_Game;
 import jks.vars.GVars_Heart;
+import jks.vars.GVars_Random;
 
 /**
  * Plays the real game loop headless: Main_Game.create, then Vue_Game.update and render at 1/60
@@ -105,7 +102,7 @@ public class Smoke_Run extends ApplicationAdapter
 			@Override public int getBackBufferWidth() { return WIDTH; }
 			@Override public int getBackBufferHeight() { return HEIGHT; }
 		};
-		seedRandoms();
+		GVars_Random.seed(seed);
 
 		long start = System.currentTimeMillis();
 		new Main_Game().create();
@@ -273,18 +270,6 @@ public class Smoke_Run extends ApplicationAdapter
 				+ " joins=" + joins
 				+ " deaths=" + deaths() + " (" + forcedDeaths + " forced)"
 				+ " monstersKilled=" + monstersKilled);
-	}
-
-	/** Every source of randomness in the game, so a failing seed replays the same run. */
-	void seedRandoms() throws Exception
-	{
-		Class<?>[] owners = { GVars_Story.class, GVars_Game.class, Index_Sprite.class, PhysicSpriteCanoe.class };
-		for (int i = 0; i < owners.length; i++)
-		{
-			Field field = owners[i].getDeclaredField("random");
-			field.setAccessible(true);
-			field.set(null, new Random(seed + i + 1));
-		}
 	}
 
 	/** Shaders compile, programs link with no attributes or uniforms, everything else is a no-op. */

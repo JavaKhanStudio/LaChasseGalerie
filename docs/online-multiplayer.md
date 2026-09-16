@@ -88,7 +88,7 @@ same world — the host would spawn monsters off the client's map and the canoe 
 else. The world needs a fixed size in world units, with the window as a viewport onto it.
 
 **1.6 — Randomness is four static `Random`s.** In `GVars_Story`, `GVars_Game`, `Index_Sprite`,
-`PhysicSpriteCanoe` — already enumerated by `Smoke_Run.seedRandoms()`. Under host authority only the
+`PhysicSpriteCanoe` — already enumerated by `Smoke_Run.seedRandoms()`. (Fixed by 0.5: one `GVars_Random`.) Under host authority only the
 host rolls, so this is not fatal; but one seeded stream, sent to clients at start, is cheap and makes
 desync visible in tests.
 
@@ -242,7 +242,7 @@ invariants that a refactor of this shape breaks.
 | 0.2 | A world of fixed size, window as viewport | `GVars_Camera` (+ a `Viewport`), the 9 sites listed in §1.5 | smoke passes; run at 1280×720 and fullscreen and compare |
 | 0.3 | `PlayerId` instead of `Controller` as identity — a peer id online (d5 → A), the local device offline | `GVars_Controller`, `GVars_Game`, `PhysicSpriteHeroes`, both `IKM_*`, `Smoke_Run` | smoke passes with keyboard + 2 pads |
 | 0.4 | Session teardown: dispose the world and clear every `GVars_*`, so a second run starts clean | all `GVars_*` | a smoke variant that plays two runs in one JVM |
-| 0.5 | One seeded RNG stream, seed settable | the 4 `Random`s of §1.6 | `smoke -Pseed=42` twice gives identical reports |
+| 0.5 ✅ | **Done, r35.** One seeded RNG stream, seed settable: `GVars_Random.random`, `GVars_Random.seed(long)`; the smoke seeds it directly instead of by reflection | the 4 `Random`s of §1.6 | `smoke -Pseed=42` twice gives identical reports; the seed-1 baseline moved to deaths=20, monstersKilled=76 because four streams became one |
 | 0.6 | Extract the headless loop out of `Smoke_Run` into a runner the host can use with no window | `smoke/`, new `core` entry point | smoke still runs through it |
 
 This is the bulk of the effort and the only part with real risk to game feel (0.1 and 0.2 change how
