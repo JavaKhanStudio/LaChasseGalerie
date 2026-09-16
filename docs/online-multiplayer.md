@@ -37,6 +37,14 @@ Everything below is measured against the code as of `58d8c79`.
   one. It is also the browser question now: the relay we would pay for is the same box that bridges
   a tab to a host that cannot speak WebRTC itself, so answering d6 with a relay makes d7 cheaper and
   answering it with "forward a port" leaves browser players with nothing.
+- **d10 → A (r51): phase 0 finishes before any more netcode.** The order in §6 is not a suggestion
+  and not a default to be optimised away. Phase 1.1 — the transport seam — is in (`99f9ac6`), and
+  the next thing built is **0.2, 0.3, 0.4, 0.5 and 0.6**, not 1.2. The cost of A was named when it
+  was asked: it is the longest wait before anything is visible online, and it puts the two changes
+  with real risk to game feel (§8 risk 1) first. The gain is that the netcode is written once,
+  against a simulation that has a fixed world, a `PlayerId`, a teardown and a seed — instead of
+  against a game that still measures its world in window pixels, and then again afterwards.
+  **A phase 1 ticket that starts before phase 0 is done is out of order, whatever else is free.**
 
 ---
 
@@ -221,9 +229,10 @@ between peers for the punch, gate on version, reap dead lobbies. Under ~500 line
 
 ## 6. The plan
 
-Four phases. Everything in phase 0 is worth doing even if online is cancelled, and each phase is
-shippable and testable on its own. `./gradlew smoke` is the safety net throughout: it already asserts
-the invariants that a refactor of this shape breaks.
+Four phases, **in this order — d10 → A settled that the order is binding, not indicative.**
+Everything in phase 0 is worth doing even if online is cancelled, and each phase is shippable and
+testable on its own. `./gradlew smoke` is the safety net throughout: it already asserts the
+invariants that a refactor of this shape breaks.
 
 ### Phase 0 — make the game a simulation (no networking in this phase)
 
@@ -298,6 +307,10 @@ disagree:
 
 Phase 0 items are **not** `#network` on purpose: each is a bug in the existing game, owned by the
 seam that owns that code, and each is worth doing even if online is cancelled.
+
+**Since d10 → A, the board carries that order as priority**: r32, r33 and r34 are p1, r35 and r36
+p2, and every phase 1 ticket is p5 with a note saying which tickets have to land before it is
+picked up. The five phase 0 tickets are the whole of what is claimable on this plan right now.
 
 **Phase 1.1 is in the tree** (`core/src/jks/net`, `./gradlew nettest`): `Net_Transport` with
 `Transport_Udp` behind it and an in-memory `Net_Loopback` with seeded loss, reordering and
