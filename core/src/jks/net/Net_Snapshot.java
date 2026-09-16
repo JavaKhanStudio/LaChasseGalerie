@@ -14,7 +14,7 @@ import java.util.List;
  * has left the world is the host's to remove or the view's to leave out, not the codec's to carry (n7).
  *
  * Sizes on the wire, measured against an 8-player headless run (r37, `./gradlew netcensus`) :
- * a 24 B header, 6 B per player, 21 B per hero with its axe, 7 B per monster and 6 B per potion.
+ * a 27 B header (24 before d14 added the run and the score screen), 6 B per player, 21 B per hero with its axe, 7 B per monster and 6 B per potion.
  */
 public final class Net_Snapshot extends Net_Message
 {
@@ -26,6 +26,17 @@ public final class Net_Snapshot extends Net_Message
 	public float skyScroll;
 	/** The canoe is static except for its tilt at take-off. */
 	public float canoeAngle;
+	/**
+	 * Which run of this host it is : a host that starts a new run after the score screen counts up
+	 * (d14), and a client that sees it change starts its picture over. 16 bits, wraps.
+	 */
+	public int run;
+	/**
+	 * The song is over and the host shows the score screen, waiting for its player to start a new run
+	 * or close the server (d14). Nothing moves any more : a snapshot that says so carries the final
+	 * score table and no entity.
+	 */
+	public boolean over;
 
 	/** Every player who has joined this run, alive or waiting to rejoin : the score table. */
 	public final List<Score> scores = new ArrayList<Score>();
@@ -186,6 +197,7 @@ public final class Net_Snapshot extends Net_Message
 			return false;
 		Net_Snapshot that = (Net_Snapshot) other;
 		return that.tick == tick && that.storyTime == storyTime && that.skyScroll == skyScroll && that.canoeAngle == canoeAngle
+				&& that.run == run && that.over == over
 				&& that.scores.equals(scores) && that.heroes.equals(heroes) && that.monsters.equals(monsters) && that.potions.equals(potions);
 	}
 
@@ -198,7 +210,7 @@ public final class Net_Snapshot extends Net_Message
 	@Override
 	public String toString()
 	{
-		return "SNAPSHOT tick " + tick + " story " + storyTime + " sky " + skyScroll + " canoe " + canoeAngle
+		return "SNAPSHOT tick " + tick + " story " + storyTime + " sky " + skyScroll + " canoe " + canoeAngle + " run " + run + (over ? " over" : "")
 				+ " " + scores + " " + heroes + " " + monsters + " " + potions;
 	}
 }

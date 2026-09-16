@@ -23,7 +23,7 @@ import java.nio.ByteOrder;
  *   LEAVE      player u16 | reason u8
  *   INPUT      tick u32 | count u8 (1-4) | count x buttons u8, newest first
  *   SNAPSHOT   tick u32 | storyTime f32 | skyScroll f32 | canoeAngle s16
- *              | scores u8 | heroes u8 | monsters u8 | potions u8
+ *              | scores u8 | heroes u8 | monsters u8 | potions u8 | run u16 | over u8 (0 or 1)
  *              | scores   x (player u16 | score u16 | deaths u16)                               6 B
  *              | heroes   x (id u16 | player u16 | look u8 | x y vx vy s16 | hp u8
  *                            | flags u8 : anim 4 bits, reverse, invulnerable
@@ -41,10 +41,10 @@ import java.nio.ByteOrder;
 public final class Net_Codec
 {
 	/** Bump on ANY change to a layout above. Peers of different versions do not play together. */
-	public static final int VERSION = 2;
+	public static final int VERSION = 3;
 
 	static final int HEADER = 2, CHECKSUM = 4;
-	static final int SNAPSHOT_FIXED = 4 + 4 + 4 + 2 + 4;
+	static final int SNAPSHOT_FIXED = 4 + 4 + 4 + 2 + 4 + 2 + 1;
 	public static final int SCORE_BYTES = 6, HERO_BYTES = 21, MONSTER_BYTES = 7, POTION_BYTES = 6;
 
 	static final float POSITION_SCALE = 256f;
@@ -255,6 +255,8 @@ public final class Net_Codec
 		out.put((byte) snapshot.heroes.size());
 		out.put((byte) snapshot.monsters.size());
 		out.put((byte) snapshot.potions.size());
+		out.putShort(u16(snapshot.run, "run"));
+		out.put((byte) (snapshot.over ? 1 : 0));
 
 		for (Net_Snapshot.Score score : snapshot.scores)
 		{
@@ -305,6 +307,11 @@ public final class Net_Codec
 		snapshot.skyScroll = getFinite(in, version, "skyScroll");
 		snapshot.canoeAngle = in.getShort() / ANGLE_SCALE;
 		int scores = in.get() & 0xFF, heroes = in.get() & 0xFF, monsters = in.get() & 0xFF, potions = in.get() & 0xFF;
+		snapshot.run = in.getShort() & 0xFFFF;
+		int over = in.get() & 0xFF;
+		if (over > 1)
+			throw bad(version, "over " + over);
+		snapshot.over = over == 1;
 		// The counts are checked against the bytes before a single entity is allocated
 		expect(in, scores * SCORE_BYTES + heroes * HERO_BYTES + monsters * MONSTER_BYTES + potions * POTION_BYTES,
 				Net_Message.Type.SNAPSHOT, version);

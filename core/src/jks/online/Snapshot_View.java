@@ -13,6 +13,7 @@ import jks.personnage.index.Index_Sprite;
 import jks.physic.objects.PhysicSpriteHp;
 import jks.story.GVars_Story;
 import jks.vars.GVars_Game;
+import jks.vars.GVars_Heart;
 
 /**
  * The host's side of phase 1.3 : the answer to "what does a second machine need to be told?"
@@ -43,10 +44,15 @@ public final class Snapshot_View
 		snapshot.storyTime = GVars_Story.storyTime();
 		snapshot.skyScroll = GVars_Story.skyScroll();
 		snapshot.canoeAngle = GVars_Game.canoe.body.getAngle();
+		snapshot.run = GVars_Heart.runsStarted & 0xFFFF;
+		// The song is over (d14) : the final score table, and nothing left to draw on the river
+		snapshot.over = GVars_Story.runOver();
 
 		// Sorted by PlayerId : every client gets the table in one order
 		for (Entry<PlayerId, ScoreLabel> entry : GVars_Game.playerRegister.entrySet())
 			snapshot.scores.add(new Net_Snapshot.Score(entry.getKey().number(), entry.getValue().scoreNumber, entry.getValue().deathNumber));
+		if (snapshot.over)
+			return snapshot;
 
 		for (PhysicSpriteHeroes model : GVars_Game.heroes)
 		{

@@ -7,7 +7,9 @@ import jks.net.Net_Input;
 import jks.net.Net_Snapshot;
 import jks.personnage.PhysicSpriteHeroes;
 import jks.personnage.ScoreLabel;
+import jks.story.GVars_Story;
 import jks.vars.GVars_Game;
+import jks.vars.GVars_Heart;
 
 /**
  * The real game behind a {@link HostSession} : GVars_Game's run, as it is. A remote player sits in
@@ -20,6 +22,12 @@ import jks.vars.GVars_Game;
  */
 public class Game_Simulation implements Host_Simulation
 {
+	/** The game is hosted from now on : its runs end on the score screen, not in the menu (d14). */
+	public Game_Simulation()
+	{
+		GVars_Heart.hosting = true;
+	}
+
 	@Override
 	public PlayerId newPlayer()
 	{
@@ -35,7 +43,8 @@ public class Game_Simulation implements Host_Simulation
 	@Override
 	public void spawn(PlayerId player)
 	{
-		if (!hasHero(player))
+		// The song is over : the score screen is up and nobody joins a run that has ended (d14)
+		if (!hasHero(player) && !GVars_Story.runOver())
 			GVars_Game.addPlayer(player);
 	}
 

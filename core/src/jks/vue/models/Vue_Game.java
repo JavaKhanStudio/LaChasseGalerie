@@ -7,6 +7,10 @@ import static jks.physic.FVars_Physic.PPM;
 import static jks.physic.Gvars_Physic.world;
 import static jks.vars.GVars_Game.canoe;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.controllers.Controllers;
@@ -25,10 +29,12 @@ import jks.input.GVars_Controller;
 import jks.input.IKM_Game_Keyboard;
 import jks.input.IKM_Game_XBoxController;
 import jks.input.Menu_Picker;
+import jks.input.PlayerId;
 import jks.parralax.Enum_ColdNight;
 import jks.parralax.GVars_Parralax;
 import jks.personnage.PhysicSpriteEnnemy;
 import jks.personnage.PhysicSpriteHeroes;
+import jks.personnage.ScoreLabel;
 import jks.physic.Gvars_Physic;
 import jks.physic.objects.PhysicSpriteCanoe;
 import jks.physic.objects.PhysicSpriteHp;
@@ -38,6 +44,8 @@ import jks.story.GVars_Story;
 import jks.vars.GVars_Game;
 import jks.vars.GVars_Heart;
 import jks.vinterface.GVars_Interface;
+import jks.vinterface.Menu_Focus;
+import jks.vinterface.Score_Screen;
 import jks.vinterface.ToRender;
 import jks.vue.AVue_Model;
 
@@ -50,6 +58,9 @@ public class Vue_Game extends AVue_Model
     /** The hand that started this run, from the menu. Never null : POINTER when nobody's did. */
     private final Menu_Picker starter ;
     
+    /** A hosted run whose song is over : the final scores, and what this window's player picks next (d14). Null until then. */
+    private Score_Screen scoreScreen ;
+    
     /** A run nobody in particular asked for : --menu off, or a mouse click. Everyone joins by hand. */
     public Vue_Game()
     {this(Menu_Picker.POINTER) ;}
@@ -61,6 +72,7 @@ public class Vue_Game extends AVue_Model
     public void init() 
     {
     	GVars_Heart.init();
+    	GVars_Heart.runsStarted++ ;
     	GVars_Game.init();
     	GVars_Story.init();
     	GVars_Parralax.setPages(Enum_ColdNight.COLD_NIGHT, Enum_ColdNight.COLD_WATER) ;
@@ -99,33 +111,47 @@ public class Vue_Game extends AVue_Model
     	
     	GVars_Parralax.background.render();
     	
+    	// Over the score screen the run is over and the canoe empty, as its clients are sent it (Snapshot_View)
+    	boolean playing = scoreScreen == null ; 
+    	
     	staticBatch.begin();
     	star1.draw(staticBatch);
     	canoe.drawBack(staticBatch);
-    	for(PhysicSpriteHeroes model : GVars_Game.heroes)
-    		model.draw(staticBatch);
-    	for(PhysicSpriteEnnemy model : GVars_Game.ennemies)
-    		model.draw(staticBatch);
-    	for(PhysicSpriteHp model : GVars_Game.hpStack)
-    		model.draw(staticBatch);
+    	if(playing)
+    	{
+	    	for(PhysicSpriteHeroes model : GVars_Game.heroes)
+	    		model.draw(staticBatch);
+	    	for(PhysicSpriteEnnemy model : GVars_Game.ennemies)
+	    		model.draw(staticBatch);
+	    	for(PhysicSpriteHp model : GVars_Game.hpStack)
+	    		model.draw(staticBatch);
+    	}
     	canoe.drawFront(staticBatch);
     	staticBatch.end();
     	
     	GVars_Parralax.foreground.render();
     	
-    	staticBatch.begin();
-    	for(PhysicSpriteHeroes model : GVars_Game.heroes)
-    		model.drawHp(staticBatch);
-    	staticBatch.end();
+    	if(playing)
+    	{
+	    	staticBatch.begin();
+	    	for(PhysicSpriteHeroes model : GVars_Game.heroes)
+	    		model.drawHp(staticBatch);
+	    	staticBatch.end();
+    	}
     	
     	staticBatch.setColor(Color.WHITE);
     	
     	if(GVars_Debug.collisionDebug)
     		debugRenderer.render(world, camera.combined.cpy().scale(PPM, PPM, 1));
     	
-    	// The HUD is laid out on the window, not in the world
-    	GVars_Interface.mainInterface.getViewport().apply();
-    	GVars_Interface.mainInterface.draw();
+    	// The HUD is laid out on the window, not in the world. The score screen takes its place
+    	if(playing)
+    	{
+	    	GVars_Interface.mainInterface.getViewport().apply();
+	    	GVars_Interface.mainInterface.draw();
+    	}
+    	else
+    		scoreScreen.draw();
     	
     	for (ToRender rende : toRender) 
 			rende.render();
@@ -135,10 +161,13 @@ public class Vue_Game extends AVue_Model
 	public void update(float delta) 
 	{
 		// The song is over and the canoe is back on the river (d12). Before anything of this run is
-		// touched, since changeVue disposes it. A host keeps its run : its peers have nowhere to go yet
-		if(GVars_Story.runOver() && GVars_Heart.hostPort < 0)
+		// touched, since changeVue disposes it. A host keeps its run on the score screen, for its peers (d14)
+		if(GVars_Story.runOver())
 		{
-			GVars_Heart.changeVue(new Vue_Menu());
+			if(GVars_Heart.hosting)
+				waitForTheNextRun(delta) ; 
+			else
+				GVars_Heart.changeVue(new Vue_Menu());
 			return ; 
 		}
 		
@@ -162,6 +191,55 @@ public class Vue_Game extends AVue_Model
 	}
 	
 	/**
+	 * The song of a hosted run is over (d14). The world stops : nobody moves, spawns or scores any more,
+	 * and a JOIN gets no hero (Game_Simulation.spawn). The river flows on under the final scores until
+	 * this window's player picks :
+	 * <ul>
+	 * <li>New run : a fresh Vue_Game, under the same HostSession. The seats stay, with their PlayerIds
+	 *     (GVars_Controller numbers on), and every client sees the run number change and starts over. The
+	 *     hand that picked is in it, as from the start menu (d9) ; everyone else presses to join.</li>
+	 * <li>Close the server : GVars_Heart.hosting goes false. Main_Game then closes the session while this
+	 *     world still exists - every client gets HOST_ENDED - and the next update goes to the menu, as a
+	 *     local run does.</li>
+	 * </ul>
+	 * Called inside HostSession.tick, which reads the world after it : a pick never tears the run down
+	 * without putting another in its place.
+	 */
+	void waitForTheNextRun(float delta)
+	{
+		if(scoreScreen == null)
+			openScoreScreen() ; 
+		
+		// The pick made since the last update. Once it ran, this view may be the old one
+		if(scoreScreen.focus.runPicked())
+			return ; 
+		
+		GVars_Parralax.scroll(delta, screenMovementSpeed, 0);
+		GVars_Parralax.act(delta);
+		scoreScreen.act(delta);
+	}
+	
+	void openScoreScreen()
+	{
+		List<Score_Screen.Row> rows = new ArrayList<Score_Screen.Row>() ; 
+		for(Map.Entry<PlayerId, ScoreLabel> entry : GVars_Game.playerRegister.entrySet())
+			rows.add(new Score_Screen.Row(entry.getKey().number(), entry.getValue().scoreNumber, entry.getValue().deathNumber, entry.getValue().score.getColor())) ; 
+		
+		scoreScreen = new Score_Screen(rows, null) ; 
+		scoreScreen.choice("New run", picker -> GVars_Heart.changeVue(new Vue_Game(picker))) ; 
+		scoreScreen.choice("Close the server", picker -> 
+		{
+			scoreScreen.say("Closing the server...") ; 
+			GVars_Heart.hosting = false ; 
+		}) ; 
+		scoreScreen.listen() ; 
+	}
+	
+	/** The score screen's choices, while it is up : what a headless gate picks with. Null otherwise. */
+	public Menu_Focus scoreChoices()
+	{return scoreScreen == null ? null : scoreScreen.focus ;}
+	
+	/**
 	 * The run is over : a second one can start in this JVM (phase 0.4). GVars_Heart.changeVue calls
 	 * this between two updates, never from inside world.step, so disposing the world is safe here.
 	 * The world goes down whole rather than body by body, and the lists that pointed into it go
@@ -176,6 +254,8 @@ public class Vue_Game extends AVue_Model
 		GVars_Game.dispose();
 		GVars_Heart.dispose();
 		
+		if(scoreScreen != null)
+			scoreScreen.dispose();
 		star1.getTexture().dispose();
 		star1 = null ;
 		if(debugRenderer != null)

@@ -24,7 +24,10 @@ public interface Host_Simulation
 	/** Whether this player has a living hero right now. A dead one waits for a JOIN. */
 	boolean hasHero(PlayerId player);
 
-	/** Gives the player a hero : the online form of the first key press. The score row is kept across deaths. */
+	/**
+	 * Gives the player a hero : the online form of the first key press. The score row is kept across deaths.
+	 * Nothing, once the run is over and the score screen is up (d14).
+	 */
 	void spawn(PlayerId player);
 
 	/**

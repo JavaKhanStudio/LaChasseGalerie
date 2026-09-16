@@ -21,6 +21,14 @@ public class GVars_Heart
 	public static int hostPort = -1;
 	/** --join host:port : this window is a client of that host, and simulates nothing. */
 	public static String joinAddress;
+	/**
+	 * A HostSession has the game behind it (Game_Simulation sets it). Its runs follow each other : a
+	 * run whose song is over waits on the score screen for this window's player to start the next one
+	 * or close the server (d14), which sets it back to false. Nothing else of hosting is decided here.
+	 */
+	public static boolean hosting;
+	/** How many runs this JVM has started : a snapshot's run number, so a client knows a new one began (d14). */
+	public static int runsStarted;
 
 	public static void init() 
 	{

@@ -35,7 +35,8 @@ public class Main_Game extends ApplicationAdapter
 	
 	/**
 	 * --host : the session that lets clients in and sends them the run. It wraps each step of a
-	 * Vue_Game and nothing else : the menu has no world to read. The keyboard and pads of this
+	 * Vue_Game and nothing else : the menu has no world to read. It outlives a run : the score screen is
+	 * still that Vue_Game, and a new run picked there is another one under the same session (d14). The keyboard and pads of this
 	 * window still join through IKM_Game_*, on the same PlayerId numbering as the peers.
 	 */
 	private HostSession host ;
@@ -72,6 +73,11 @@ public class Main_Game extends ApplicationAdapter
 		
 		while(accumulator >= FVars_Heart.step)
 		{
+			// Close the server, picked on the score screen (d14) : every peer is told while the run still
+			// exists, and the run then ends into the menu like a local one
+			if(host != null && !GVars_Heart.hosting)
+				closeHost() ; 
+			
 			if(host != null && GVars_Heart.vue instanceof Vue_Game)
 				host.tick(step);
 			else
@@ -95,9 +101,17 @@ public class Main_Game extends ApplicationAdapter
 	{
     	GVars_AudioManager.StopAndDisposeMusic();
     	if(host != null)
-    	{
-    		host.close();
-    		hostTransport.close();
-    	}
+    		closeHost() ; 
+    }
+    
+    /** Tells every peer the run ended (HOST_ENDED) and lets go of the socket. */
+    private void closeHost()
+    {
+    	host.close();
+    	hostTransport.close();
+    	host = null ; 
+    	hostTransport = null ; 
+    	GVars_Heart.hosting = false ; 
+    	Gdx.app.log("host", "closed the server");
     }
 }

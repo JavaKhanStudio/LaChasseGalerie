@@ -47,6 +47,9 @@ public final class Snapshot_Mirror
 	/** The tick of the last snapshot applied, -1 before the first. */
 	public int tick = -1;
 	public float storyTime, skyScroll, canoeAngle;
+	/** The host's run, and whether its song is over and it shows the score screen (d14). */
+	public int run;
+	public boolean over;
 
 	private final List<Net_Snapshot.Score> scores = new ArrayList<Net_Snapshot.Score>();
 	/** By id, in the order the last snapshot listed them, which is the order the host draws them in. */
@@ -79,6 +82,8 @@ public final class Snapshot_Mirror
 		storyTime = snapshot.storyTime;
 		skyScroll = snapshot.skyScroll;
 		canoeAngle = snapshot.canoeAngle;
+		run = snapshot.run;
+		over = snapshot.over;
 
 		scores.clear();
 		for (Net_Snapshot.Score score : snapshot.scores)
@@ -222,6 +227,8 @@ public final class Snapshot_Mirror
 		snapshot.storyTime = storyTime;
 		snapshot.skyScroll = skyScroll;
 		snapshot.canoeAngle = canoeAngle;
+		snapshot.run = run;
+		snapshot.over = over;
 		snapshot.scores.addAll(scores);
 		snapshot.heroes.addAll(heroes.values());
 		snapshot.monsters.addAll(monsters.values());

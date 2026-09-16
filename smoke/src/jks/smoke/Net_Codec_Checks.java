@@ -88,6 +88,8 @@ class Net_Codec_Checks
 		changes.add(s -> s.storyTime += 1);
 		changes.add(s -> s.skyScroll += 1);
 		changes.add(s -> s.canoeAngle += 1 / 8192f);
+		changes.add(s -> s.run = other(s.run, 65535));
+		changes.add(s -> s.over ^= true);
 		changes.add(s -> s.scores.get(1).player = other(s.scores.get(1).player, 65535));
 		changes.add(s -> s.scores.get(1).score = other(s.scores.get(1).score, 65535));
 		changes.add(s -> s.scores.get(1).deaths = other(s.scores.get(1).deaths, 65535));
@@ -225,16 +227,20 @@ class Net_Codec_Checks
 		eq(Net_Rejected.Reason.TOO_SHORT, reason(ByteBuffer.wrap(new byte[] { (byte) Net_Codec.VERSION, 0 })), "no checksum");
 
 		// A snapshot header claiming 255 of everything and carrying none of it : refused before allocating
-		int[] header = new int[2 + 4 + 4 + 4 + 2 + 4];
+		int[] header = new int[2 + 4 + 4 + 4 + 2 + 4 + 2 + 1];
 		header[0] = Net_Codec.VERSION;
 		header[1] = Net_Message.Type.SNAPSHOT.ordinal();
 		for (int i = 16; i < 20; i++)
 			header[i] = 255;
-		eq(Net_Rejected.Reason.LENGTH, reason(signed(header)), "a snapshot that claims 1020 entities in 20 B");
+		eq(Net_Rejected.Reason.LENGTH, reason(signed(header)), "a snapshot that claims 1020 entities in 23 B");
+		// The score screen is on or off : a third state is a lie (d14)
+		header[16] = header[17] = header[18] = header[19] = 0;
+		header[22] = 2;
+		eq(Net_Rejected.Reason.BAD_VALUE, reason(signed(header)), "a snapshot that is over 2");
 
 		ByteBuffer hero = copy(Net_Codec.encode(fullSnapshot()));
 		// version, type, the fixed snapshot fields, both scores, then the first hero's id, player, look, 4 x s16, hp
-		int flags = 2 + 18 + 2 * Net_Codec.SCORE_BYTES + 2 + 2 + 1 + 8 + 1;
+		int flags = 2 + 21 + 2 * Net_Codec.SCORE_BYTES + 2 + 2 + 1 + 8 + 1;
 		hero.put(flags, (byte) 0x40);
 		eq(Net_Rejected.Reason.BAD_VALUE, reason(resign(hero)), "a hero flag nobody defined");
 	}
@@ -383,6 +389,8 @@ class Net_Codec_Checks
 		snapshot.storyTime = 37.25f;
 		snapshot.skyScroll = -4096.5f;
 		snapshot.canoeAngle = 2105 / 8192f;
+		snapshot.run = 65535;
+		snapshot.over = true;
 		snapshot.scores.add(new Net_Snapshot.Score(1, 65535, 0));
 		snapshot.scores.add(new Net_Snapshot.Score(65535, 12, 34));
 		Net_Snapshot.Hero first = hero(40000, 1);

@@ -68,7 +68,11 @@ Each hero has four hearts. Hitting a monster with your axe scores a point; a pot
 at full health. Falling into the river or losing every heart costs a death and halves your score.
 
 A run lasts as long as its song. Near the song's end nothing new spawns, the canoe comes back down into the
-river, and five seconds after it lands the game goes back to the start menu (a `--host` run stays on the river).
+river, and five seconds after it lands the game goes back to the start menu.
+
+A `--host` run ends on a score screen instead, for the host and every client: the final table, best score first.
+The host picks **New run** (everyone stays connected and presses to join again) or **Close the server** (clients
+see "the host closed the server" and go back to their menu).
 
 ## Smoke run
 

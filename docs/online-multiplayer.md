@@ -194,7 +194,7 @@ Under d5 → A a hero is a machine, so those 8 heroes are 8 machines: the host p
 is the busiest session worth planning for.
 
 **Measured, not estimated (r37, `./gradlew netcensus`).** The layout `Net_Codec` actually uses
-has a 24 B header, 6 B per player in the score table, 21 B per hero *with* its axe, 7 B per monster
+has a 24 B header (27 B since d14 added the run number and the score screen flag), 6 B per player in the score table, 21 B per hero *with* its axe, 7 B per monster
 and 6 B per potion. An 8-player headless run that encodes the real snapshot every tick (seeds 1–5
 over 120 s, seed 2 over 600 s) never went past **442 B**. The worst of each count, even though no
 single tick had them all at once (8 heroes, 26 monsters, 8 potions), comes to 470 B. Risk 4 was

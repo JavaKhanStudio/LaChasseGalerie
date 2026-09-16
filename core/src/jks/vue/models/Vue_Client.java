@@ -33,6 +33,7 @@ import jks.draw.Draw_Potion;
 import jks.input.Player_Inputs;
 import jks.input.Utils_Controller;
 import jks.net.Net_Input;
+import jks.net.Net_Message;
 import jks.net.Net_Snapshot;
 import jks.net.Transport_Udp;
 import jks.online.ClientSession;
@@ -48,6 +49,7 @@ import jks.sounds.GVars_AudioManager;
 import jks.story.GVars_Story;
 import jks.vars.GVars_Heart;
 import jks.vinterface.GVars_Interface;
+import jks.vinterface.Score_Screen;
 import jks.vinterface.ToRender;
 import jks.vue.AVue_Model;
 
@@ -89,6 +91,14 @@ public class Vue_Client extends AVue_Model
 
 	/** The host's story time and sky scroll the picture showed last tick. */
 	private float shownStory, shownSky ;
+	/** The host's run the picture shows, -1 before the first snapshot (d14). */
+	private int shownRun = -1 ;
+	/** The host's song is over : its final scores, until it starts a new run or closes the server (d14). */
+	private Score_Screen scoreScreen ;
+	/** How long ago the host closed the server, -1 while it has not. */
+	private float closedFor = -1 ;
+	/** How long "the host closed the server" stays up before this window goes back to its menu. */
+	private static final float closedShownFor = 3f ;
 
 	private final LifecycleListener leaveOnExit = new LifecycleListener()
 	{
@@ -175,7 +185,17 @@ public class Vue_Client extends AVue_Model
 	{
 		client.tick(pressed()) ;
 
+		if(hostClosed(delta))
+			return ;
+
 		Snapshot_Mirror view = client.view() ;
+		// The host started a new run from its score screen (d14) : this picture starts over with it
+		if(view.tick >= 0 && view.run != shownRun)
+		{
+			if(shownRun >= 0)
+				startOver() ;
+			shownRun = view.run ;
+		}
 		float storyDelta = Math.max(0, view.storyTime - shownStory) ;
 		GVars_Story.followHost(shownStory, view.storyTime, shownSky, view.skyScroll) ;
 		shownStory = Math.max(shownStory, view.storyTime) ;
@@ -203,6 +223,61 @@ public class Vue_Client extends AVue_Model
 
 		showScores(view) ;
 		showStatus() ;
+
+		if(view.over)
+		{
+			if(scoreScreen == null)
+				openScoreScreen(view) ;
+			// The host's story has stopped with its song, and its river flows on under the scores
+			GVars_Parralax.scroll(delta, GVars_Story.riverSpeedAt(view.storyTime), 0) ;
+			GVars_Parralax.act(delta) ;
+			scoreScreen.act(delta) ;
+		}
+	}
+
+	/**
+	 * The host closed the server (HOST_ENDED, d14) : said for a moment, then this window goes back to its
+	 * start menu, as everyone does when a host is gone (no host migration).
+	 * @return true when this view is no longer the current one
+	 */
+	private boolean hostClosed(float delta)
+	{
+		if(client.state() != ClientSession.State.ENDED || client.endedBecause() != Net_Message.Leave.Reason.HOST_ENDED)
+			return false ;
+		if(closedFor < 0)
+		{
+			closedFor = 0 ;
+			if(scoreScreen != null)
+				scoreScreen.say("The host closed the server") ;
+		}
+		closedFor += delta ;
+		if(closedFor < closedShownFor)
+			return false ;
+		GVars_Heart.changeVue(new Vue_Menu()) ;
+		return true ;
+	}
+
+	/** The host's final table, and nothing to choose : the next run is the host's to start. */
+	private void openScoreScreen(Snapshot_Mirror view)
+	{
+		List<Score_Screen.Row> rows = new ArrayList<Score_Screen.Row>() ;
+		for(Net_Snapshot.Score score : view.scores())
+			rows.add(new Score_Screen.Row(score.player, score.score, score.deaths, scores.get(score.player).score.getColor())) ;
+		scoreScreen = new Score_Screen(rows, "Waiting for the host : a new run, or closing the server") ;
+	}
+
+	/** A new run on the host (d14) : the story, the river and the music from their first second, the scores gone. */
+	private void startOver()
+	{
+		if(scoreScreen != null)
+			scoreScreen.dispose() ;
+		scoreScreen = null ;
+		GVars_AudioManager.StopAndDisposeMusic() ;
+		GVars_Story.init() ;
+		GVars_Parralax.setPages(Enum_ColdNight.COLD_NIGHT, Enum_ColdNight.COLD_WATER) ;
+		GVars_AudioManager.PlayAmbiance(Enum_Ambiance.WATER) ;
+		shownStory = 0 ;
+		shownSky = 0 ;
 	}
 
 	@Override
@@ -241,8 +316,13 @@ public class Vue_Client extends AVue_Model
 
 		staticBatch.setColor(Color.WHITE);
 
-		GVars_Interface.mainInterface.getViewport().apply();
-		GVars_Interface.mainInterface.draw();
+		if(scoreScreen == null)
+		{
+			GVars_Interface.mainInterface.getViewport().apply();
+			GVars_Interface.mainInterface.draw();
+		}
+		else
+			scoreScreen.draw() ;
 
 		for (jks.vinterface.ToRender rende : toRender)
 			rende.render();
@@ -253,6 +333,8 @@ public class Vue_Client extends AVue_Model
 	{
 		Gdx.app.removeLifecycleListener(leaveOnExit);
 		closeSession() ;
+		if(scoreScreen != null)
+			scoreScreen.dispose() ;
 		Gdx.input.setInputProcessor(null);
 		Controllers.clearListeners();
 
@@ -366,7 +448,8 @@ public class Vue_Client extends AVue_Model
 	{
 		if(client != null && client.hasHeroInNewest())
 			return true ;
-		if(client != null)
+		// The run is over on the host : nobody joins it (d14)
+		if(client != null && !client.view().over)
 			client.join() ;
 		return false ;
 	}

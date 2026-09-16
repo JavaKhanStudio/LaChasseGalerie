@@ -32,7 +32,7 @@ tasks.register('nettest', JavaExec) {
     description = 'Checks the transport, codec, mirror and session rules, then plays host and clients in one JVM and across three.'
     mainClass = 'jks.smoke.Net_Run'
     classpath = sourceSets.main.runtimeClasspath
-    finalizedBy 'netsession', 'netprocs', 'netlobby'
+    finalizedBy 'netsession', 'netending', 'netprocs', 'netlobby'
 }
 
 // ./gradlew netcensus : how big a snapshot the real game makes. Plays the headless loop with 8
@@ -84,6 +84,20 @@ tasks.register('netsession', JavaExec) {
     mustRunAfter 'nettest'
 }
 
+// ./gradlew netending : d14's gate. A hosted run's song ends : the host waits on its score screen with two
+// clients still in, starts a new run under the same session, and at the end of that one closes the server.
+// Plays the long middle of each run without the wire, so about 15 s. ./gradlew netending -Pseed=2
+tasks.register('netending', JavaExec) {
+    group = 'verification'
+    description = 'Plays a hosted run to its score screen, a new run, and closing the server, with two clients.'
+    mainClass = 'jks.smoke.Net_Ending'
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = rootProject.file('desktop/assets')
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    args providers.gradleProperty('seed').orElse('1').get()
+    mustRunAfter 'nettest', 'netsession'
+}
+
 // ./gradlew netprocs : phase 1.4 across processes. A host JVM runs the game headless on a UDP port the
 // OS picks; two client JVMs that never load the game join it over 127.0.0.1 in real time for 8 s.
 tasks.register('netprocs', JavaExec) {
@@ -94,7 +108,7 @@ tasks.register('netprocs', JavaExec) {
     workingDir = rootProject.file('desktop/assets')
     jvmArgs '--enable-native-access=ALL-UNNAMED'
     // Real time on one machine : not while the in-process gate is using the CPU
-    mustRunAfter 'nettest', 'netsession'
+    mustRunAfter 'nettest', 'netsession', 'netending'
 }
 
 // ./gradlew netlobby : phase 2.1 across processes (r41). netprocs, found through the lobby service : a

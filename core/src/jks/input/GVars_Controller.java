@@ -5,6 +5,8 @@ import java.util.TreeMap;
 
 import com.badlogic.gdx.controllers.Controller;
 
+import jks.vars.GVars_Heart;
+
 /**
  * The run's roster : who is playing, and what this machine's devices have to do with them.
  *
@@ -22,13 +24,13 @@ public class GVars_Controller
 	public static TreeMap<PlayerId,Player_Inputs> playerList ;
 	/** Local hardware only, null being the keyboard. Offline co-op lives here (d5 -> A). */
 	private static HashMap<Controller,PlayerId> localDevices ;
-	private static int nextNumber ;
+	private static int nextNumber = 1 ;
 	
 	public static void init()
 	{
 		playerList = new TreeMap<PlayerId,Player_Inputs>() ;
 		localDevices = new HashMap<Controller,PlayerId>() ;
-		nextNumber = 1 ;
+		numberFromOne() ;
 	}
 	
 	/** Nobody is playing, and the next run numbers its players from 1 again. */
@@ -36,7 +38,18 @@ public class GVars_Controller
 	{
 		playerList = null ;
 		localDevices = null ;
-		nextNumber = 1 ;
+		numberFromOne() ;
+	}
+	
+	/**
+	 * Except behind a host (d14) : its seats keep their PlayerIds from one run to the next, so a run
+	 * after the score screen goes on numbering where the last one stopped. From 1, this window's
+	 * keyboard would take the number of a remote player still seated.
+	 */
+	private static void numberFromOne()
+	{
+		if(!GVars_Heart.hosting)
+			nextNumber = 1 ;
 	}
 	
 	public static Player_Inputs getPlayer(PlayerId player)
