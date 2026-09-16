@@ -1,7 +1,6 @@
 package jks.smoke;
 
 import java.lang.reflect.Proxy;
-import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -9,32 +8,22 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-import com.badlogic.gdx.ApplicationAdapter;
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.backends.headless.HeadlessApplication;
-import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
-import com.badlogic.gdx.backends.headless.mock.graphics.MockGraphics;
 import com.badlogic.gdx.controllers.Controller;
-import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.Array;
 
-import jks.amain.Main_Game;
+import jks.headless.Headless_Runner;
 import jks.input.GVars_Controller;
 import jks.input.Player_Inputs;
 import jks.personnage.PhysicSpriteEnnemy;
 import jks.personnage.PhysicSpriteHeroes;
 import jks.personnage.ScoreLabel;
 import jks.physic.Gvars_Physic;
-import jks.sounds.GVars_Audio;
 import jks.vars.GVars_Game;
-import jks.vars.GVars_Heart;
 import jks.vars.GVars_Random;
 
 /**
- * Plays the real game loop headless: Main_Game.create, then Vue_Game.update and render at 1/60
- * with a stubbed GL, for a minute of game time. A keyboard player and two fake gamepads join,
+ * Plays the real game loop headless through Headless_Runner, for a minute of game time. A keyboard player and two fake gamepads join,
  * move, jump and swing at random, rejoin once a second after dying, and are killed on purpose
  * at fixed times (by hearts, by the river, all at once).
  *
@@ -43,9 +32,8 @@ import jks.vars.GVars_Random;
  *
  * Static game state is never reset, so this is one run per JVM.
  */
-public class Smoke_Run extends ApplicationAdapter
+public class Smoke_Run implements Headless_Runner.Session
 {
-	static final float DELTA = 1 / 60f;
 	static final int WIDTH = 1280, HEIGHT = 720;
 
 	final long seed;
@@ -59,12 +47,7 @@ public class Smoke_Run extends ApplicationAdapter
 	{
 		long seed = args.length > 0 ? Long.parseLong(args[0]) : 1;
 		int seconds = args.length > 1 ? Integer.parseInt(args[1]) : 60;
-		GVars_Audio.muted = true;
-
-		HeadlessApplicationConfiguration config = new HeadlessApplicationConfiguration();
-		// The loop is driven from create, frame by frame: the backend's own loop never runs
-		config.updatesPerSecond = -1;
-		new HeadlessApplication(new Smoke_Run(seed, seconds), config);
+		Headless_Runner.launch(WIDTH, HEIGHT, new Smoke_Run(seed, seconds));
 	}
 
 	Smoke_Run(long seed, int seconds)
@@ -75,37 +58,19 @@ public class Smoke_Run extends ApplicationAdapter
 	}
 
 	@Override
-	public void create()
+	public void failed(Throwable t)
 	{
-		// An exception on the HeadlessApplication thread would not fail the process
-		try
-		{
-			run();
-			System.exit(0);
-		}
-		catch (Throwable t)
-		{
-			System.out.println("SMOKE FAILED at frame " + frame + " (t=" + frame / 60f + "s, seed " + seed + ")");
-			t.printStackTrace(System.out);
-			System.exit(1);
-		}
+		System.out.println("SMOKE FAILED at frame " + frame + " (t=" + frame / 60f + "s, seed " + seed + ")");
+		t.printStackTrace(System.out);
 	}
 
-	void run() throws Exception
+	@Override
+	public void run(Headless_Runner runner) throws Exception
 	{
-		Gdx.gl = Gdx.gl20 = stubGl();
-		// Spawn points, the canoe and the HUD come from the window size: at 0 everyone spawns at 0 and drowns
-		Gdx.graphics = new MockGraphics()
-		{
-			@Override public int getWidth() { return WIDTH; }
-			@Override public int getHeight() { return HEIGHT; }
-			@Override public int getBackBufferWidth() { return WIDTH; }
-			@Override public int getBackBufferHeight() { return HEIGHT; }
-		};
 		GVars_Random.seed(seed);
 
 		long start = System.currentTimeMillis();
-		new Main_Game().create();
+		runner.boot();
 		System.out.println("SMOKE seed " + seed + ", " + seconds + "s of game time, init in " + (System.currentTimeMillis() - start) + " ms");
 
 		Set<PhysicSpriteEnnemy> monstersBefore = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -121,8 +86,7 @@ public class Smoke_Run extends ApplicationAdapter
 			monstersBefore.clear();
 			monstersBefore.addAll(GVars_Game.ennemies);
 
-			GVars_Heart.vue.update(DELTA);
-			GVars_Heart.vue.render();
+			runner.step();
 
 			monstersBefore.removeAll(GVars_Game.ennemies);
 			monstersKilled += monstersBefore.size();
@@ -272,32 +236,6 @@ public class Smoke_Run extends ApplicationAdapter
 				+ " monstersKilled=" + monstersKilled);
 	}
 
-	/** Shaders compile, programs link with no attributes or uniforms, everything else is a no-op. */
-	static GL20 stubGl()
-	{
-		return (GL20) Proxy.newProxyInstance(Smoke_Run.class.getClassLoader(), new Class<?>[] { GL20.class, GL30.class }, (proxy, method, args) ->
-		{
-			String name = method.getName();
-			if ((name.equals("glGetShaderiv") || name.equals("glGetProgramiv")) && args[2] instanceof IntBuffer buffer)
-			{
-				int query = (Integer) args[1];
-				boolean isCount = query == GL20.GL_ACTIVE_ATTRIBUTES || query == GL20.GL_ACTIVE_UNIFORMS;
-				buffer.put(buffer.position(), isCount ? 0 : 1);
-				return null;
-			}
-			if (name.equals("glGetIntegerv") && args[1] instanceof IntBuffer buffer)
-			{
-				buffer.put(buffer.position(), 8192);
-				return null;
-			}
-			if (name.equals("glGetShaderInfoLog") || name.equals("glGetProgramInfoLog") || name.equals("glGetString"))
-				return "";
-			if (name.equals("glGetAttribLocation") || name.equals("glGetUniformLocation"))
-				return 0;
-			return defaultValue(method.getReturnType());
-		});
-	}
-
 	static Controller fakeController(String name)
 	{
 		return (Controller) Proxy.newProxyInstance(Smoke_Run.class.getClassLoader(), new Class<?>[] { Controller.class }, (proxy, method, args) ->
@@ -313,14 +251,5 @@ public class Smoke_Run extends ApplicationAdapter
 			Class<?> type = method.getReturnType();
 			return type == int.class ? 0 : type == boolean.class ? false : type == float.class ? 0f : null;
 		});
-	}
-
-	static Object defaultValue(Class<?> type)
-	{
-		if (type == int.class) return 1;
-		if (type == boolean.class) return true;
-		if (type == float.class) return 0f;
-		if (type == long.class) return 0L;
-		return null;
 	}
 }

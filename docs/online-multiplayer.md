@@ -243,7 +243,7 @@ invariants that a refactor of this shape breaks.
 | 0.3 | `PlayerId` instead of `Controller` as identity — a peer id online (d5 → A), the local device offline | `GVars_Controller`, `GVars_Game`, `PhysicSpriteHeroes`, both `IKM_*`, `Smoke_Run` | smoke passes with keyboard + 2 pads |
 | 0.4 | Session teardown: dispose the world and clear every `GVars_*`, so a second run starts clean | all `GVars_*` | a smoke variant that plays two runs in one JVM |
 | 0.5 ✅ | **Done, r35.** One seeded RNG stream, seed settable: `GVars_Random.random`, `GVars_Random.seed(long)`; the smoke seeds it directly instead of by reflection | the 4 `Random`s of §1.6 | `smoke -Pseed=42` twice gives identical reports; the seed-1 baseline moved to deaths=20, monstersKilled=76 because four streams became one |
-| 0.6 | Extract the headless loop out of `Smoke_Run` into a runner the host can use with no window | `smoke/`, new `core` entry point | smoke still runs through it |
+| 0.6 ✅ | **Done, r36.** Extract the headless loop out of `Smoke_Run` into a runner the host can use with no window: a `headless` module, `Headless_Runner.launch/boot/step`; scripted players, checks and seeding stay in `smoke/` | `smoke/`, new `headless` module (core stays backend-free) | smoke runs through it and replays the identical seed-1 report |
 
 This is the bulk of the effort and the only part with real risk to game feel (0.1 and 0.2 change how
 velocities and spawns land). Do them one ticket at a time, each with a smoke run before and after.

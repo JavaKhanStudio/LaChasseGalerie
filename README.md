@@ -132,7 +132,8 @@ core/      game code (shared, backend independent)
   src/jks/net/                the transport seam for online play (./gradlew nettest)
 desktop/   LWJGL3 launcher and all game assets (desktop/assets)
            packaging/ is where an icon goes for ./gradlew jpackage
-smoke/     the headless gates (./gradlew smoke, ./gradlew nettest)
+headless/  the game with no window or sound: the loop a host with no screen runs (jks.headless.Headless_Runner)
+smoke/     the headless gates (./gradlew smoke, ./gradlew nettest); smoke drives headless/
 docs/      design notes: online-multiplayer.md (the plan for going online),
            browser-target.md (whether this can run in a browser, and what it would cost)
 tools/     browser-spike/ compiles the game to JavaScript and serves it (not part of the build)

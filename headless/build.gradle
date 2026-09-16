@@ -1,0 +1,13 @@
+// The game with no window: the loop a host with no screen runs, and what ./gradlew smoke drives.
+// Kept out of core so the game code never depends on a backend.
+
+apply plugin: 'java-library'
+
+sourceSets.main.java.srcDirs = ['src']
+
+dependencies {
+    api project(':core')
+    api "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
+    implementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+    implementation "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-desktop"
+}

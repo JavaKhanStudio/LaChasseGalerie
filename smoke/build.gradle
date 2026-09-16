@@ -5,10 +5,8 @@
 sourceSets.main.java.srcDirs = ['src']
 
 dependencies {
-    implementation project(':core')
-    implementation "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
-    implementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
-    implementation "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-desktop"
+    // The headless loop itself lives in :headless; this module is the scripted players and the checks
+    implementation project(':headless')
 }
 
 tasks.register('smoke', JavaExec) {
