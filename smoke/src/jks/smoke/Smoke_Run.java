@@ -12,15 +12,20 @@ import com.badlogic.gdx.controllers.Controller;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.Array;
 
+import jks.camera.GVars_Camera;
 import jks.headless.Headless_Runner;
 import jks.input.GVars_Controller;
 import jks.input.Player_Inputs;
 import jks.personnage.PhysicSpriteEnnemy;
 import jks.personnage.PhysicSpriteHeroes;
 import jks.personnage.ScoreLabel;
+import jks.personnage.index.Index_Sprite;
 import jks.physic.Gvars_Physic;
 import jks.vars.GVars_Game;
+import jks.vars.GVars_Heart;
 import jks.vars.GVars_Random;
+import jks.vinterface.GVars_Interface;
+import jks.vue.models.Vue_Menu;
 
 /**
  * Plays the real game loop headless through Headless_Runner, for a minute of game time. A keyboard player and two fake gamepads join,
@@ -30,15 +35,17 @@ import jks.vars.GVars_Random;
  * A native Box2D crash does not reliably happen when the rules are broken, so every frame checks
  * the invariants that prevent one instead. The first broken one exits 1.
  *
- * Static game state is never reset, so this is one run per JVM.
+ * Then it goes back to the start menu and plays the same seed again, in the same JVM (phase 0.4). A
+ * run that leaves anything behind — a timer, a colour, a player number, a body — plays differently,
+ * so every run must print the same report as the first.
  */
 public class Smoke_Run implements Headless_Runner.Session
 {
 	static final int WIDTH = 1280, HEIGHT = 720;
 
 	final long seed;
-	final int seconds;
-	final Random random;
+	final int seconds, runs;
+	Random random;
 
 	final List<Controller> pads = List.of(fakeController("pad1"), fakeController("pad2"));
 	int frame, joins, forcedDeaths, monstersKilled, mostMonsters;
@@ -47,15 +54,20 @@ public class Smoke_Run implements Headless_Runner.Session
 	{
 		long seed = args.length > 0 ? Long.parseLong(args[0]) : 1;
 		int seconds = args.length > 1 ? Integer.parseInt(args[1]) : 60;
-		Headless_Runner.launch(WIDTH, HEIGHT, new Smoke_Run(seed, seconds));
+		int runs = args.length > 2 ? Integer.parseInt(args[2]) : 2;
+		Headless_Runner.launch(WIDTH, HEIGHT, new Smoke_Run(seed, seconds, runs));
 	}
 
-	Smoke_Run(long seed, int seconds)
+	Smoke_Run(long seed, int seconds, int runs)
 	{
 		this.seed = seed;
 		this.seconds = seconds;
-		this.random = new Random(seed);
+		this.runs = runs;
 	}
+
+	/** What a run printed, without the wall-clock times : two runs of one seed must print the same. */
+	List<String> reports = new ArrayList<>();
+	int run;
 
 	@Override
 	public void failed(Throwable t)
@@ -67,11 +79,55 @@ public class Smoke_Run implements Headless_Runner.Session
 	@Override
 	public void run(Headless_Runner runner) throws Exception
 	{
+		List<String> first = null;
+		for (run = 1; run <= runs; run++)
+		{
+			if (run > 1)
+				backToTheMenu(runner);
+
+			reports = new ArrayList<>();
+			playOnce(runner);
+
+			if (first == null)
+				first = reports;
+			else if (!first.equals(reports))
+				throw new IllegalStateException("run " + run + " played differently from run 1:\n  " + String.join("\n  ", first) + "\nagainst\n  " + String.join("\n  ", reports));
+		}
+		if (runs > 1)
+			System.out.println("SMOKE " + runs + " runs in one JVM, every report the same");
+	}
+
+	/** The way a player would leave: the run ends into the start menu, which idles, then Local play again. */
+	void backToTheMenu(Headless_Runner runner)
+	{
+		GVars_Heart.changeVue(new Vue_Menu());
+		checkTornDown();
+		for (int i = 0; i < 60; i++)
+			runner.step();
+	}
+
+	/** Nothing of the last run may survive into the menu: a Body kept past its world is a native crash. */
+	void checkTornDown()
+	{
+		if (Gvars_Physic.world != null)
+			throw new IllegalStateException("the world outlived its run");
+		if (GVars_Game.heroes != null || GVars_Game.ennemies != null || GVars_Game.hpStack != null || GVars_Game.toBeDestroy_Body != null || GVars_Game.canoe != null)
+			throw new IllegalStateException("the run's lists still point into a disposed world");
+		if (GVars_Controller.playerList != null)
+			throw new IllegalStateException("players outlived their run");
+		if (GVars_Interface.mainInterface != null || GVars_Camera.staticBatch != null)
+			throw new IllegalStateException("the run's HUD or batch was not disposed");
+	}
+
+	void playOnce(Headless_Runner runner) throws Exception
+	{
+		frame = joins = forcedDeaths = monstersKilled = mostMonsters = 0;
+		random = new Random(seed);
 		GVars_Random.seed(seed);
 
 		long start = System.currentTimeMillis();
 		runner.boot();
-		System.out.println("SMOKE seed " + seed + ", " + seconds + "s of game time, init in " + (System.currentTimeMillis() - start) + " ms");
+		System.out.println("SMOKE run " + run + ", seed " + seed + ", " + seconds + "s of game time, init in " + (System.currentTimeMillis() - start) + " ms");
 
 		Set<PhysicSpriteEnnemy> monstersBefore = Collections.newSetFromMap(new IdentityHashMap<>());
 		for (frame = 0; frame < seconds * 60; frame++)
@@ -231,14 +287,24 @@ public class Smoke_Run implements Headless_Runner.Session
 
 	void report(String when)
 	{
-		System.out.println("SMOKE " + when
-				+ " heroes=" + GVars_Game.heroes.size()
+		String counts = " heroes=" + GVars_Game.heroes.size()
 				+ " monsters=" + GVars_Game.ennemies.size()
 				+ " potions=" + GVars_Game.hpStack.size()
 				+ " bodies=" + Gvars_Physic.world.getBodyCount()
 				+ " joins=" + joins
 				+ " deaths=" + deaths() + " (" + forcedDeaths + " forced)"
-				+ " monstersKilled=" + monstersKilled);
+				+ " monstersKilled=" + monstersKilled;
+		reports.add(frame + counts + " playing=" + whoPlays());
+		System.out.println("SMOKE " + when + counts);
+	}
+
+	/** Player numbers and the colour each wears: what a run gets wrong when it inherits the last one's roster. */
+	String whoPlays()
+	{
+		StringBuilder who = new StringBuilder();
+		for (PhysicSpriteHeroes hero : GVars_Game.heroes)
+			who.append(" P").append(hero.player.number()).append(':').append(Index_Sprite.persoModel.indexOf(hero.index));
+		return who.toString();
 	}
 
 	static Controller fakeController(String name)

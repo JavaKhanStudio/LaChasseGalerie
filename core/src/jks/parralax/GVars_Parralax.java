@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 
 import jks.camera.GVars_Camera;
+import jks.tools2d.parallax.ParallaxLayer;
 import jks.tools2d.parallax.Utils_Parallax;
 import jks.tools2d.parallax.heart.Parallax_Heart;
 
@@ -34,10 +35,31 @@ public class GVars_Parralax
 		foreground = new Parallax_Heart(worldCamera, batch, worldWidth, worldHeight) ; 
 	}
 	
+	/** Opens a view on these pages, at the start of the river : see rewind. */
 	public static void setPages(Enum_ColdNight back, Enum_ColdNight front)
 	{
 		background.setPage(back.wholePage);
 		foreground.setPage(front.wholePage);
+		rewind() ; 
+	}
+	
+	/**
+	 * Back to where the river starts. The layers belong to the Enum_ColdNight pages, which live as
+	 * long as the JVM, so their scroll does too : without this a second run starts where the last
+	 * one's take-off left the sky, and so does the menu it goes back to (phase 0.4).
+	 */
+	private static void rewind()
+	{
+		for(Parallax_Heart heart : new Parallax_Heart[]{background, foreground})
+		{
+			heart.screenSpeedConsumableX = 0 ; 
+			heart.screenSpeedConsumableY = 0 ; 
+			for(ParallaxLayer layer : heart.parallaxReader.layers)
+			{
+				layer.setScrollX(0) ; 
+				layer.setScrollY(0) ; 
+			}
+		}
 	}
 	
 	/**

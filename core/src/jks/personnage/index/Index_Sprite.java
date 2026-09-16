@@ -22,8 +22,19 @@ public class Index_Sprite
 	
 	private static float bottleScaling = 3.6f ;
 	
+	/**
+	 * Loads every hero and monster once per JVM : the atlases outlive a run, like the skin. A later
+	 * call only hands every colour back, so a second run picks colours as the first did.
+	 */
 	public static void init()
 	{
+		if(persoModel != null)
+		{
+			for(int x = 0 ; x < colorUsers.size() ; x++)
+				colorUsers.set(x, 0) ;
+			return ;
+		}
+		
 		colorUsers = new ArrayList<Integer>() ;
 		persoModel = new ArrayList<SIW_Data>() ; 
 		monsterModel = new ArrayList<SIW_Data>() ; 

@@ -29,6 +29,18 @@ public class GVars_Heart
 		
 		GlobalTimmer.purge() ;
 	}
+	
+	/**
+	 * Undoes init for everything a run owns, so the next init starts from nothing (phase 0.4). What
+	 * outlives a run on purpose : the sprite atlases, the skin and the river, which the menu shows too.
+	 */
+	public static void dispose()
+	{
+		Gvars_Physic.dispose();
+		GVars_Camera.dispose();
+		GVars_Interface.dispose();
+		GVars_Controller.dispose();
+	}
  
 	
 	public static void loadAssets()

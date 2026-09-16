@@ -30,8 +30,9 @@ import jks.vue.AVue_Model;
  * d9 that same press joins the run : whoever picks Local play is player 1, and the others press to
  * join behind them.
  *
- * What it does NOT do, on purpose : there is no way back here from a running game. The run's timers
- * are static and never reset (#gameplay), so returning to the menu is a restart path, not a screen.
+ * What it does NOT do yet : offer a way back here from a running game. Nothing stops one any more
+ * — changeVue(new Vue_Menu()) tears the run down (Vue_Game.dispose, phase 0.4) and the next Local
+ * play starts clean — but no key or button asks for it.
  */
 public class Vue_Menu extends AVue_Model
 {

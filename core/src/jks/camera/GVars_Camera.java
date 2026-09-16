@@ -14,7 +14,9 @@ public class GVars_Camera
 	public static Viewport viewport;
 	public static Batch staticBatch ;
 	
-	public static float screenMovementSpeed = 7.5f;
+	/** Where the river starts, before the story speeds it up. */
+	private static final float baseMovementSpeed = 7.5f ;
+	public static float screenMovementSpeed = baseMovementSpeed;
 	
 	public static float worldMutiplier = 2f ;
 	
@@ -27,10 +29,20 @@ public class GVars_Camera
 	
 	public static void init()
 	{
+		screenMovementSpeed = baseMovementSpeed ;
 		camera = new OrthographicCamera();
 		staticBatch = new SpriteBatch();
 		viewport = new FitViewport(viewWidth * worldMutiplier, viewHeight * worldMutiplier, camera);
 		viewport.update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
+	}
+	
+	public static void dispose()
+	{
+		if(staticBatch != null)
+			staticBatch.dispose();
+		staticBatch = null ;
+		viewport = null ;
+		camera = null ;
 	}
 	
 	public static void resize(int width, int height)

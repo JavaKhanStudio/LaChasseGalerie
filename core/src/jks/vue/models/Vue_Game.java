@@ -62,6 +62,7 @@ public class Vue_Game extends AVue_Model
     {
     	GVars_Heart.init();
     	GVars_Game.init();
+    	GVars_Story.init();
     	GVars_Parralax.setPages(Enum_ColdNight.COLD_NIGHT, Enum_ColdNight.COLD_WATER) ;
     	canoe = new PhysicSpriteCanoe() ; 
     	
@@ -148,6 +149,27 @@ public class Vue_Game extends AVue_Model
     	
     	GVars_Parralax.scroll(delta, screenMovementSpeed, 0);
     	GVars_Parralax.act(delta);	
+	}
+	
+	/**
+	 * The run is over : a second one can start in this JVM (phase 0.4). GVars_Heart.changeVue calls
+	 * this between two updates, never from inside world.step, so disposing the world is safe here.
+	 * The world goes down whole rather than body by body, and the lists that pointed into it go
+	 * with it : no monster is left chasing a hero, and nothing waits in the destroy queue.
+	 */
+	@Override
+	public void dispose()
+	{
+		Gdx.input.setInputProcessor(null);
+		Controllers.clearListeners();
+		
+		GVars_Game.dispose();
+		GVars_Heart.dispose();
+		
+		star1.getTexture().dispose();
+		star1 = null ;
+		if(debugRenderer != null)
+			debugRenderer.dispose();
 	}
 	
 	public void cleanUp()

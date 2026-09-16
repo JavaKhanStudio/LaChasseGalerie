@@ -21,6 +21,22 @@ public class Gvars_Physic
 		world.setContactListener(contractListener) ; 
 	}
 	
+	/**
+	 * Destroys the world and every body and joint still in it, in one native call : nothing is
+	 * destroyed one by one, so there is no order to get wrong. NEVER from inside world.step (a
+	 * contact callback) — only between two updates, which is where GVars_Heart.changeVue runs.
+	 * Every Body the game still holds dangles after this : the lists must be dropped with it.
+	 */
+	public static void dispose()
+	{
+		if(world == null)
+			return ; 
+		world.setContactListener(null) ; 
+		world.dispose() ; 
+		world = null ; 
+		contractListener = null ; 
+	}
+	
 	/** Stepped with the simulated time, never with the length of a frame : Main_Game calls
 	 *  update in fixed steps of FVars_Heart.step, so the world advances at the same rate
 	 *  whatever the frame rate. */

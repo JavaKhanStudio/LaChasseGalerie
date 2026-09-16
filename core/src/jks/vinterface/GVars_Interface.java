@@ -47,5 +47,20 @@ public class GVars_Interface
 		
 		mainInterface.addActor(bottomScore);
 	}
+	
+	/** The game's HUD : the Stage, the score table and its two icons. The skin is shared with the menu and stays. */
+	public static void dispose()
+	{
+		if(mainInterface != null)
+			mainInterface.dispose();
+		if(scoreRegion != null)
+			scoreRegion.getRegion().getTexture().dispose();
+		if(deathRegion != null)
+			deathRegion.getRegion().getTexture().dispose();
+		mainInterface = null ;
+		bottomScore = null ;
+		scoreRegion = null ;
+		deathRegion = null ;
+	}
 
 }

@@ -13,6 +13,23 @@ import jks.vue.models.Vue_Game;
 public class GVars_Story 
 {
 	
+	/**
+	 * Back to the first second of a run : the clock, the spawn timers and the music cue. The
+	 * timings themselves are tuning, not state, and stay. Vue_Game.init calls it, so a second run
+	 * in the same JVM plays the same timeline as the first (phase 0.4).
+	 */
+	public static void init()
+	{
+		timming_currentStoryTime = 0 ; 
+		musicCueFired = false ; 
+		screenSpeed = 0 ; 
+		numberHp = 0 ; 
+		currentTimmer_HpDrop = 0 ; 
+		numberEnnemies = 0 ; 
+		currentTimmer_TopEnnemy = 0 ; 
+		currentTimmer_SideEnnemy = 0 ; 
+	}
+	
 	public static void act(float delta)
 	{
 		calculateHpDrop(delta) ; 

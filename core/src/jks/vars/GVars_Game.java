@@ -39,6 +39,7 @@ public class GVars_Game
 	
 	public static void init()
 	{
+		inCinematic = false ; 
 		heroes = new ArrayList<PhysicSpriteHeroes>() ; 
 		ennemies = new ArrayList<PhysicSpriteEnnemy>() ;
 		toBeDestroy_Body = new LinkedHashSet<Body>() ; 
@@ -46,6 +47,25 @@ public class GVars_Game
 		toDie = new LinkedHashSet<PhysicSpriteHeroes>() ;
 		hpStack = new ArrayList<PhysicSpriteHp>() ; 
 		playerRegister = new TreeMap<PlayerId,ScoreLabel>() ;
+	}
+	
+	/**
+	 * Lets go of the run. Nothing here destroys a body : Gvars_Physic.dispose takes the whole world
+	 * down at once, so the destroy queues are dropped, not drained, and no monster is left holding
+	 * a target. Call it with Gvars_Physic.dispose, never on its own.
+	 */
+	public static void dispose()
+	{
+		if(canoe != null)
+			canoe.dispose() ; 
+		canoe = null ; 
+		heroes = null ; 
+		ennemies = null ; 
+		hpStack = null ; 
+		toDie = null ; 
+		toBeDestroy_Body = null ; 
+		toBeDestroy_Jointure = null ; 
+		playerRegister = null ; 
 	}
 
 

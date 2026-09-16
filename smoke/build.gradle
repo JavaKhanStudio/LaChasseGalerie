@@ -11,7 +11,7 @@ dependencies {
 
 tasks.register('smoke', JavaExec) {
     group = 'verification'
-    description = 'Plays 60s of the game loop headless with joining and dying players.'
+    description = 'Plays 60s of the game loop headless with joining and dying players, twice in one JVM.'
     mainClass = 'jks.smoke.Smoke_Run'
     classpath = sourceSets.main.runtimeClasspath
     // The game loads its textures and atlases by relative path
@@ -19,8 +19,8 @@ tasks.register('smoke', JavaExec) {
     def crashLog = layout.buildDirectory.file('smoke/hs_err_pid%p.log').get().asFile
     // A Box2D crash kills the JVM with no Java stack: keep its log out of the assets
     jvmArgs '--enable-native-access=ALL-UNNAMED', "-XX:ErrorFile=$crashLog"
-    // ./gradlew smoke -Pseed=42 -Pseconds=120
-    args providers.gradleProperty('seed').orElse('1').get(), providers.gradleProperty('seconds').orElse('60').get()
+    // ./gradlew smoke -Pseed=42 -Pseconds=120 -Pruns=3 : every run after the first goes back to the menu and replays the seed
+    args providers.gradleProperty('seed').orElse('1').get(), providers.gradleProperty('seconds').orElse('60').get(), providers.gradleProperty('runs').orElse('2').get()
 }
 
 // ./gradlew nettest : holds jks.net to its contract over real UDP on loopback and over the

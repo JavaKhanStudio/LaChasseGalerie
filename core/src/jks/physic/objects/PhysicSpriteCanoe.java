@@ -75,4 +75,11 @@ public class PhysicSpriteCanoe
 	{
 		sprite_Front.draw(batch);
 	}
+	
+	/** The two textures. The body goes with the world. */
+	public void dispose()
+	{
+		sprite_Front.getTexture().dispose();
+		sprite_Back.getTexture().dispose();
+	}
 }

@@ -31,6 +31,14 @@ public class GVars_Controller
 		nextNumber = 1 ;
 	}
 	
+	/** Nobody is playing, and the next run numbers its players from 1 again. */
+	public static void dispose()
+	{
+		playerList = null ;
+		localDevices = null ;
+		nextNumber = 1 ;
+	}
+	
 	public static Player_Inputs getPlayer(PlayerId player)
 	{return player == null ? null : playerList.get(player) ;}
 	

@@ -23,7 +23,8 @@ import jks.vars.GVars_Heart;
  * application thread, and the process exits when it returns (0) or throws (1).
  *
  * Every texture is still loaded, so a headless JVM weighs what a windowed one does (r25).
- * Static game state is never reset, so this is one session per JVM (phase 0.4).
+ * A session may play several runs : boot() again, or GVars_Heart.changeVue to any view, tears the
+ * last run down first (phase 0.4).
  */
 public class Headless_Runner
 {
@@ -90,7 +91,7 @@ public class Headless_Runner
 		};
 	}
 
-	/** Loads the game and opens its first view. */
+	/** Loads the game and opens a run. Called again, it ends the current run and starts a fresh one. */
 	public void boot()
 	{
 		new Main_Game().create();
