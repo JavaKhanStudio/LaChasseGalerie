@@ -306,7 +306,7 @@ disagree:
 | 1.2 the wire protocol | **done, r37** | `#network` |
 | 1.3 entity ids and snapshots | **done, r38** | `#network` `#gameplay` |
 | 1.4 `HostSession` / `ClientSession` on loopback | **done, r39** | `#network` |
-| 1.5 a client that renders what it does not simulate | r40 | `#network` `#gameplay` |
+| 1.5 a client that renders what it does not simulate | **done, r40** | `#network` `#gameplay` |
 | 2.1 the lobby service | r41 | `#network` |
 | 2.2 ICE: IPv6, punch, relay — and say which | r42 | `#network` |
 | 2.3 the lobby screen | r43 | `#hud` `#network` |
@@ -386,6 +386,25 @@ line can honestly promise. Across processes, both clients got 20.0 snapshots/s a
 walked the way they pressed 269–272 ticks out of 272. nettest holds the session rules in 11 more
 checks (40 in all), and mutating the interpolation, the tick a picture is drawn at, the dedupe of
 copies, the wait for a future frame or the coalescing of presses each fails it.
+
+**Phase 1.5 is in** (`core/src/jks/draw`, `Vue_Client`, `--host` / `--join`). The line between
+simulation and rendering is now a class boundary: `Draw_Hero`, `Draw_Monster`, `Draw_Potion` and
+`Draw_Canoe` hold everything that is drawn — animation, the blink, the axe, the hearts, the tilt — from
+drawing fields, and read no body. `PhysicSpriteHeroes`, `PhysicSpriteEnnemy` and `PhysicSpriteCanoe`
+extend them, and their `act()` copies the bodies into those fields; `Weapon_AXE` is a body and nothing
+else. A deterministic host run (seed 1, one step per frame, scripted keys) drew pixel-identical frames
+at seven moments before and after the split. `Vue_Client` is a view that initialises no
+`Gvars_Physic`, `GVars_Game` or `GVars_Controller`: it hangs a `Draw_*` on every entity the mirror
+creates, and moves every clock — animation, blink, river, sky, music cue, the water fading — by how far
+the snapshot's story time moved (`GVars_Story.followHost`), never by its own. The river's horizontal
+speed is not in the snapshot: `GVars_Story.riverSpeedAt` rebuilds it from the story time. The star
+sits at a third of `skyScroll`. The host window wraps each step of a `Vue_Game` in `HostSession.tick`
+(`Main_Game`), and its own keyboard still joins beside the peers. **Played**: a host JVM and a client
+JVM on 127.0.0.1, both windowed, one hero each driven by scripted keys for 55 s through the take-off.
+Captured at the same host story time (6, 16, 26, 39 and 50 s), the client's frames show the same
+heroes, axes, monsters, hearts, scores, canoe tilt, river and sky as the host's (renders on r40).
+The picture held 6 ticks behind the client's clock the whole run. Over loopback the round trip is
+about zero, so that is the 100 ms buffer alone; nobody has felt a real RTT yet (phase 3, r47).
 
 ### A door left open
 

@@ -3,10 +3,6 @@ package jks.personnage;
 import static jks.physic.FVars_Physic.PPM;
 import static jks.physic.Gvars_Physic.world;
 
-import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.Batch;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -16,17 +12,22 @@ import com.badlogic.gdx.physics.box2d.Joint;
 import com.badlogic.gdx.physics.box2d.PolygonShape;
 
 import jks.camera.GVars_Camera;
+import jks.draw.Draw_Hero;
 import jks.input.GVars_Controller;
 import jks.input.PlayerId;
 import jks.personnage.index.Enum_AnimState;
 import jks.personnage.index.Index_Sprite;
 import jks.personnage.index.SIW_Data;
-import jks.personnage.model.SpriteModel;
 import jks.vars.GVars_Game;
 import jks.physic.tools.BoxBodyBuilder;
 import jks.physic.tools.RevoluteJoint; 
 
-public class PhysicSpriteHeroes extends SpriteModel
+/**
+ * A hero in the simulation : its body, its axe on a joint, its moves, hearts and invulnerability.
+ * How it is drawn is Draw_Hero's (phase 1.5) : act() copies what the bodies say into the drawing
+ * fields, and nothing drawn reads a body, so a client with no world draws the same hero.
+ */
+public class PhysicSpriteHeroes extends Draw_Hero
 {
 
 	public Body body ;
@@ -49,7 +50,6 @@ public class PhysicSpriteHeroes extends SpriteModel
 	public int jump_max = 2; 
 	public int jump_remaining = jump_max; 
 	
-	public int hp_max = 4 ;
 	public int hp_left = hp_max ; 
 //	public int hp_left = 1 ; 
 	
@@ -61,13 +61,6 @@ public class PhysicSpriteHeroes extends SpriteModel
 	public float invulnerable_Timmer ;
 	public final float invulnerable_Base = 3.0f ;
 	
-	public static Texture heartTexture; 
-	public Color painColor ; 
-	
-	private static float baseWidth ; 
-	private static float baseHeight ; 
-	private static float fractions ; 
-	
 	public ScoreLabel score ; 
 	
 	public PhysicSpriteHeroes(SIW_Data index, PlayerId player, ScoreLabel scoreRegister) 
@@ -77,7 +70,6 @@ public class PhysicSpriteHeroes extends SpriteModel
 		score.setColor(index.color);
 		this.player = player ; 
 		this.position.add(GVars_Camera.viewWidth/2 * GVars_Camera.worldMutiplier,GVars_Camera.viewHeight/2 * GVars_Camera.worldMutiplier) ; 
-		currentFrame = currentState.getKeyFrame(0,false) ;
 		
 		BodyDef bodyDef = new BodyDef();
         bodyDef.type = BodyDef.BodyType.DynamicBody;
@@ -86,10 +78,6 @@ public class PhysicSpriteHeroes extends SpriteModel
         bodyDef.gravityScale = 2 ; 
         
         body = world.createBody(bodyDef);
-       
-        baseWidth = getFrameWidth(currentFrame) ; 
-        baseHeight = getFrameHeight(currentFrame) ;
-        fractions = baseWidth/(hp_max-1) ; 
        
         PolygonShape shape = new PolygonShape();
         shape.setAsBox(baseWidth/ 2 / PPM, baseHeight / 2 / PPM);
@@ -104,14 +92,9 @@ public class PhysicSpriteHeroes extends SpriteModel
         fixture_Main.setUserData(this);
         shape.dispose();
         forgeWeapon() ;    
-        invulnerable_CurrentColor = colors[0] ; 
         invulnerable = true ; 
-        
-        painColor = index.color.cpy().sub(0, 0, 0, 0.4f) ; 
-        
-        if(heartTexture == null)
-        	heartTexture = new Texture("tools/heart.png") ; 
-             
+        // Drawn before its first act : where the bodies start. The sprite's corner waits for act
+        showBodies() ; 
 	}
 	
 	public void forgeWeapon()
@@ -134,7 +117,7 @@ public class PhysicSpriteHeroes extends SpriteModel
 	
 	public void act(float delta)
 	{
-		update(delta) ; 
+		advanceLook(delta, invulnerable, hp_left) ; 
 		
 		if(checkForGround && Math.abs(body.getLinearVelocity().y) < groundedThreshold)
 		{
@@ -146,7 +129,6 @@ public class PhysicSpriteHeroes extends SpriteModel
 		if(invulnerable)
 		{
 			invulnerable_Timmer += delta ;
-			invulnerable_ColorTimmmer += delta ; 
 			if(invulnerable_Timmer > invulnerable_Base)
 			{
 				invulnerable = false ;
@@ -154,12 +136,8 @@ public class PhysicSpriteHeroes extends SpriteModel
 			}
 		}
 		
-		if(hp_left == 1)
-			lastHp_ColorTimmmer += delta ; 
-			
-		
-		position.x = body.getPosition().x * PPM - getFrameWidth(currentFrame)/ 2; 
-		position.y = body.getPosition().y * PPM - getFrameHeight(currentFrame)/ 2; 
+		showBodies() ; 
+		placeAtBody() ; 
 		
 		if(body.getPosition().y < 0)
 			die(this) ; 
@@ -178,63 +156,19 @@ public class PhysicSpriteHeroes extends SpriteModel
 		jump_remaining = jump_max; 
 	}
 	
+	/** The drawing fields, off the bodies as they stand. */
+	private void showBodies()
+	{
+		Body bodyAxe = axe.bodyAxe ; 
+		show(body.getPosition().x, body.getPosition().y, hp_left, invulnerable, bodyAxe.getPosition().x, bodyAxe.getPosition().y, bodyAxe.getAngle()) ; 
+	}
+	
 	int power = 50 ; 
 	public void pushAxe(boolean left)
 	{
 		axe.bodyAxe.applyForce(new Vector2(left ? -power : power, left ? power : -power), axe.bodyAxe.getLocalCenter(), true);
 	}
 	
-	@Override
-	public void draw(Batch batch) 
-	{
-		if(invulnerable)
-			colorChanging_Invul(batch) ; 
-		
-		super.draw(batch);
-		
-		batch.setColor(Color.WHITE);
-		axe.draw(batch);
-		
-	}
-
-	
-	float invulnerable_ColorTimmmer ; 
-	float invulnerable_timeBetween = 0.1f; 
-	Color invulnerable_CurrentColor ; 
-	int colorCounter = 0 ; 
-	private static final float trans = 0.70f ;
-	private static final float trans2 = 0.90f ;
-	private static final float step1 = 0.70f ;
-	private static final float step2 = 0.60f ;
-	private static final float step3 = 0.50f ;
-	private static final float step4 = 0.40f ;
-	
-//	private static final float bonus = 0.20f ;
-	
-	private static Color[] colors = new Color[] {
-			new Color(step1,step1,step1,trans),
-			new Color(step2,step2,step2,trans2),
-			new Color(step3,step3,step3,trans),
-			new Color(step4,step4,step4,trans2),
-			new Color(step3,step3,step3,trans),
-			new Color(step2,step2,step2,trans2)
-	} ; 
-	
-	private void colorChanging_Invul(Batch batch) 
-	{
-		if(invulnerable_timeBetween < invulnerable_ColorTimmmer)
-		{
-			colorCounter ++ ; 
-			if(colorCounter == colors.length)
-				colorCounter = 0 ;
-			
-			invulnerable_CurrentColor = colors[colorCounter] ; 
-			invulnerable_ColorTimmmer = 0 ; 
-		}
-		batch.setColor(invulnerable_CurrentColor);
-		
-	}
-
 	public void checkForState(boolean grounding)
 	{
 		if((currentAnimState == Enum_AnimState.JUMP || (currentAnimState == Enum_AnimState.FALL)) && !grounding) {
@@ -260,15 +194,6 @@ public class PhysicSpriteHeroes extends SpriteModel
 		if(shouldBe != null)
 			changeAnimationState(shouldBe,true) ;
 	}
-	
-	@Override
-	public float getFrameWidth(TextureRegion frame)
-	{return (frame.getRegionWidth() * index.scale) ;}
-	
-	@Override
-	public float getFrameHeight(TextureRegion frame)
-	{return (frame.getRegionHeight() * index.scale);}
-
 	
 	public void jump() 
 	{
@@ -330,34 +255,6 @@ public class PhysicSpriteHeroes extends SpriteModel
 		GVars_Controller.playerList.remove(player) ;
 	}
 	
-	float lastHp_ColorTimmmer ; 
-	float lastHp_timeBetween = 0.4f; 
-	boolean drawClassic ; 
-	
-	public void drawHp(Batch batch)
-	{
-		if(hp_left > 1)
-			batch.setColor(index.color);
-		else
-		{
-			if(lastHp_ColorTimmmer > lastHp_timeBetween)
-			{
-				lastHp_ColorTimmmer = 0 ; 
-				drawClassic = !drawClassic ; 
-			}
-			
-			batch.setColor(drawClassic ? painColor : Color.LIGHT_GRAY);
-		
-		}
-		for(int x = 1 ; x <= hp_left; x++)
-		{
-			batch.draw(heartTexture, 
-					body.getPosition().x * PPM - baseWidth + fractions * x , 
-					body.getPosition().y* PPM - baseHeight/2 - fractions,
-					fractions,fractions);
-		}
-	}
-
 	public boolean tryHealing() 
 	{
 		if(hp_left < hp_max)

@@ -15,7 +15,7 @@ public class GVars_Camera
 	public static Batch staticBatch ;
 	
 	/** Where the river starts, before the story speeds it up. */
-	private static final float baseMovementSpeed = 7.5f ;
+	public static final float baseMovementSpeed = 7.5f ;
 	public static float screenMovementSpeed = baseMovementSpeed;
 	
 	public static float worldMutiplier = 2f ;

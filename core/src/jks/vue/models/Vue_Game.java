@@ -78,7 +78,7 @@ public class Vue_Game extends AVue_Model
 		GVars_AudioManager.PlayAmbiance(Enum_Ambiance.WATER);
 		
 		star1 = new Sprite(new Texture("stars/Stars Small_1.png")) ; 
-		star1.setPosition(0, GVars_Camera.viewHeight/1.1f * GVars_Camera.worldMutiplier);
+		star1.setPosition(0, GVars_Story.starStartY());
 		
 		// Last, once the world, the score table and the canoe exist : the pad or the keyboard that
 		// chose this run is already player 1 and does not press a second time to get in (d9)

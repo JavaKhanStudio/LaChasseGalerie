@@ -11,6 +11,7 @@ import com.badlogic.gdx.physics.box2d.BodyDef;
 import com.badlogic.gdx.physics.box2d.FixtureDef;
 import com.badlogic.gdx.physics.box2d.PolygonShape;
 
+import jks.draw.Draw_Potion;
 import jks.vars.GVars_Game; 
 
 public class PhysicSpriteHp
@@ -61,14 +62,7 @@ public class PhysicSpriteHp
 	
 	public void draw(Batch batch)
 	{
-		batch.draw(
-				hpBottle, 
-			 	body.getPosition().x * PPM - hpBottle.getWidth()/2, body.getPosition().y * PPM - hpBottle.getHeight()/2,
-			 	hpBottle.getOriginX(),hpBottle.getOriginY(),
-			 	hpBottle.getWidth(),hpBottle.getHeight(),
-			 	hpBottle.getScaleX(),hpBottle.getScaleY(),
-			 	(float)Math.toDegrees(body.getAngle()));
-                
+		Draw_Potion.draw(batch, body.getPosition().x, body.getPosition().y, body.getAngle()) ; 
 	}
 
 }

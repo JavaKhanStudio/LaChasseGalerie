@@ -3,21 +3,16 @@ package jks.personnage;
 import static jks.physic.FVars_Physic.PPM;
 import static jks.physic.Gvars_Physic.world;
 
-import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.Batch;
-import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef.BodyType;
 
 import jks.physic.tools.BoxBodyBuilder;
 
+/** The axe's body, on its hero's joint. It is drawn by Draw_Hero, from where this body is. */
 public class Weapon_AXE 
 {
 	
 	public Body bodyAxe ; 
-	public Sprite spriteAxe ; 
-	// Shared by every hero : one per join would leak a GPU texture each time
-	public static Texture axeTexture ; 
 	PhysicSpriteHeroes ref ; 
 	
 	public Weapon_AXE(PhysicSpriteHeroes ref) 
@@ -25,9 +20,6 @@ public class Weapon_AXE
 		this.ref = ref ; 
 		bodyAxe = BoxBodyBuilder.CreateCircleBody(world, BodyType.DynamicBody, ref.position.x/PPM,ref.position.y/PPM + 30/PPM, 100);
 		bodyAxe.getFixtureList().get(0).setUserData(this);
-		if(axeTexture == null)
-			axeTexture = new Texture("tools/double_axe.png") ; 
-        spriteAxe = new Sprite(axeTexture) ;
 	}
 	
 	public void act(float delta)
@@ -35,22 +27,6 @@ public class Weapon_AXE
 		
 	}
 	
-	public void draw(Batch batch)
-	{
-		 spriteAxe.setPosition(
-				 (bodyAxe.getPosition().x * PPM) - spriteAxe.getWidth()/2 ,
-				 (bodyAxe.getPosition().y * PPM) -spriteAxe.getHeight()/2 );
-
-
-		 spriteAxe.setRotation((float)Math.toDegrees(bodyAxe.getAngle()) + 90);
-		 batch.draw(spriteAxe, 
-				 	spriteAxe.getX(), spriteAxe.getY(),
-				 	spriteAxe.getOriginX(),spriteAxe.getOriginY(),
-	                spriteAxe.getWidth(),spriteAxe.getHeight(),
-	                spriteAxe.getScaleX(),spriteAxe.getScaleY(),
-	                spriteAxe.getRotation());
-	}
-
 	public void addOneKill() 
 	{
 		ref.addScore(1);

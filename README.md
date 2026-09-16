@@ -25,6 +25,16 @@ Launcher options (combine as needed):
 | `--mute`       | No music or river ambiance                               |
 | `--debug`      | Box2D collision shapes, FPS counter, reduced asset load  |
 | `--menu`       | Open on the start menu instead of starting a run         |
+| `--host [port]` | Host the run for clients on this UDP port (default 7777); this window plays too |
+| `--join host:port` | Be a client of that host: draw its run from snapshots, send it your buttons |
+
+Two windows on one machine, online (phase 1.5 — no lobby yet, so the client names the host):
+
+```sh
+./gradlew dist
+java -jar desktop/build/libs/LaChasseGalerie-1.0.jar --host 7777
+java -jar desktop/build/libs/LaChasseGalerie-1.0.jar --join 127.0.0.1:7777   # press a key in this window to join
+```
 
 ### When an agent runs it
 
@@ -88,8 +98,8 @@ byte payload cap, seeded packet loss, latency, reordering, duplicates, and a pee
 reported lost once and forgotten — along with the session rules (`HostSession`, `ClientSession`) on a
 toy world. Then it plays them for real: `netsession` runs the game headless behind a host that has no
 hero of its own and fails when a client draws an entity away from where the host had it, and
-`netprocs` does it across three processes over UDP. Nothing in the windowed game calls it yet (that
-is phase 1.5); see `docs/online-multiplayer.md`.
+`netprocs` does it across three processes over UDP. The windowed game uses it through `--host` and
+`--join` (phase 1.5); see `docs/online-multiplayer.md`.
 `netmirror` plays 8 headless players and holds `core/src/jks/online` to the world: every entity the
 host's snapshot names must be where its body is on a client that owns no physics.
 
@@ -140,6 +150,8 @@ core/      game code (shared, backend independent)
   src/jks/parralax/           the night river scene, drawn with io.github.javakhanstudio:parallax-background
   src/jks/net/                the transport seam for online play (./gradlew nettest)
   src/jks/online/             snapshots, HostSession and ClientSession (./gradlew netmirror, netsession, netprocs)
+  src/jks/draw/               how a hero, monster, potion and the canoe are drawn, with no body: the host's
+                              physics sprites extend these, and a client (vue/models/Vue_Client) draws them from snapshots
 desktop/   LWJGL3 launcher and all game assets (desktop/assets)
            packaging/ is where an icon goes for ./gradlew jpackage
 headless/  the game with no window or sound: the loop a host with no screen runs (jks.headless.Headless_Runner)

@@ -3,20 +3,19 @@ package jks.personnage;
 import static jks.physic.FVars_Physic.PPM;
 import static jks.physic.Gvars_Physic.world;
 
-import com.badlogic.gdx.graphics.g2d.Batch;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef.BodyType;
 import com.badlogic.gdx.physics.box2d.Fixture;
 
+import jks.draw.Draw_Monster;
 import jks.personnage.index.Enum_AnimState;
 import jks.personnage.index.SIW_Data;
-import jks.personnage.model.SpriteModel;
 import jks.vars.GVars_Game;
 import jks.physic.tools.BoxBodyBuilder; 
 
-public class PhysicSpriteEnnemy extends SpriteModel
+/** A monster in the simulation : its body and its chase. Drawn by Draw_Monster, placed on the body in act(). */
+public class PhysicSpriteEnnemy extends Draw_Monster
 {
 
 	/** This monster's entity id, for snapshots. */
@@ -40,7 +39,6 @@ public class PhysicSpriteEnnemy extends SpriteModel
 		super(index);
 		
 		this.position.add(x,y) ; 
-		currentFrame = currentState.getKeyFrame(0,false) ;
 		body = BoxBodyBuilder.CreateCircleBody(world, BodyType.DynamicBody, this.position.x/PPM,this.position.y/PPM, 90);
 		fixture_Main = body.getFixtureList().get(0); 
 		fixture_Main.setUserData(this) ; 
@@ -70,18 +68,11 @@ public class PhysicSpriteEnnemy extends SpriteModel
 			target = GVars_Game.checkForTarget() ; 
 		}
 		
-		position.x = body.getPosition().x * PPM - getFrameWidth(currentFrame)/ 2; 
-		position.y = body.getPosition().y * PPM - getFrameHeight(currentFrame)/ 2; 
+		placeAt(body.getPosition().x, body.getPosition().y) ; 
 		
 		checkForState() ; 
 	}
 	
-
-	@Override
-	public void draw(Batch batch) 
-	{
-		super.draw(batch);
-	}
 
 	public void checkForState()
 	{
@@ -89,16 +80,6 @@ public class PhysicSpriteEnnemy extends SpriteModel
 			changeAnimationState(Enum_AnimState.IDLE,true) ;
 	}
 	
-	@Override
-	public float getFrameWidth(TextureRegion frame)
-	{return (frame.getRegionWidth() * index.scale) ;}
-	
-	@Override
-	public float getFrameHeight(TextureRegion frame)
-	{return (frame.getRegionHeight() * index.scale);}
-
-	
-
 	public void getHurt() 
 	{
 		GVars_Game.ennemies.remove(this) ; 

@@ -6,6 +6,7 @@ import jks.camera.GVars_Camera;
 import jks.parralax.GVars_Parralax;
 import jks.sounds.Enum_Music;
 import jks.sounds.GVars_AudioManager;
+import jks.vars.FVars_Heart;
 import jks.vars.GVars_Game;
 import jks.vars.GVars_Random;
 import jks.vue.models.Vue_Game;
@@ -61,6 +62,9 @@ public class GVars_Story
 	static float faddingPower = 0.023f ; 
 	static float accelerationGoingUp = 1.5f ;
 	
+	/** What the river speeds up by when the music starts. */
+	static final float musicRiverBoost = 0.7f ; 
+	
 	static float screenSpeed ; 
 	
 	// The Music object stays null under --mute, so it cannot tell whether the cue already fired
@@ -76,7 +80,7 @@ public class GVars_Story
 		{
 			musicCueFired = true ; 
 			GVars_AudioManager.PlayMusic(Enum_Music.MUSIC);
-			GVars_Camera.screenMovementSpeed += 0.7f ; 
+			GVars_Camera.screenMovementSpeed += musicRiverBoost ; 
 		}
 		
 		if(timming_currentStoryTime > timming_timeUntil_TakeOff && timming_currentStoryTime < timming_timeUntil_Stabilise)
@@ -110,6 +114,52 @@ public class GVars_Story
 	}
 
 
+	/**
+	 * The story as a CLIENT plays it (phase 1.5) : a client owns no world and runs no timers, so the
+	 * beats follow the host's story clock, read off the snapshots, instead of its own. Everything
+	 * between two story times that a picture or a speaker needs : the music cue, the river's scroll,
+	 * the sky going up at take-off and the water fading. Spawns, the canoe's tilt and the star are
+	 * the host's, and arrive in the snapshot.
+	 */
+	public static void followHost(float fromTime, float toTime, float fromSky, float toSky)
+	{
+		float delta = toTime - fromTime ; 
+		if(delta <= 0)
+			return ; 
+		
+		if(toTime > timming_timeUntil_Music && !musicCueFired) 
+		{
+			musicCueFired = true ; 
+			GVars_AudioManager.PlayMusic(Enum_Music.MUSIC);
+		}
+		if(toTime > timming_timeUntil_TakeOff && toTime < timming_timeUntil_Stabilise && GVars_AudioManager.currentlyRunningAmbiance != null)
+			GVars_AudioManager.currentlyRunningAmbiance.setVolume(Math.max(0, GVars_AudioManager.currentlyRunningAmbiance.getVolume() - faddingPower * delta));
+		
+		// The host scrolls the river by its speed once per step : that many steps went by
+		GVars_Parralax.scroll(delta, riverSpeedAt(toTime) * delta / FVars_Heart.step, toSky - fromSky) ; 
+		GVars_Parralax.act(delta) ; 
+	}
+	
+	/**
+	 * GVars_Camera.screenMovementSpeed as the host's story has made it by this story time : the base,
+	 * the boost at the music cue, and the acceleration while taking off. Not sent in the snapshot,
+	 * because it follows from the clock alone (the river is too faint to show the difference).
+	 */
+	public static float riverSpeedAt(float storyTime)
+	{
+		float speed = GVars_Camera.baseMovementSpeed ; 
+		if(storyTime > timming_timeUntil_Music)
+			speed += musicRiverBoost ; 
+		float climbing = Math.min(storyTime, timming_timeUntil_Stabilise) - timming_timeUntil_TakeOff ; 
+		if(climbing > 0)
+			speed += accelerationGoingUp * climbing ; 
+		return speed ; 
+	}
+	
+	/** Where the star starts, in world units ; it goes down by a third of the sky's scroll. */
+	public static float starStartY()
+	{return GVars_Camera.viewHeight/1.1f * GVars_Camera.worldMutiplier ;}
+	
 	static int numberHp ; 
 	static float currentTimmer_HpDrop ; 
 //	static final float timming_HpDrop = 0 ; 

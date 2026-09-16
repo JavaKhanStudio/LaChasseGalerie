@@ -20,9 +20,13 @@ import jks.vars.GVars_Heart;
  *   --mute        start without music
  *   --debug       draw Box2D collision shapes and print debug information
  *   --menu        open on the start menu instead of starting a run right away
+ *   --host [port] host the run for clients on this UDP port (default 7777), and play in it too
+ *   --join host:port  be a client of that host : draw its run, send it this machine's buttons
  */
 public class Launcher_Game 
 {
+	/** Where --host listens when no port is given. Phase 2's lobby replaces fixed ports for players. */
+	static final int defaultPort = 7777 ;
 
 	public static void main (String[] arg) 
 	{
@@ -32,6 +36,17 @@ public class Launcher_Game
 		GVars_Heart.startAtMenu = args.contains("--menu") ;
 		GVars_Debug.setInFullDebug(args.contains("--debug"));
 		
+		int host = args.indexOf("--host") ;
+		if(host >= 0)
+			GVars_Heart.hostPort = host + 1 < args.size() && args.get(host + 1).matches("\\d+") ? Integer.parseInt(args.get(host + 1)) : defaultPort ;
+		int join = args.indexOf("--join") ;
+		if(join >= 0)
+		{
+			if(join + 1 >= args.size())
+				throw new IllegalArgumentException("--join needs the host's address, as host:port") ;
+			GVars_Heart.joinAddress = args.get(join + 1) ;
+		}
+		
 		Utils_Launcher.preferX11OnLinux();
 		Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
 		Utils_Launcher.basicConfig(config) ; 
@@ -40,6 +55,11 @@ public class Launcher_Game
 			Utils_Launcher.setFullScreen(config);
 		else
 			Utils_Launcher.setWindowed(config);
+		
+		if(GVars_Heart.joinAddress != null)
+			config.setTitle("La chasse galerie - client of " + GVars_Heart.joinAddress);
+		else if(GVars_Heart.hostPort >= 0)
+			config.setTitle("La chasse galerie - host on port " + GVars_Heart.hostPort);
 		
 		new Lwjgl3Application(new Main_Game(), config);
 	}

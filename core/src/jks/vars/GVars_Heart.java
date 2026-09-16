@@ -17,6 +17,10 @@ public class GVars_Heart
 	public static AVue_Model vue;
 	/** --menu : open on the start menu instead of dropping straight into a run. */
 	public static boolean startAtMenu;
+	/** --host [port] : this window hosts, and lets clients in on this UDP port. -1 : not hosting. */
+	public static int hostPort = -1;
+	/** --join host:port : this window is a client of that host, and simulates nothing. */
+	public static String joinAddress;
 
 	public static void init() 
 	{
