@@ -158,6 +158,10 @@ have nowhere to go. So:
   wants to accept connections"* — and people click No. Two mitigations: bind an ephemeral port and rely
   only on mappings our own outbound packets created (outbound never prompts), and package the game
   with `jpackage` so the prompt at least carries the game's name and icon.
+  **Both are done (r44).** `Transport_Udp` binds port 0 and never asks for an inbound mapping, and
+  `./gradlew jpackage` builds a launcher named `LaChasseGalerie` carrying its own runtime, so the
+  prompt names the game. The icon half is waiting on there being an icon: the game has no icon art
+  (d11), and the build picks one up from `desktop/packaging/` the day it does.
 - **libGDX gives us nothing here.** Verified on the 1.14.2 jar: `com.badlogic.gdx.Net.Protocol` has a
   single constant, `TCP`. libGDX has no UDP. That is fine on desktop — `java.nio.channels.DatagramChannel`
   is all we need — but it does mean netplay could never run on a GWT/HTML backend. The project is
@@ -286,7 +290,7 @@ disagree:
 | 2.1 the lobby service | r41 | `#network` |
 | 2.2 ICE: IPv6, punch, relay — and say which | r42 | `#network` |
 | 2.3 the lobby screen | r43 | `#hud` `#network` |
-| 2.4 `jpackage`, so the firewall prompt names the game | r44 | `#build` |
+| 2.4 `jpackage`, so the firewall prompt names the game | **done, r44** | `#build` |
 | 2.5 decide and deploy the relay | r45, **blocked on d6** | `#network` |
 | 2.6 a browser tab as a player | r46 | `#network` |
 | 3 feel, measured first | r47 | `#network` |

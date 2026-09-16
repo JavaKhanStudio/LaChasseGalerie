@@ -93,6 +93,28 @@ java -jar desktop/build/libs/LaChasseGalerie-1.0.jar
 
 The jar bundles every dependency and asset, so it runs from any directory.
 
+## A native launcher
+
+```sh
+./gradlew jpackage                  # desktop/build/jpackage/LaChasseGalerie/bin/LaChasseGalerie
+./gradlew jpackage -Ptype=deb       # or rpm, msi, dmg — an installer instead of a folder
+./gradlew jpackage -Pruntime=/tmp/runtime -Pvendor="..."
+```
+
+Wraps the `dist` jar in a launcher that carries the game's name and its own Java runtime, so a
+player needs no JDK — and so the Windows firewall prompt a host sees says `LaChasseGalerie`
+instead of `java.exe`, which is the prompt people click No on
+(`docs/online-multiplayer.md` §3). `jpackage` only builds for the machine it runs on: run it on
+Windows for an `.exe`, on macOS for a `.app`.
+
+The image carries the JDK Gradle is running on, whole, which is about 250 MB. `jpackage` would
+normally `jlink` a small runtime itself, but it cannot on Fedora — the distro rewrites
+`conf/security/java.security` after the build and `jlink` then refuses with *"has been
+modified"*. Build one elsewhere and pass `-Pruntime=<dir>` for a smaller image.
+
+Drop an icon at `desktop/packaging/icon.png` (`icon.ico` on Windows, `icon.icns` on macOS) and it
+is picked up. There is none yet: the game has no icon art.
+
 ## Project layout
 
 ```
@@ -100,6 +122,7 @@ core/      game code (shared, backend independent)
   src/jks/parralax/           the night river scene, drawn with io.github.javakhanstudio:parallax-background
   src/jks/net/                the transport seam for online play (./gradlew nettest)
 desktop/   LWJGL3 launcher and all game assets (desktop/assets)
+           packaging/ is where an icon goes for ./gradlew jpackage
 smoke/     the headless gates (./gradlew smoke, ./gradlew nettest)
 docs/      design notes: online-multiplayer.md (the plan for going online),
            browser-target.md (whether this can run in a browser, and what it would cost)

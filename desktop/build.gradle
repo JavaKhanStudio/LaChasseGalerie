@@ -51,3 +51,73 @@ tasks.register('dist', Jar) {
     from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
     exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
 }
+
+// A native launcher, because the Windows firewall prompt a HOST sees today says "java.exe wants to
+// accept connections" and people click No (docs/online-multiplayer.md section 3). jpackage puts the
+// game's own name — and its icon, once it has one — on the binary and on that prompt. It also means
+// a player does not need a JDK: the image carries its own runtime.
+//
+// jpackage only builds for the machine it runs on: run it on Windows for a .exe, on macOS for a
+// .app. -Ptype picks what comes out (app-image, deb, rpm, msi, dmg); the default is the plain
+// folder, which needs no packaging tools installed.
+def jpackageName = 'LaChasseGalerie'
+def jpackageType = providers.gradleProperty('type').orElse('app-image')
+def jpackageVendor = providers.gradleProperty('vendor').orElse('Simon Bedard')
+// -Pruntime=<dir> : a runtime image you built yourself. Without it the image carries the JDK
+// Gradle is running on, whole (about 250 MB). jpackage would normally jlink a small one itself,
+// but it CANNOT on Fedora — the distro rewrites conf/security/java.security after the build and
+// every jlink then dies with "has been modified". So the runtime is copied, never linked, and a
+// smaller one is opt-in, from a JDK whose jlink works:
+//   jlink --add-modules java.base,java.desktop,java.logging,jdk.unsupported \
+//         --strip-debug --no-header-files --no-man-pages --output /tmp/runtime
+//   ./gradlew jpackage -Pruntime=/tmp/runtime
+def jpackageRuntime = providers.gradleProperty('runtime').orElse(providers.systemProperty('java.home'))
+def javaHome = providers.systemProperty('java.home')
+def osName = providers.systemProperty('os.name')
+def javaVersion = providers.systemProperty('java.version')
+
+// jpackage takes a DIRECTORY and puts every jar in it on the app's classpath: the fat jar alone.
+tasks.register('jpackageInput', Sync) {
+    from tasks.named('dist')
+    into layout.buildDirectory.dir('jpackage-input')
+}
+
+tasks.register('jpackage', Exec) {
+    group = 'distribution'
+    description = 'Builds a native launcher carrying the game\'s name, with its own Java runtime.'
+    dependsOn tasks.named('jpackageInput')
+
+    def out = layout.buildDirectory.dir('jpackage').get().asFile
+    def input = layout.buildDirectory.dir('jpackage-input').get().asFile
+    def os = osName.get().toLowerCase(Locale.ROOT)
+    def mac = os.contains('mac')
+    def windows = os.contains('windows')
+    // Drop an icon here and it is picked up; without one the binary still carries the name.
+    def icon = file(windows ? 'packaging/icon.ico' : mac ? 'packaging/icon.icns' : 'packaging/icon.png')
+
+    executable = "${javaHome.get()}/bin/jpackage"
+    def command = [
+            '--type', jpackageType.get(),
+            '--name', jpackageName,
+            '--app-version', project.version,
+            '--description', 'La chasse-galerie, a local co-op arcade game',
+            '--vendor', jpackageVendor.get(),
+            '--copyright', 'La chasse-galerie',
+            '--input', input.absolutePath,
+            '--main-jar', "$jpackageName-${project.version}.jar",
+            '--main-class', application.mainClass.get(),
+            '--dest', out.absolutePath,
+            '--runtime-image', jpackageRuntime.get(),
+            // Everything the launcher passes to the JVM has to be repeated here: the image has no gradle
+            '--java-options', '--enable-native-access=ALL-UNNAMED']
+    if (JavaVersion.toVersion(javaVersion.get()) >= JavaVersion.VERSION_24)
+        command += ['--java-options', '--sun-misc-unsafe-memory-access=allow']
+    if (mac)
+        command += ['--java-options', '-XstartOnFirstThread']
+    if (icon.exists())
+        command += ['--icon', icon.absolutePath]
+    args command
+
+    // jpackage refuses to write into a directory that already holds the app
+    doFirst { out.deleteDir() }
+}
