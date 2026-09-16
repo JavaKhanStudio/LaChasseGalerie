@@ -193,6 +193,16 @@ Sizes from the real object set, quantized (positions as 16-bit fixed point, ids 
 Under d5 → A a hero is a machine, so those 8 heroes are 8 machines: the host plus 7 clients, which
 is the busiest session worth planning for.
 
+**Measured, not estimated (r37, `./gradlew netcensus`).** The layout `Net_Codec` actually uses
+has a 24 B header, 6 B per player in the score table, 21 B per hero *with* its axe, 7 B per monster
+and 6 B per potion. An 8-player headless run that encodes the real snapshot every tick (seeds 1–5
+over 120 s, seed 2 over 600 s) never went past **442 B**. The worst of each count, even though no
+single tick had them all at once (8 heroes, 26 monsters, 8 potions), comes to 470 B. Risk 4 was
+real but small: monsters peak around 26, not far above the estimate. What does *not* stay bounded
+is potions: every potion that misses the canoe falls forever and is never removed (n7), 109 of
+them after ten minutes. The snapshot view has to leave out anything that has left the world, or
+no layout fits.
+
 At 20 snapshots/s that is **~9 kB/s (70 kbit/s) per client**, so a host with 7 clients sends
 **~0.5 Mbit/s upstream** — comfortable on any home connection, and one packet stays far under the
 ~1200 B that avoids IP fragmentation. Upstream from a client is one byte of buttons plus a header at
@@ -292,7 +302,7 @@ disagree:
 | 0.5 one seeded RNG | r35 | `#gameplay` |
 | 0.6 headless runner out of `Smoke_Run` | r36 | `#build` |
 | 1.1 the `Transport` seam + its gate | **done, this commit** | `#network` |
-| 1.2 the wire protocol | r37 | `#network` |
+| 1.2 the wire protocol | **done, r37** | `#network` |
 | 1.3 entity ids and snapshots | r38 | `#network` `#gameplay` |
 | 1.4 `HostSession` / `ClientSession` on loopback | r39 | `#network` |
 | 1.5 a client that renders what it does not simulate | r40 | `#network` `#gameplay` |
@@ -319,6 +329,15 @@ The contract it fixes, and that everything above it may now assume: a packet arr
 all, a payload past 1200 bytes is refused out loud, a host learns a peer from the packet that
 punched its way in and can answer that address, and a peer that goes quiet past the timeout is
 reported lost exactly once and forgotten.
+
+**Phase 1.2 is in too** (`Net_Codec`, `Net_Message`, `Net_Input`, `Net_Snapshot`, `Net_Rejected`),
+a pure codec with no socket: every packet is `version u8 | type u8 | body | CRC-32`, and the
+layouts are written out in `Net_Codec`'s javadoc. Input carries the newest frame and the three
+before it. The host takes each tick once, by its number, which is also what stops a copy from
+jumping twice. Encoding a packet past 1200 B throws and names the counts. Decoding refuses, and
+never half-reads, a packet that is truncated, corrupted, of another version, or whose checksum is
+right but whose content no encoder writes. nettest holds all of that, plus the measured 8-player
+peak, in 10 more checks (24 in all).
 
 ### A door left open
 

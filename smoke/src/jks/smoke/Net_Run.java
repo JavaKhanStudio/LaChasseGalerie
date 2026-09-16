@@ -37,7 +37,7 @@ import jks.net.Transport_Udp;
 public class Net_Run
 {
 	static final long DEADLINE_MS = 2000;
-	static int failed;
+	static int failed, checks;
 
 	public static void main(String[] args)
 	{
@@ -55,8 +55,18 @@ public class Net_Run
 		check("wire/silent-peer-is-lost-once", Net_Run::wireSilentPeer);
 		check("wire/keepalive-keeps-a-peer", Net_Run::wireKeepalive);
 		check("wire/closed-end-stops-being-reachable", Net_Run::wireClosedEnd);
+		check("codec/control-round-trip", Net_Codec_Checks::controlRoundTrip);
+		check("codec/input-round-trip", Net_Codec_Checks::inputRoundTrip);
+		check("codec/snapshot-round-trip-every-field", Net_Codec_Checks::snapshotRoundTrip);
+		check("codec/quantizing-clamps-and-wraps", Net_Codec_Checks::quantizing);
+		check("codec/truncated-is-rejected", Net_Codec_Checks::truncatedIsRejected);
+		check("codec/corrupted-is-rejected", Net_Codec_Checks::corruptedIsRejected);
+		check("codec/lies-are-rejected", Net_Codec_Checks::liesAreRejected);
+		check("codec/oversized-is-refused-out-loud", Net_Codec_Checks::oversizedIsRefused);
+		check("codec/measured-8-player-peak-fits", Net_Codec_Checks::measuredPeakFits);
+		check("codec/input-survives-loss", Net_Codec_Checks::inputSurvivesLoss);
 
-		System.out.println(failed == 0 ? "NET ok, 14 checks" : "NET FAILED " + failed + " check(s)");
+		System.out.println(failed == 0 ? "NET ok, " + checks + " checks" : "NET FAILED " + failed + " of " + checks + " check(s)");
 		System.exit(failed == 0 ? 0 : 1);
 	}
 
@@ -466,6 +476,7 @@ public class Net_Run
 
 	static void check(String name, Check check)
 	{
+		checks++;
 		try
 		{
 			check.run();

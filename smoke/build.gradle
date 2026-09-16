@@ -31,3 +31,16 @@ tasks.register('nettest', JavaExec) {
     mainClass = 'jks.smoke.Net_Run'
     classpath = sourceSets.main.runtimeClasspath
 }
+
+// ./gradlew netcensus : how big a snapshot the real game makes. Plays the headless loop with 8
+// players and encodes the snapshot a host would send every tick; fails if one passes 1200 B.
+// ./gradlew netcensus -Pplayers=8 -Pseconds=600 -Pseed=2
+tasks.register('netcensus', JavaExec) {
+    group = 'verification'
+    description = 'Measures the biggest snapshot an N-player headless run makes, against the payload cap.'
+    mainClass = 'jks.smoke.Net_Census'
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = rootProject.file('desktop/assets')
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    args providers.gradleProperty('players').orElse('8').get(), providers.gradleProperty('seconds').orElse('120').get(), providers.gradleProperty('seed').orElse('1').get()
+}
