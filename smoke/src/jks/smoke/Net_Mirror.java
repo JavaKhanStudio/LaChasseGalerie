@@ -48,6 +48,8 @@ public class Net_Mirror implements Headless_Runner.Session
 	int frame;
 
 	int created, destroyed, rejoins, wrapsForced;
+	/** Ticks a client saw a score row whose player had no hero on the river : the row must still have its look (r69). */
+	int herolessRows;
 	final Set<Integer> heroIdsSeen = new HashSet<Integer>();
 	/** Every hero id each player has worn : a rejoin must be a new one. */
 	final Map<Integer, Set<Integer>> idsByPlayer = new HashMap<Integer, Set<Integer>>();
@@ -154,6 +156,8 @@ public class Net_Mirror implements Headless_Runner.Session
 			throw new IllegalStateException(created + " created - " + destroyed + " destroyed, but the mirror holds " + living);
 		if (rejoins == 0)
 			throw new IllegalStateException("nobody died and rejoined : the run proves nothing about new ids");
+		if (herolessRows == 0)
+			throw new IllegalStateException("no score row was ever without its hero : the run proves nothing about a row's look");
 		if (wrapsForced == 0 || destroyed == 0)
 			throw new IllegalStateException("no wrap or no destroy : the run proves nothing");
 
@@ -251,6 +255,11 @@ public class Net_Mirror implements Headless_Runner.Session
 			is(label != null, which + ": a score row for player " + score.player + " who never joined");
 			eq(label.scoreNumber, score.score, which + " P" + score.player + " score");
 			eq(label.deathNumber, score.deaths, which + " P" + score.player + " deaths");
+			// The look of the player's last hero, dead or alive : what a client that never saw that hero colours the row with
+			eq(Index_Sprite.persoModel.indexOf(label.look), score.look, which + " P" + score.player + " look");
+			is(score.look != Net_Snapshot.Score.NO_LOOK, which + ": P" + score.player + " joined but its row has no look");
+			if (mirror.heroes().stream().noneMatch(hero -> hero.player == score.player))
+				herolessRows++;
 		}
 	}
 

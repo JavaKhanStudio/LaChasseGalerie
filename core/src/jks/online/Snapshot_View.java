@@ -50,7 +50,13 @@ public final class Snapshot_View
 
 		// Sorted by PlayerId : every client gets the table in one order
 		for (Entry<PlayerId, ScoreLabel> entry : GVars_Game.playerRegister.entrySet())
-			snapshot.scores.add(new Net_Snapshot.Score(entry.getKey().number(), entry.getValue().scoreNumber, entry.getValue().deathNumber));
+		{
+			ScoreLabel label = entry.getValue();
+			// The look of the player's last hero, alive or not : a client that never saw it colours the row with it (r69)
+			int look = label.look == null ? Net_Snapshot.Score.NO_LOOK : Index_Sprite.persoModel.indexOf(label.look);
+			snapshot.scores.add(new Net_Snapshot.Score(entry.getKey().number(), label.scoreNumber, label.deathNumber,
+					look < 0 ? Net_Snapshot.Score.NO_LOOK : look));
+		}
 		if (snapshot.over)
 			return snapshot;
 

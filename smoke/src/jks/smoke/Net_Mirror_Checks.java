@@ -133,8 +133,8 @@ class Net_Mirror_Checks
 
 		// Player 1 died ; they rejoined as hero 6, player 2 joined as hero 5
 		Net_Snapshot b = snapshot(40);
-		b.scores.add(new Net_Snapshot.Score(1, 3, 1));
-		b.scores.add(new Net_Snapshot.Score(2, 0, 0));
+		b.scores.add(new Net_Snapshot.Score(1, 3, 1, 1));
+		b.scores.add(new Net_Snapshot.Score(2, 0, 0, Net_Snapshot.Score.NO_LOOK));
 		b.heroes.add(hero(5, 2, 1f));
 		b.heroes.add(hero(6, 1, 4f));
 		since1.apply(b);
@@ -145,6 +145,8 @@ class Net_Mirror_Checks
 		eq(since1.toSnapshot(), late.toSnapshot(), "a late client agrees with one that saw every snapshot");
 		is(since1.hero(1) == null && since1.hero(6).player == 1, "player 1 came back as a new hero, id 6");
 		eq(2, late.scores().size(), "the score table came over");
+		// The row keeps a look without the hero : a client that never saw player 1's hero still colours the row (r69)
+		eq(1, late.scores().get(0).look, "a late client has the look of a player's row");
 	}
 
 	static Net_Snapshot snapshot(int tick)

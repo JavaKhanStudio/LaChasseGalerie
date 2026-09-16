@@ -93,6 +93,7 @@ class Net_Codec_Checks
 		changes.add(s -> s.scores.get(1).player = other(s.scores.get(1).player, 65535));
 		changes.add(s -> s.scores.get(1).score = other(s.scores.get(1).score, 65535));
 		changes.add(s -> s.scores.get(1).deaths = other(s.scores.get(1).deaths, 65535));
+		changes.add(s -> s.scores.get(1).look = other(s.scores.get(1).look, 255));
 		changes.add(s -> s.heroes.get(1).id = other(s.heroes.get(1).id, 65535));
 		changes.add(s -> s.heroes.get(1).player = other(s.heroes.get(1).player, 65535));
 		changes.add(s -> s.heroes.get(1).look = other(s.heroes.get(1).look, 255));
@@ -161,6 +162,7 @@ class Net_Codec_Checks
 		refusedToEncode(s -> s.heroes.get(0).anim = 16, "an animation past 4 bits");
 		refusedToEncode(s -> s.monsters.get(0).look = 128, "a monster look past 7 bits");
 		refusedToEncode(s -> s.scores.get(0).score = -1, "a negative score");
+		refusedToEncode(s -> s.scores.get(0).look = 256, "a score look past 8 bits");
 	}
 
 	// ---------------------------------------------------------------- refusals
@@ -391,8 +393,8 @@ class Net_Codec_Checks
 		snapshot.canoeAngle = 2105 / 8192f;
 		snapshot.run = 65535;
 		snapshot.over = true;
-		snapshot.scores.add(new Net_Snapshot.Score(1, 65535, 0));
-		snapshot.scores.add(new Net_Snapshot.Score(65535, 12, 34));
+		snapshot.scores.add(new Net_Snapshot.Score(1, 65535, 0, 0));
+		snapshot.scores.add(new Net_Snapshot.Score(65535, 12, 34, Net_Snapshot.Score.NO_LOOK));
 		Net_Snapshot.Hero first = hero(40000, 1);
 		first.x = -128f;
 		first.y = 32767 / 256f;
@@ -431,7 +433,7 @@ class Net_Codec_Checks
 	{
 		Net_Snapshot snapshot = new Net_Snapshot();
 		for (int i = 0; i < players; i++)
-			snapshot.scores.add(new Net_Snapshot.Score(i + 1, i, i));
+			snapshot.scores.add(new Net_Snapshot.Score(i + 1, i, i, i));
 		for (int i = 0; i < heroes; i++)
 			snapshot.heroes.add(hero(i, i + 1));
 		for (int i = 0; i < monsters; i++)

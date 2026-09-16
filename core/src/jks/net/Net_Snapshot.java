@@ -14,7 +14,7 @@ import java.util.List;
  * has left the world is the host's to remove or the view's to leave out, not the codec's to carry (n7).
  *
  * Sizes on the wire, measured against an 8-player headless run (r37, `./gradlew netcensus`) :
- * a 27 B header (24 before d14 added the run and the score screen), 6 B per player, 21 B per hero with its axe, 7 B per monster and 6 B per potion.
+ * a 27 B header (24 before d14 added the run and the score screen), 7 B per player (6 before r69 gave a row its look), 21 B per hero with its axe, 7 B per monster and 6 B per potion.
  */
 public final class Net_Snapshot extends Net_Message
 {
@@ -50,20 +50,29 @@ public final class Net_Snapshot extends Net_Message
 		return Type.SNAPSHOT;
 	}
 
-	/** One row of the score table. A player keeps it across deaths, like the ScoreLabel it mirrors. */
+	/**
+	 * One row of the score table. A player keeps it across deaths, like the ScoreLabel it mirrors, and
+	 * so does the look : a client that joined after a hero died still colours that player's row (r69).
+	 */
 	public static final class Score
 	{
+		/** The look of a player who has not had a hero yet : drawn white. */
+		public static final int NO_LOOK = 255;
+
 		public int player, score, deaths;
+		/** Which hero model the player's last hero wore, as {@link Hero#look}, or {@link #NO_LOOK}. */
+		public int look = NO_LOOK;
 
 		public Score()
 		{
 		}
 
-		public Score(int player, int score, int deaths)
+		public Score(int player, int score, int deaths, int look)
 		{
 			this.player = player;
 			this.score = score;
 			this.deaths = deaths;
+			this.look = look;
 		}
 
 		@Override
@@ -72,7 +81,7 @@ public final class Net_Snapshot extends Net_Message
 			if (!(other instanceof Score))
 				return false;
 			Score that = (Score) other;
-			return that.player == player && that.score == score && that.deaths == deaths;
+			return that.player == player && that.score == score && that.deaths == deaths && that.look == look;
 		}
 
 		@Override
@@ -84,7 +93,7 @@ public final class Net_Snapshot extends Net_Message
 		@Override
 		public String toString()
 		{
-			return "P" + player + " score " + score + " deaths " + deaths;
+			return "P" + player + " score " + score + " deaths " + deaths + (look == NO_LOOK ? " no look" : " look " + look);
 		}
 	}
 

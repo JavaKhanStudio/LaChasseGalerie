@@ -132,7 +132,7 @@ class Net_Toy_World implements Host_Simulation
 		snapshot.tick = tick;
 		snapshot.storyTime = tick / 60f;
 		for (Map.Entry<PlayerId, int[]> score : scores.entrySet())
-			snapshot.scores.add(new Net_Snapshot.Score(score.getKey().number(), score.getValue()[0], score.getValue()[1]));
+			snapshot.scores.add(new Net_Snapshot.Score(score.getKey().number(), score.getValue()[0], score.getValue()[1], 0));
 		for (Hero from : heroes.values())
 		{
 			Net_Snapshot.Hero hero = new Net_Snapshot.Hero();

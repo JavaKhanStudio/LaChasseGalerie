@@ -6,6 +6,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.Align;
 
+import jks.personnage.index.SIW_Data;
 import jks.vinterface.GVars_Interface;
 
 public class ScoreLabel extends Table
@@ -18,6 +19,9 @@ public class ScoreLabel extends Table
 	
 	public int scoreNumber = 0; 
 	public int deathNumber = 0; 
+	
+	/** The model of this player's last hero : the row keeps its colour after the hero is gone, and a host sends it (r69). */
+	public SIW_Data look ; 
 	
 	public static Float buttonSize ; 
 	
@@ -78,6 +82,13 @@ public class ScoreLabel extends Table
 		this.add(death);
 		this.add(deathValue).align(Align.left);
 		update() ; 
+	}
+	
+	/** Worn by this player's new hero : the row takes its colour. */
+	public void wear(SIW_Data model)
+	{
+		look = model ; 
+		setColor(model.color) ; 
 	}
 	
 	public void setColor(Color color)

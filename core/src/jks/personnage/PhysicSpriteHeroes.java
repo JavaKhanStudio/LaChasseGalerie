@@ -67,7 +67,7 @@ public class PhysicSpriteHeroes extends Draw_Hero
 	{
 		super(index);
 		score = scoreRegister ;
-		score.setColor(index.color);
+		score.wear(index);
 		this.player = player ; 
 		this.position.add(GVars_Camera.viewWidth/2 * GVars_Camera.worldMutiplier,GVars_Camera.viewHeight/2 * GVars_Camera.worldMutiplier) ; 
 		

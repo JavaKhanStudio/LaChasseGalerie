@@ -87,7 +87,7 @@ public final class Snapshot_Mirror
 
 		scores.clear();
 		for (Net_Snapshot.Score score : snapshot.scores)
-			scores.add(new Net_Snapshot.Score(score.player, score.score, score.deaths));
+			scores.add(new Net_Snapshot.Score(score.player, score.score, score.deaths, score.look));
 
 		// Rebuilt in the snapshot's order, which is the host's drawing order : an entity keeps its
 		// object across snapshots, not its place in the list

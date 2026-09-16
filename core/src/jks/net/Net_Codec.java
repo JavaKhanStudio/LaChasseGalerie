@@ -24,7 +24,7 @@ import java.nio.ByteOrder;
  *   INPUT      tick u32 | count u8 (1-4) | count x buttons u8, newest first
  *   SNAPSHOT   tick u32 | storyTime f32 | skyScroll f32 | canoeAngle s16
  *              | scores u8 | heroes u8 | monsters u8 | potions u8 | run u16 | over u8 (0 or 1)
- *              | scores   x (player u16 | score u16 | deaths u16)                               6 B
+ *              | scores   x (player u16 | score u16 | deaths u16 | look u8, 255 = none)       7 B
  *              | heroes   x (id u16 | player u16 | look u8 | x y vx vy s16 | hp u8
  *                            | flags u8 : anim 4 bits, reverse, invulnerable
  *                            | axeX axeY s16 | axeAngle s16)                                    21 B
@@ -41,11 +41,11 @@ import java.nio.ByteOrder;
 public final class Net_Codec
 {
 	/** Bump on ANY change to a layout above. Peers of different versions do not play together. */
-	public static final int VERSION = 3;
+	public static final int VERSION = 4;
 
 	static final int HEADER = 2, CHECKSUM = 4;
 	static final int SNAPSHOT_FIXED = 4 + 4 + 4 + 2 + 4 + 2 + 1;
-	public static final int SCORE_BYTES = 6, HERO_BYTES = 21, MONSTER_BYTES = 7, POTION_BYTES = 6;
+	public static final int SCORE_BYTES = 7, HERO_BYTES = 21, MONSTER_BYTES = 7, POTION_BYTES = 6;
 
 	static final float POSITION_SCALE = 256f;
 	static final float ANGLE_SCALE = 8192f;
@@ -263,6 +263,7 @@ public final class Net_Codec
 			putPlayer(out, score.player);
 			out.putShort(u16(score.score, "score"));
 			out.putShort(u16(score.deaths, "deaths"));
+			out.put(u8(score.look, "score look"));
 		}
 		for (Net_Snapshot.Hero hero : snapshot.heroes)
 		{
@@ -317,7 +318,7 @@ public final class Net_Codec
 				Net_Message.Type.SNAPSHOT, version);
 
 		for (int i = 0; i < scores; i++)
-			snapshot.scores.add(new Net_Snapshot.Score(getPlayer(in, version), in.getShort() & 0xFFFF, in.getShort() & 0xFFFF));
+			snapshot.scores.add(new Net_Snapshot.Score(getPlayer(in, version), in.getShort() & 0xFFFF, in.getShort() & 0xFFFF, in.get() & 0xFF));
 		for (int i = 0; i < heroes; i++)
 		{
 			Net_Snapshot.Hero hero = new Net_Snapshot.Hero();

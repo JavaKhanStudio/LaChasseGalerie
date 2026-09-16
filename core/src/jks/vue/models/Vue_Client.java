@@ -369,7 +369,7 @@ public class Vue_Client extends AVue_Model
 		return ordinal >= 0 && ordinal < states.length ? states[ordinal] : Enum_AnimState.IDLE ;
 	}
 
-	/** The host's score table : a row per player who joined, in the colour of the hero they last had. */
+	/** The host's score table : a row per player who joined, in the colour of the hero they last had, as the host says. */
 	private void showScores(Snapshot_Mirror view)
 	{
 		List<Integer> gone = new ArrayList<Integer>(scores.keySet()) ;
@@ -389,15 +389,11 @@ public class Vue_Client extends AVue_Model
 				label.deathNumber = score.deaths ;
 				label.update() ;
 			}
+			// The host sends the row's look, so a player whose hero died before this client joined is still in colour (r69)
+			label.setColor(score.look == Net_Snapshot.Score.NO_LOOK ? Color.WHITE : model(Index_Sprite.persoModel, score.look).color) ;
 		}
 		for(Integer player : gone)
 			scores.remove(player).remove() ;
-		for(Net_Snapshot.Hero hero : view.heroes())
-		{
-			ScoreLabel label = scores.get(hero.player) ;
-			if(label != null)
-				label.setColor(heroes.get(hero).index.color) ;
-		}
 	}
 
 	private void showStatus()
