@@ -25,9 +25,8 @@ import jks.vars.GVars_Game;
  *
  * What has left the world is left out, because a client has nothing to draw for it and the packet
  * has no room for it : a hero already queued to die (drowned or out of hearts, it is gone at the
- * start of the next update), and a potion whose body fell below the world (y < 0). Potions that fall
- * are never removed on the host (n7), so without that rule they pile up in every snapshot for the
- * rest of the run. Monsters are always sent : one chasing a drowning hero dips under the water line
+ * start of the next update). A potion that fell below the world is already out of hpStack when this
+ * reads it (GVars_Game.removeFallenPotions, n7). Monsters are always sent : one chasing a drowning hero dips under the water line
  * and climbs back, and leaving it out there would make it blink out and in on every client.
  */
 public final class Snapshot_View
@@ -84,8 +83,6 @@ public final class Snapshot_View
 		}
 		for (PhysicSpriteHp model : GVars_Game.hpStack)
 		{
-			if (!inWorld(model.body))
-				continue;
 			Net_Snapshot.Potion potion = new Net_Snapshot.Potion();
 			potion.id = model.id;
 			potion.x = model.body.getPosition().x;
@@ -93,11 +90,5 @@ public final class Snapshot_View
 			snapshot.potions.add(potion);
 		}
 		return snapshot;
-	}
-
-	/** A potion down there only falls further : n7 is that nothing ever removes it. */
-	public static boolean inWorld(Body body)
-	{
-		return body.getPosition().y >= 0;
 	}
 }

@@ -21,6 +21,7 @@ import jks.personnage.PhysicSpriteHeroes;
 import jks.personnage.ScoreLabel;
 import jks.personnage.index.Index_Sprite;
 import jks.physic.Gvars_Physic;
+import jks.physic.objects.PhysicSpriteHp;
 import jks.vars.GVars_Game;
 import jks.vars.GVars_Heart;
 import jks.story.GVars_Story;
@@ -282,6 +283,11 @@ public class Smoke_Run implements Headless_Runner.Session
 			if (!Float.isFinite(hero.body.getPosition().x) || !Float.isFinite(hero.body.getPosition().y))
 				throw new IllegalStateException("a hero position is not finite");
 		}
+
+		// A potion that missed the canoe is destroyed in the update it falls below the world (n7)
+		for (PhysicSpriteHp potion : GVars_Game.hpStack)
+			if (potion.body.getPosition().y < 0)
+				throw new IllegalStateException("a potion fell off the world and is still in the run");
 
 		// Canoe, a body and an axe per hero, monsters, potions, and whatever waits in the queue
 		int expectedBodies = 1 + GVars_Game.heroes.size() * 2 + GVars_Game.ennemies.size() + GVars_Game.hpStack.size() + GVars_Game.toBeDestroy_Body.size();

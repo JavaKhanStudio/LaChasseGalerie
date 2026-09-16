@@ -26,15 +26,15 @@ import jks.vars.GVars_Random;
  * run, and the biggest one is reported with its counts. Net_Run's measured-peak check carries those
  * counts, so the game-free nettest gate holds the layout to them.
  *
- * The snapshot is the one a host sends : Snapshot_View's (phase 1.3, r38), which leaves out potions
- * that fell off the world (n7) — otherwise they pile up without limit and no layout fits.
+ * The snapshot is the one a host sends : Snapshot_View's (phase 1.3, r38). Potions that fall off the
+ * world are removed from the run (n7) — otherwise they would pile up without limit and no layout fits.
  */
 public class Net_Census implements Headless_Runner.Session
 {
 	final int players, seconds;
 	final long seed;
 
-	int biggest, biggestFrame, peakHeroes, peakMonsters, peakPotions, peakFallen;
+	int biggest, biggestFrame, peakHeroes, peakMonsters, peakPotions;
 	String biggestCounts = "";
 
 	public static void main(String[] args)
@@ -86,7 +86,7 @@ public class Net_Census implements Headless_Runner.Session
 		}
 
 		System.out.println("CENSUS " + players + " players, seed " + seed + ", " + seconds + "s : peak heroes=" + peakHeroes
-				+ " monsters=" + peakMonsters + " potions=" + peakPotions + " (and " + peakFallen + " fallen off the world, not sent)");
+				+ " monsters=" + peakMonsters + " potions=" + peakPotions);
 		System.out.println("CENSUS biggest snapshot " + biggest + " B of " + Net_Transport.MAX_PAYLOAD + " at t=" + biggestFrame / 60 + "s : " + biggestCounts);
 	}
 
@@ -99,7 +99,6 @@ public class Net_Census implements Headless_Runner.Session
 		peakHeroes = Math.max(peakHeroes, snapshot.heroes.size());
 		peakMonsters = Math.max(peakMonsters, snapshot.monsters.size());
 		peakPotions = Math.max(peakPotions, snapshot.potions.size());
-		peakFallen = Math.max(peakFallen, GVars_Game.hpStack.size() - snapshot.potions.size());
 		if (size > biggest)
 		{
 			biggest = size;

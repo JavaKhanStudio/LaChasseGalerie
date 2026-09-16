@@ -11,7 +11,7 @@ import java.util.List;
  * (phase 1.3, r38) copies them straight off the bodies. {@link Net_Codec} quantizes them : positions
  * and velocities to 1/256, which is under half a world pixel, and positions past +-128 m are clamped.
  * Nothing in the world is ever that far out except what should not be sent at all : an entity that
- * has left the world is the view's to leave out, not the codec's to carry (n7).
+ * has left the world is the host's to remove or the view's to leave out, not the codec's to carry (n7).
  *
  * Sizes on the wire, measured against an 8-player headless run (r37, `./gradlew netcensus`) :
  * a 24 B header, 6 B per player, 21 B per hero with its axe, 7 B per monster and 6 B per potion.

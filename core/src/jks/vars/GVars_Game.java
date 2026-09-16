@@ -82,8 +82,7 @@ public class GVars_Game
 
 	/**
 	 * A fresh id for an entity being made. A hero that dies and rejoins is a new entity, so a new id
-	 * for the same player. After a wrap an id still worn by a living entity is skipped : a potion that
-	 * fell off the world keeps its body, and its id, forever (n7).
+	 * for the same player. After a wrap an id still worn by a living entity is skipped.
 	 */
 	public static int newEntityId()
 	{
@@ -157,6 +156,25 @@ public class GVars_Game
 						GVars_Camera.viewHeight * GVars_Camera.worldMutiplier / (GVars_Random.random.nextInt(2) + 2)
 						) ;
 		ennemies.add(physic) ; 
+	}
+
+	/**
+	 * A potion that missed the canoe only falls further, and its body would be stepped for the rest
+	 * of the run (n7). The same rule as a hero's : below the world, it is gone. Called once per update,
+	 * after the step : the body goes in the destroy queue, which cleanUp drains before the next step,
+	 * and a potion picked up in the same step is already out of the list.
+	 */
+	public static void removeFallenPotions()
+	{
+		for(int i = hpStack.size() - 1 ; i >= 0 ; i--)
+		{
+			PhysicSpriteHp potion = hpStack.get(i) ; 
+			if(potion.body.getPosition().y < 0)
+			{
+				toBeDestroy_Body.add(potion.body) ; 
+				hpStack.remove(i) ; 
+			}
+		}
 	}
 
 	public static void dropHp() 

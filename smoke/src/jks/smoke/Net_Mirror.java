@@ -189,8 +189,8 @@ public class Net_Mirror implements Headless_Runner.Session
 
 	/**
 	 * The client's picture against the host's world, read straight off the bodies and not through the
-	 * view : the same ids, and each entity where its body is. A hero queued to die and a potion that fell
-	 * off the world are not on the client ; everything else is, in the host's drawing order.
+	 * view : the same ids, and each entity where its body is. A hero queued to die is not on the
+	 * client, and a potion that fell off the world is not even on the host ; everything else is, in the host's drawing order.
 	 */
 	void agreesWithTheWorld(Snapshot_Mirror mirror, float position, float angle, String which)
 	{
@@ -236,11 +236,7 @@ public class Net_Mirror implements Headless_Runner.Session
 		for (PhysicSpriteHp model : GVars_Game.hpStack)
 		{
 			Net_Snapshot.Potion potion = mirror.potion(model.id);
-			if (model.body.getPosition().y < 0)
-			{
-				is(potion == null, which + ": potion " + model.id + " fell off the world but is on the client");
-				continue;
-			}
+			is(model.body.getPosition().y >= 0, which + ": potion " + model.id + " fell off the world and the host kept it");
 			potions++;
 			is(potion != null, which + ": potion " + model.id + " is not on the client");
 			near(model.body, potion.x, potion.y, position, which + " potion " + model.id);

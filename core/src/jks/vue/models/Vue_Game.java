@@ -153,6 +153,8 @@ public class Vue_Game extends AVue_Model
     	for(PhysicSpriteEnnemy model : GVars_Game.ennemies)
     		model.act(delta);
     	
+    	GVars_Game.removeFallenPotions();
+    	
     	GVars_Controller.act(delta);
     	
     	GVars_Parralax.scroll(delta, screenMovementSpeed, 0);
