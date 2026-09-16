@@ -1,18 +1,21 @@
 package jks.vue.models;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.controllers.Controllers;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
-import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 
+import jks.input.IKM_Menu_Keyboard;
+import jks.input.IKM_Menu_XBoxController;
 import jks.parralax.Enum_ColdNight;
 import jks.parralax.GVars_Parralax;
 import jks.vars.GVars_Heart;
 import jks.vinterface.GVars_Interface;
+import jks.vinterface.Menu_Focus;
 import jks.vue.AVue_Model;
 
 /**
@@ -22,12 +25,17 @@ import jks.vue.AVue_Model;
  * and it owns ITS OWN Stage. The game's Stage (GVars_Interface.mainInterface) already carries the
  * score table, which a menu must not inherit.
  *
+ * Three ways in, not one (d8) : the pointer, the arrows and a pad all move the same Menu_Focus, so
+ * the pad a player is already holding gets them into the game without reaching for a mouse.
+ *
  * What it does NOT do, on purpose : there is no way back here from a running game. The run's timers
  * are static and never reset (#gameplay), so returning to the menu is a restart path, not a screen.
  */
 public class Vue_Menu extends AVue_Model
 {
 	Stage stage ;
+	Menu_Focus focus ;
+	IKM_Menu_XBoxController padListener ;
 
 	/** Slow enough to read a menu over : the river runs at 7.5 once the game starts. */
 	private static final float menuScrollSpeed = 2f ;
@@ -41,7 +49,13 @@ public class Vue_Menu extends AVue_Model
 		GVars_Parralax.setPages(Enum_ColdNight.COLD_NIGHT, Enum_ColdNight.COLD_WATER) ;
 
 		stage = new Stage() ;
-		Gdx.input.setInputProcessor(stage);
+		focus = new Menu_Focus() ;
+
+		// The Stage first, so the pointer keeps its clicks ; the keys it does not want fall through
+		padListener = new IKM_Menu_XBoxController(focus) ;
+		Gdx.input.setInputProcessor(new InputMultiplexer(stage, new IKM_Menu_Keyboard(focus))) ;
+		Controllers.clearListeners();
+		Controllers.addListener(padListener) ;
 
 		float width = Gdx.graphics.getWidth() ;
 		float height = Gdx.graphics.getHeight() ;
@@ -52,13 +66,16 @@ public class Vue_Menu extends AVue_Model
 		Label title = new Label("La chasse-galerie", GVars_Interface.baseSkin, "title") ;
 		table.add(title).padBottom(height * 0.08f).row();
 
-		table.add(playButton("Local play", () -> GVars_Heart.changeVue(new Vue_Game())))
-			.width(width * 0.34f).height(height * 0.11f).padBottom(height * 0.03f).row();
+		TextButton local = playButton("Local play") ;
+		focus.add(local, () -> GVars_Heart.changeVue(new Vue_Game())) ;
+		table.add(local).width(width * 0.34f).height(height * 0.11f).padBottom(height * 0.03f).row();
 
-		TextButton online = playButton("Online play", null) ;
-		// Nothing behind it yet : the plan is docs/online-multiplayer.md
+		// Nothing behind it yet : the plan is docs/online-multiplayer.md. It is not in the focus
+		// ring either — a choice nobody can take must not be one the arrows can land on.
+		TextButton online = playButton("Online play") ;
 		online.setDisabled(true);
-		online.getColor().a = 0.7f ;
+		// Fainter than a choice merely not focused, or the arrows look like they skipped a live one
+		online.getColor().a = 0.6f ;
 		table.add(online).width(width * 0.34f).height(height * 0.11f).row();
 
 		// ASCII ONLY : the skin's bitmap fonts carry 98 glyphs, no accents and no dashes but '-'
@@ -66,30 +83,24 @@ public class Vue_Menu extends AVue_Model
 		soon.getColor().a = 0.75f ;
 		table.add(soon).padTop(height * 0.01f).padBottom(height * 0.04f).row();
 
-		table.add(playButton("Quit", () -> Gdx.app.exit()))
-			.width(width * 0.34f).height(height * 0.11f).row();
+		TextButton quit = playButton("Quit") ;
+		focus.add(quit, () -> Gdx.app.exit()) ;
+		table.add(quit).width(width * 0.34f).height(height * 0.11f).row();
 
 		stage.addActor(table);
 	}
 
-	private TextButton playButton(String text, Runnable onClick)
-	{
-		TextButton button = new TextButton(text, GVars_Interface.baseSkin) ;
-		if(onClick != null)
-		{
-			button.addListener(new ChangeListener()
-			{
-				@Override
-				public void changed(ChangeEvent event, Actor actor)
-				{onClick.run();}
-			});
-		}
-		return button ;
-	}
+	private TextButton playButton(String text)
+	{return new TextButton(text, GVars_Interface.baseSkin) ;}
 
 	@Override
 	public void update(float delta)
 	{
+		// The choice made since the last frame lands here. Once it has run this view may already be
+		// the old one, and must not go on acting a Stage it has just disposed.
+		if(focus.runPicked())
+			return ;
+
 		GVars_Parralax.scroll(delta, menuScrollSpeed, 0);
 		GVars_Parralax.act(delta);
 		stage.act(delta);
@@ -110,6 +121,7 @@ public class Vue_Menu extends AVue_Model
 	@Override
 	public void dispose()
 	{
+		Controllers.removeListener(padListener);
 		stage.dispose();
 	}
 }
