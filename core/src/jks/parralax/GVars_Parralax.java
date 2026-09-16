@@ -18,6 +18,11 @@ public class GVars_Parralax
 	
 	public static void init()
 	{
+		// Idempotent : the start menu brings the river up before the game view asks for it again,
+		// and a second pair of hearts would leak the first pair's batch
+		if(background != null)
+			return ;
+		
 		float worldHeight = Utils_Parallax.calculateOtherDimension(true, worldWidth, Gdx.graphics.getWidth(), Gdx.graphics.getHeight()) ; 
 		OrthographicCamera worldCamera = new OrthographicCamera() ; 
 		worldCamera.setToOrtho(false, worldWidth, worldHeight);

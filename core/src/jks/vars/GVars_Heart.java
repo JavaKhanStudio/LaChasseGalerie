@@ -15,6 +15,8 @@ public class GVars_Heart
 {
 	
 	public static AVue_Model vue;
+	/** --menu : open on the start menu instead of dropping straight into a run. */
+	public static boolean startAtMenu;
 
 	public static void init() 
 	{
@@ -40,6 +42,8 @@ public class GVars_Heart
 	public static void changeVue(AVue_Model View) 
 	{
 		GVars_AudioManager.StopAndDisposeMusic();
+		if(vue != null)
+			vue.dispose();
 		vue = View;
 		vue.init();
 	}

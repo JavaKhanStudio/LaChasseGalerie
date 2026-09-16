@@ -14,4 +14,7 @@ public abstract class AVue_Model
 	public abstract void update (float delta) ;
 	public abstract void render () ;
 	
+	/** Called by GVars_Heart.changeVue before this view is replaced : let go of what it owns. */
+	public void dispose () {}
+	
 }

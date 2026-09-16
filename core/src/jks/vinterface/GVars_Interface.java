@@ -22,9 +22,16 @@ public class GVars_Interface
 	private static float width = 0.7f; 
 	private static float height = 0.12f ; 
 	
+	/** The skin on its own : a view that wants widgets but not the game's HUD calls this. */
+	public static void loadSkin()
+	{
+		if(baseSkin == null)
+			baseSkin = new Skin(Gdx.files.internal("skin/freezing-ui.json"));
+	}
+
 	public static void init() 
 	{
-		baseSkin = new Skin(Gdx.files.internal("skin/freezing-ui.json"));
+		loadSkin();
 		mainInterface = new Stage();
 		
 		scoreRegion = Utils_Interface.buildDrawingRegionTexture("ui/score.png") ;		

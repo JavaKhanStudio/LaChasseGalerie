@@ -24,6 +24,7 @@ Launcher options (combine as needed):
 | `--fullscreen` | Fullscreen at the monitor's native resolution            |
 | `--mute`       | No music or river ambiance                               |
 | `--debug`      | Box2D collision shapes, FPS counter, reduced asset load  |
+| `--menu`       | Open on the start menu instead of starting a run         |
 
 ### When an agent runs it
 

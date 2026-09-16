@@ -8,6 +8,7 @@ import jks.sounds.GVars_AudioManager;
 import jks.vars.FVars_Heart;
 import jks.vars.GVars_Heart;
 import jks.vue.models.Vue_Game;
+import jks.vue.models.Vue_Menu;
 
 public class Main_Game extends ApplicationAdapter 
 {
@@ -29,7 +30,7 @@ public class Main_Game extends ApplicationAdapter
 	@Override
 	public void create () 
 	{
-		GVars_Heart.changeVue(new Vue_Game()) ; 
+		GVars_Heart.changeVue(GVars_Heart.startAtMenu ? new Vue_Menu() : new Vue_Game()) ; 
 	}
 
 	@Override
