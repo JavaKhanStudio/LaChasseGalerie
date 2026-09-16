@@ -61,6 +61,15 @@ tasks.register('netmirror', JavaExec) {
     args providers.gradleProperty('players').orElse('8').get(), providers.gradleProperty('seconds').orElse('90').get(), providers.gradleProperty('seed').orElse('1').get()
 }
 
+// ./gradlew netnat : this machine's network as the game sees it, against the real public STUN servers (r42).
+// Needs the internet, so it is not in nettest. Run it on the network you want to know about.
+tasks.register('netnat', JavaExec) {
+    group = 'verification'
+    description = 'Probes the public STUN servers from one socket and prints the NAT verdict and the advice a lobby would show.'
+    mainClass = 'jks.smoke.Net_Nat'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
 // ./gradlew netsession : phase 1.4's in-process gate. The real game headless behind a HostSession with
 // no hero of its own, three world-less ClientSessions over the in-memory wire with latency and loss;
 // fails when a client draws an entity away from where the host had it. ./gradlew netsession -Pseconds=60 -Pseed=1

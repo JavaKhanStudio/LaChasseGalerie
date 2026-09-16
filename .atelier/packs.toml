@@ -322,6 +322,24 @@ description = "Lobbies, UDP, NAT traversal, snapshots — the online multiplayer
 color = "#ff8cc6"
 sort = 25
 context = """
+ICE EXISTS, NOT ICE4J (r42, phase 2.2): ice4j binds its own socket per harvester and cannot share the
+game's one socket, and no other Java library could, so jks.net.Stun_Codec (RFC 5389 Binding request/
+success, pure; 0x00/0x01 + magic cookie, refused by the game and lobby codecs as NOT_OURS) and
+jks.lobby.Lobby_Ice (JDK-only) do the subset. Lobby_Client OWNS the Lobby_Ice and routes STUN to it off
+the shared socket: ice().probe(STUN_SERVERS) is the RFC 5780 probe (nat() EASY/HARD/OPEN/UNKNOWN,
+carrierNat(), advice() naming a fix - never a NAT type); checks start BY THEMSELVES on PEER (host) and
+JOINED (joiner), keyed by the other end's service-seen address, which each check carries as USERNAME;
+IPv6 > LAN > public, peer-reflexive, a paced port search after 1 s, 300 ms settle, CANNOT_CONNECT at 4 s.
+The JOINER nominates: its ClientSession goes to ice().link(joined().host.get(0)).address() once
+route() is DIRECT. RELAYED is a slot until r45. A DIRECT route is re-checked every second and goes
+RECONNECTING after 3.5 s of silence. Net_Transport.localAddresses() is where candidates come from
+(never call NetworkInterface outside jks.net); Transport_Udp strips the %scope. Lobby_Client's game()
+view marks every address the game sends to, and only addresses NOT so marked have their timeout
+swallowed - keep that, or a session never hears its host go quiet. Net_Loopback models routers
+(nat(ip, kind), reset() = network change, ipv6(end, addr, firewalled), ipv6LatencyMs): test punching
+there. ./gradlew netnat probes the real STUN servers from this machine (needs the internet, not in
+nettest). The real-internet gate (two households + a hotspot) has NOT been run: it needs a deployed
+lobby service.
 THE LOBBY SERVICE EXISTS (r41, phase 2.1): jks.net.Lobby_Codec/Lobby_Message are its pure wire
 protocol ('L' | version | type | body | CRC-32; the 'L' is how one socket tells lobby packets from
 game packets, and Net_Codec refuses a lobby packet as NOT_OURS, so a session never answers the
@@ -427,14 +445,13 @@ about 9 kB/s per client, a host with 7 clients sends about 0.5 Mbit/s up. Keep a
 about 1200 B or IP fragments it. Input needs no reliability layer: put the last three input
 frames in every packet. Caveat from the doc's risk 4: monster spawns scale with heroes.size(),
 so 8 players means far more bodies than that 430 B assumes — measure before sizing the protocol.
-LIBRARIES, checked against Maven Central on 2026-09-16: ice4j (org.jitsi, Apache-2.0, released
-2026-09-14) is the recommendation for phase 2 ICE/STUN/TURN — hole punching done properly is more
-corner cases than it looks. KryoNet on Central is 2.22.0-RC1 from 2014; the maintained fork is
+LIBRARIES, checked against Maven Central on 2026-09-16: ice4j (org.jitsi, Apache-2.0) was the
+recommendation for phase 2 and was REJECTED in r42 - it owns its sockets; see the ICE paragraph above. KryoNet on Central is 2.22.0-RC1 from 2014; the maintained fork is
 com.github.crykn:kryonet on JitPack. Netty is overkill for the game socket, reasonable for the
 lobby service. weupnp for best-effort UPnP, never relied on. coturn is what a relay VPS runs.
 The Windows Defender prompt saying 'java.exe wants to accept connections' is a real reason people
 click No, and it is a #build problem (jpackage), not yours.
-Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 50 checks (10 of them the lobby's) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
+Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 65 checks (10 of them the lobby's, 11 ICE's) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
 jks.net and the mirror (codec round trips, every truncation and bit flip, checksummed lies, the
 size refusal, and): round trips over real UDP on loopback and over the in-memory wire, the payload cap,
 whole-or-nothing delivery, a host learning an unknown peer, a pump that never blocks, a peer

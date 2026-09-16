@@ -95,6 +95,17 @@ public class Net_Run
 		check("lobby/answers-are-throttled", Net_Lobby_Checks::answersAreThrottled);
 		check("lobby/game-packets-wait-for-the-session", Net_Lobby_Checks::gamePacketsWaitForTheSession);
 		check("lobby/one-socket-for-lobby-and-game-over-udp", Net_Lobby_Checks::sharedSocketOverUdp);
+		check("ice/stun-codec-reads-the-rfc-5769-vectors", Net_Ice_Checks::codecReadsTheRfcVectors);
+		check("ice/stun-codec-refuses-and-never-mixes", Net_Ice_Checks::codecRefusesAndNeverMixes);
+		check("ice/address-text-is-the-transports", Net_Ice_Checks::addressTextIsTheTransports);
+		check("ice/probe-tells-the-mapping-and-names-a-fix", Net_Ice_Checks::probeTellsTheMapping);
+		check("ice/every-router-against-every-router", Net_Ice_Checks::everyRouterAgainstEvery);
+		check("ice/random-ports-are-honest", Net_Ice_Checks::randomPortsAreHonest);
+		check("ice/ipv6-first", Net_Ice_Checks::ipv6First);
+		check("ice/same-lan-goes-straight", Net_Ice_Checks::sameLanGoesStraight);
+		check("ice/punches-race-over-a-bad-wire", Net_Ice_Checks::punchesRaceOverABadWire);
+		check("ice/reconnecting-is-said", Net_Ice_Checks::reconnectingIsSaid);
+		check("ice/strangers-get-no-answer", Net_Ice_Checks::strangersGetNoAnswer);
 
 		System.out.println(failed == 0 ? "NET ok, " + checks + " checks" : "NET FAILED " + failed + " of " + checks + " check(s)");
 		System.exit(failed == 0 ? 0 : 1);

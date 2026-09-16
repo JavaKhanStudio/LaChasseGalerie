@@ -229,7 +229,7 @@ Checked against Maven Central / JitPack on 2026-09-16:
 | `java.nio.channels.DatagramChannel` + our own tiny protocol | JDK | **recommended for the game traffic.** What we need — unreliable ordered-by-tick packets, drop the stale ones — is a few hundred lines, and every alternative hides the packet layout we want to control. |
 | KryoNet (`com.esotericsoftware:kryonet`) | last release on Central `2.22.0-RC1`, **published 2014** | the libGDX classic; a maintained fork exists on JitPack (`com.github.crykn:kryonet`, up to 2.22.9). Fastest path if we want objects on the wire instead of bytes, but it would own our packet format. |
 | Netty (`io.netty:netty-all` 4.2.18.Final, current) | healthy | overkill for the game socket; a reasonable choice for the **lobby service** if we want one. |
-| ice4j (`org.jitsi:ice4j`, published 2026-09-14, Apache-2.0) | healthy, actively released | **recommended for phase 2**: a real ICE/STUN/TURN implementation in Java. Hole punching done properly is more corner cases than it looks, and this is the library that already has them. |
+| ice4j (`org.jitsi:ice4j`, published 2026-09-14, Apache-2.0) | healthy, actively released | was recommended for phase 2, **and not used (r42)**: every ice4j harvester binds a socket of its own with its own receive thread, one Agent per pair, so it cannot share the game's one socket. No other Java library on Central could either (see phase 2.2 below). |
 | weupnp (`org.bitlet:weupnp` 0.1.4, 2015) | stale but trivial and stable | fine for best-effort port mapping. |
 | coturn | standard TURN server | what the relay VPS would run. |
 
@@ -276,7 +276,7 @@ no internet in this phase.**
 ### Phase 2 — lobbies and the real internet
 
 Lobby service on a VPS, doubling as the WebRTC signalling server for browser players (d7); the
-shared-socket STUN trick; ICE via ice4j with a coturn relay behind it;
+shared-socket STUN trick; ICE on the game's own socket (our own subset, r42 — not ice4j) with a relay behind it;
 keepalives; IPv6-first ordering; version gating; a join-by-code screen and a lobby screen in scene2d
 (the skin and `Stage` are already there); `jpackage` so the firewall prompt names the game; UPnP as a
 bonus. Tested by actually playing across two households and one phone hotspot — the hotspot is the
@@ -443,6 +443,51 @@ codec each fail at least one of them. **Not in 2.1**: gathering local and IPv6 c
 itself (r42: `Lobby_Client.candidates` and `takeJoiners()` are where they plug in), the screen (r43),
 and signalling for a tab (r46), which needs a message bigger than a UDP packet and a front other
 than UDP beside the same lobbies. Nobody has run the service on a VPS yet.
+
+**Phase 2.2 is in, on loopback** (`core/src/jks/net/Stun_Codec.java`, `core/src/jks/lobby/Lobby_Ice.java`,
+`./gradlew netnat`). **Not ice4j**: every one of its harvesters binds its own `DatagramSocket` with its
+own receive thread, one `Agent` per pair, so lobby chatter would leave the game socket (section 3's
+trap). No other Java library on Maven Central fits either (checked 2026-09-16: restcomm's STUN codec
+is AGPL and dead since 2018, `chat.dim:STUN` and `litesockets-stun` do their own IO, `webrtc-java`
+is native libwebrtc with its own sockets). So it is the subset of RFC 8445 the game needs, JDK only,
+on `Net_Transport`, with RFC 5389 Binding packets as the checks (a STUN packet starts with 0x00/0x01
+plus the magic cookie, so neither the game nor the lobby codec can mistake it; both refuse it as
+`NOT_OURS`). `Lobby_Client` owns a `Lobby_Ice` and routes STUN to it off the shared socket:
+
+- **the probe** (RFC 5780): Binding requests to `stun.l.google.com:19302` and `stun.cloudflare.com:3478`
+  from the game socket, plus the lobby service's own view; one port everywhere is `EASY`, different
+  ports `HARD`, the address on this machine `OPEN`. A LAN address in 100.64.0.0/10 is carrier NAT.
+  `advice()` names a fix ("join over Wi-Fi if you can"), never a NAT type. **Measured** here with
+  `netnat`: both servers saw 88.185.101.163:12683, `EASY`, answers in 76 ms after 97 ms of name lookup;
+- **candidates**: `Net_Transport.localAddresses()` — global IPv6 first, then LAN IPv4, without an
+  interface scope, at most 4 so the service's view still fits the lobby packet;
+- **the check**, started the moment the service mirrors a joiner (host) or answers JOINED (joiner),
+  not when the host presses start: both ends send a request carrying their own service-seen address
+  to every address the other offered, IPv6 then LAN then public, every 100 ms. A request from an
+  address nobody offered is the other end's real mapping (peer-reflexive) and is checked at once.
+  After 1 s, a port search around each public address at 100 probes/s, in widening passes (±8,
+  ±32, ±128, ±256). After a first answer, better addresses get 300 ms to answer too. Nothing in 4 s
+  is `CANNOT_CONNECT`, still checked once a second. The joiner nominates: its ClientSession goes to
+  `ice().link(joined().host.get(0)).address()`;
+- **the row**: `CHECKING`, `DIRECT`, `RELAYED` (a slot: no relay exists until r45), `CANNOT_CONNECT`,
+  `RECONNECTING`. A direct route is checked every second (every 100 ms once an answer is late, so a
+  lossy minute is not a network change); no answer for 3.5 s is `RECONNECTING`, then it is checked
+  from scratch. The transport's timeouts of addresses only checks ever went to are swallowed; an
+  address the game itself sent to keeps its timeout.
+
+`Net_Loopback` now models routers (`nat(ip, kind)`: full cone, restricted, port-restricted,
+symmetric with sequential or random ports; `reset()` is a network change) and a firewalled IPv6
+address per transport. **Measured on loopback** (nettest's 11 `ice/` checks, 65 in all): every
+pair of routers is `DIRECT` in at most 300 ms, except port-restricted against symmetric, which the
+search finds in 1.3 s; symmetric against symmetric is `CANNOT_CONNECT` on both rows with advice; a
+symmetric router with random ports against a port-restricted one is `CANNOT_CONNECT`, and each end
+is told whose network it is. 288 pairs over 12 seeds connect and hold for 10 s over 20% loss, 10%
+duplicates, 20% reordering and 20-60 ms. In `netlobby` the clients' checks answered in 9-19 ms and
+the game played over this machine's global IPv6 address. Ten mutations (no search, no
+peer-reflexive, no ranks, no settle wait, slow consent, answering strangers, no staleness, a JOIN
+copy restarting the check, and both halves of the timeout rule) each fail at least one check.
+**Not proven**: the real internet. The gate — two households and one phone hotspot — needs a person
+and a lobby service reachable from the internet, and nobody has deployed one yet.
 
 ### A door left open
 

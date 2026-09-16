@@ -5,6 +5,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Random;
 import java.util.function.LongSupplier;
 
 import jks.net.Lobby_Codec;
@@ -13,6 +14,7 @@ import jks.net.Net_Listener;
 import jks.net.Net_Peer;
 import jks.net.Net_Rejected;
 import jks.net.Net_Transport;
+import jks.net.Stun_Codec;
 
 /**
  * A player's side of the lobby service (phase 2.1) : host a lobby, list lobbies, join one by code,
@@ -31,7 +33,13 @@ import jks.net.Net_Transport;
  * service does, because every copy also re-tells the host where to punch - and a client with nothing
  * else to say PINGs every {@link #REFRESH_MS} so a lobby screen that sat for two minutes can still join.
  *
- * Addresses are the transport's text : hand {@link #joined()}'s to the same transport.
+ * Which way the players can reach each other is {@link #ice()}'s (phase 2.2, r42) : the checks start by
+ * themselves, for a host on every joiner the service mirrors and for a joiner on the host it is told
+ * about, and their STUN packets are taken off the same socket as the service's. {@link #candidates}
+ * starts as the transport's own addresses.
+ *
+ * Addresses are the transport's text : hand {@link #joined()}'s to the same transport, and a joiner's
+ * game to {@code ice().link(joined().host.get(0)).address()} once that says DIRECT.
  *
  * Not thread safe : pump it, or its game view, from the loop.
  */
@@ -51,9 +59,10 @@ public final class Lobby_Client implements AutoCloseable
 	private final Net_Peer service;
 	private final LongSupplier clock;
 
-	/** Addresses this machine can also be reached at, sent with HOST and JOIN : filled by ICE (r42). */
+	/** Addresses this machine can also be reached at, sent with HOST and JOIN : the transport's IPv6 and LAN ones to start with. */
 	public final List<String> candidates = new ArrayList<String>();
 
+	private final Lobby_Ice ice;
 	private String publicAddress;
 	private int outdated = -1;
 	private boolean serviceLost;
@@ -86,6 +95,7 @@ public final class Lobby_Client implements AutoCloseable
 		@Override
 		public void send(Net_Peer peer, ByteBuffer payload)
 		{
+			ice.played(peer.address());
 			shared.send(peer, payload);
 		}
 
@@ -116,6 +126,12 @@ public final class Lobby_Client implements AutoCloseable
 		}
 
 		@Override
+		public List<String> localAddresses()
+		{
+			return shared.localAddresses();
+		}
+
+		@Override
 		public int dropped()
 		{
 			return shared.dropped();
@@ -133,6 +149,14 @@ public final class Lobby_Client implements AutoCloseable
 		this.shared = shared;
 		this.service = shared.resolve(serviceAddress);
 		this.clock = clock;
+		this.ice = new Lobby_Ice(shared, clock, new Random(), this::publicAddress);
+		candidates.addAll(shared.localAddresses());
+	}
+
+	/** Who this machine can reach, and how : the probe, and a check per player the lobby put it in touch with. */
+	public Lobby_Ice ice()
+	{
+		return ice;
 	}
 
 	/** The same socket, for HostSession or ClientSession : the service's packets never reach them. */
@@ -276,6 +300,12 @@ public final class Lobby_Client implements AutoCloseable
 			@Override
 			public void received(Net_Peer from, ByteBuffer payload)
 			{
+				// A connectivity check, a probe's answer : ICE's, whoever it is from
+				if (Stun_Codec.isStunPacket(payload))
+				{
+					ice.received(from, payload);
+					return;
+				}
 				if (Lobby_Codec.isLobbyPacket(payload))
 				{
 					// Only the service speaks the lobby protocol to us : anyone else is not believed
@@ -298,6 +328,8 @@ public final class Lobby_Client implements AutoCloseable
 			{
 				if (peer.equals(service))
 					serviceLost = true;
+				else if (ice.swallowLost(peer))
+					return; // only checks ever went there
 				else if (gameListener != null)
 					gameListener.lost(peer);
 				else
@@ -352,12 +384,18 @@ public final class Lobby_Client implements AutoCloseable
 				Lobby_Message.Joined answer = (Lobby_Message.Joined) message;
 				publicAddress = answer.you;
 				if (answer.code.equals(joining))
+				{
 					joined = answer;
+					ice.check(answer.host);
+				}
 				break;
 			case PEER:
 				Lobby_Message.Peer peer = (Lobby_Message.Peer) message;
 				if (hosting && peer.code.equals(code))
+				{
 					joiners.add(new ArrayList<String>(peer.joiner));
+					ice.check(peer.joiner);
+				}
 				break;
 			case REFUSED:
 				Lobby_Message.Refused no = (Lobby_Message.Refused) message;
@@ -387,6 +425,7 @@ public final class Lobby_Client implements AutoCloseable
 			browse();
 		if (now - lastSent >= REFRESH_MS)
 			send(new Lobby_Message.Ping());
+		ice.update();
 	}
 
 	void sendHost()

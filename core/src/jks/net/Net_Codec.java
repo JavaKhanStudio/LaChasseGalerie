@@ -146,6 +146,9 @@ public final class Net_Codec
 		// A lobby packet on the shared socket is not another version of this game : nobody to tell
 		if (Lobby_Codec.isLobbyPacket(packet))
 			throw new Net_Rejected(Net_Rejected.Reason.NOT_OURS, -1, "a lobby packet");
+		// Nor is a connectivity check (r42) : a STUN packet starts with 0 or 1, which reads as a very old version
+		if (Stun_Codec.isStunPacket(packet))
+			throw new Net_Rejected(Net_Rejected.Reason.NOT_OURS, -1, "a STUN packet");
 		int version = versionOf(packet);
 		if (length > 0 && version != VERSION)
 			throw new Net_Rejected(Net_Rejected.Reason.VERSION, version, "version " + version + ", this game speaks " + VERSION);

@@ -2,11 +2,18 @@ package jks.net;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
 import java.net.SocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.function.LongSupplier;
 
@@ -153,6 +160,55 @@ public class Transport_Udp implements Net_Transport
 			return 0;
 		}
 	}
+
+	/**
+	 * Every interface that is up, not the loopback : global IPv6 addresses first (no NAT to punch where
+	 * both players have one), then private and carrier-grade IPv4 ones. Link-local addresses are left out,
+	 * they need a scope nobody else can use, and unique-local (fc00::/7) ones come last. At most {@link #MAX_LOCAL_ADDRESSES}, what a lobby packet
+	 * carries next to the address the service sees.
+	 */
+	@Override
+	public List<String> localAddresses()
+	{
+		int port = localPort();
+		List<String> ipv6 = new ArrayList<String>(), ipv4 = new ArrayList<String>(), unique = new ArrayList<String>();
+		try
+		{
+			Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+			while (interfaces != null && interfaces.hasMoreElements())
+			{
+				NetworkInterface face = interfaces.nextElement();
+				if (!face.isUp() || face.isLoopback())
+					continue;
+				for (InetAddress address : Collections.list(face.getInetAddresses()))
+				{
+					if (address.isLoopbackAddress() || address.isLinkLocalAddress() || address.isAnyLocalAddress() || address.isMulticastAddress())
+						continue;
+					// Without its scope : "%wlp8s0" names this machine's interface and means nothing to anyone else
+					String text = textOf(new InetSocketAddress(InetAddress.getByAddress(address.getAddress()), port));
+					boolean ula = address instanceof Inet6Address && (address.getAddress()[0] & 0xFE) == 0xFC;
+					if (ula && !unique.contains(text))
+						unique.add(text); // fc00::/7 : this site only, worth less than a global one
+					else if (address instanceof Inet6Address && !ula && !ipv6.contains(text))
+						ipv6.add(text);
+					else if (address instanceof Inet4Address && !ipv4.contains(text))
+						ipv4.add(text);
+				}
+			}
+		}
+		catch (IOException e)
+		{
+			// No interface list is no candidates : the service's view still works
+		}
+		List<String> all = new ArrayList<String>(ipv6.subList(0, Math.min(1, ipv6.size())));
+		all.addAll(ipv4);
+		all.addAll(ipv6.subList(Math.min(1, ipv6.size()), ipv6.size()));
+		all.addAll(unique);
+		return all.subList(0, Math.min(MAX_LOCAL_ADDRESSES, all.size()));
+	}
+
+	/** A lobby packet carries five addresses and the service's view of this one is always the first. */
+	public static final int MAX_LOCAL_ADDRESSES = Lobby_Codec.MAX_CANDIDATES - 1;
 
 	@Override
 	public int dropped()

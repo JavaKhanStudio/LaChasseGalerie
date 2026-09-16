@@ -1,6 +1,8 @@
 package jks.net;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Moves opaque bytes between this machine and its peers, unreliably.
@@ -59,6 +61,18 @@ public interface Net_Transport extends AutoCloseable
 
 	/** The local port this transport is bound to, or 0 when the transport has no port (loopback). */
 	int localPort();
+
+	/**
+	 * The addresses this transport can be reached at WITHOUT anybody's help, in its own text, best
+	 * first : a global IPv6 address and a LAN IPv4 address, with the bound port. What ICE (r42) offers
+	 * another player besides the mapping the lobby service sees. Never the loopback, never a name
+	 * lookup. Empty when there is nothing to offer, or nothing to learn it from (a tab : WebRTC gathers
+	 * its own).
+	 */
+	default List<String> localAddresses()
+	{
+		return Collections.emptyList();
+	}
 
 	/** How many packets this transport itself threw away : oversized, malformed, or the OS refused. */
 	int dropped();

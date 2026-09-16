@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 
 import jks.headless.Headless_Runner;
 import jks.lobby.Lobby_Client;
+import jks.lobby.Lobby_Ice;
 import jks.net.Net_Input;
 import jks.net.Net_Message;
 import jks.net.Net_Snapshot;
@@ -38,8 +39,9 @@ import jks.vars.GVars_Random;
  * `./gradlew netlobby` is the same game found through the lobby service (phase 2.1, r41) : a fourth JVM
  * runs jks.lobby.Lobby_Main on the lobby module's classpath, which has NO libGDX on it ; the host opens a
  * lobby on the socket it plays on, and the clients know nothing but the service's address and the code.
- * On top of the above, the host holds each player it let in to have come from the address the service
- * mirrored to it, and the parent holds the service to have logged both joins and the host closing.
+ * On top of the above, each client plays through the address its connectivity check (r42) got an answer
+ * from, the host holds each player it let in to have come from an address the service mirrored to it,
+ * and the parent holds the service to have logged both joins and the host closing.
  *
  *   java jks.smoke.Net_Procs [lobby]                          the gate, direct or through a lobby
  *   java jks.smoke.Net_Procs host clients [service]           a host : prints PORT n, or CODE c once the service opened its lobby
@@ -148,7 +150,7 @@ public class Net_Procs
 		}
 		String what = viaLobby ? "a lobby service JVM with no libGDX, a host JVM and " + CLIENTS + " client JVMs that knew only the code"
 				: "a host JVM and " + CLIENTS + " client JVMs";
-		System.out.println(failures == 0 ? "PROCS ok : " + what + " played over UDP on 127.0.0.1" : "PROCS FAILED : " + failures + " problem(s)");
+		System.out.println(failures == 0 ? "PROCS ok : " + what + " played over UDP on this machine" : "PROCS FAILED : " + failures + " problem(s)");
 		return failures == 0 ? 0 : 1;
 	}
 
@@ -248,7 +250,7 @@ public class Net_Procs
 				{
 					lobby.players(host.seats().size());
 					for (List<String> joiner : lobby.takeJoiners())
-						mirrored.add(joiner.get(0));
+						mirrored.addAll(joiner);
 					if (!announced && lobby.code() != null)
 					{
 						announced = true;
@@ -266,7 +268,9 @@ public class Net_Procs
 				for (HostSession.Seat seat : joined)
 					if (!mirrored.contains(seat.peer.address()))
 						throw new IllegalStateException(seat.player + " played from " + seat.peer.address() + ", not from an address the service mirrored : " + mirrored);
-				System.out.println("every player came from the address the service mirrored : " + mirrored);
+				System.out.println("every player came from an address the service mirrored : " + mirrored);
+				for (Lobby_Ice.Link row : lobby.ice().links())
+					System.out.println("lobby row " + row + (row.advice() == null ? "" : " : " + row.advice()));
 				lobby.close();
 			}
 			System.out.println("HOST ok : " + expected + " players over UDP port " + transport.localPort() + ", " + host.tick() + " ticks, "
@@ -296,7 +300,17 @@ public class Net_Procs
 					Thread.sleep(5);
 				}
 				System.out.println(name + " : the service says the host is at " + lobby.joined().host + ", and this client at " + lobby.publicAddress());
-				client = new ClientSession(lobby.game(), lobby.joined().host.get(0));
+				// The game goes where the connectivity check got an answer (r42), not to the first address it was told
+				Lobby_Ice.Link row = lobby.ice().link(lobby.joined().host.get(0));
+				while (row.route() != Lobby_Ice.Route.DIRECT)
+				{
+					if (System.nanoTime() > deadline + Lobby_Ice.GIVE_UP_MS * 1_000_000L || row.route() == Lobby_Ice.Route.CANNOT_CONNECT)
+						throw new IllegalStateException(name + " cannot reach the host : " + row + " : " + row.advice());
+					lobby.pump();
+					Thread.sleep(5);
+				}
+				System.out.println(name + " : the check answered in " + row.settledMs() + " ms, playing via " + row.address() + " of " + row.addresses());
+				client = new ClientSession(lobby.game(), row.address());
 			}
 			else
 				client = new ClientSession(transport, "127.0.0.1:" + target);
