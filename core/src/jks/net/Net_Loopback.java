@@ -1,8 +1,10 @@
 package jks.net;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,8 +22,9 @@ import java.util.Random;
  * The clock is virtual : nothing times out until {@link #advance} is called, and then it happens
  * at once. A test watching a peer die does not have to wait ten seconds for it.
  *
- * What it does NOT model is latency. Phase 1.4 needs delayed delivery to test interpolation, and
- * that is where it should be added - by queueing packets with a due time off this same clock.
+ * Latency is modelled off the same clock (phase 1.4) : a packet is due {@link #latencyMs} after it
+ * was sent, plus up to {@link #jitterMs}, and pump delivers only what is due. Jitter reorders on its
+ * own, the way the internet does : a packet that drew less of it overtakes one sent before it.
  */
 public class Net_Loopback
 {
@@ -31,6 +34,10 @@ public class Net_Loopback
 	public float reorder;
 	/** 0 to 1 : the share of packets delivered twice. Rare in the wild, fatal to code that assumes it cannot happen. */
 	public float duplicate;
+	/** Milliseconds between a send and the pump that may deliver it. 0 : the next pump. */
+	public int latencyMs;
+	/** Up to this many milliseconds more, drawn per packet. */
+	public int jitterMs;
 
 	final Map<String, Wired> wires = new LinkedHashMap<String, Wired>();
 	final Random random;
@@ -61,6 +68,12 @@ public class Net_Loopback
 	public void advance(long millis)
 	{
 		now += millis;
+	}
+
+	/** Draws from the seeded stream only when jitter is on, so a wire without it replays as it did before. */
+	long due()
+	{
+		return now + latencyMs + (jitterMs > 0 ? random.nextInt(jitterMs + 1) : 0);
 	}
 
 	boolean roll(float chance)
@@ -107,9 +120,9 @@ public class Net_Loopback
 				return;
 			}
 
-			target.accept(new Packet(name, bytes));
+			target.accept(new Packet(name, bytes, due()));
 			if (roll(duplicate))
-				target.accept(new Packet(name, bytes));
+				target.accept(new Packet(name, bytes, due()));
 		}
 
 		void accept(Packet packet)
@@ -124,9 +137,22 @@ public class Net_Loopback
 		public int pump(Net_Listener listener)
 		{
 			int count = 0;
-			while (!inbox.isEmpty())
+			// Only what is due, in queue order ; what is not due yet keeps its place
+			List<Packet> due = new ArrayList<Packet>();
+			for (Iterator<Packet> it = inbox.iterator(); it.hasNext();)
 			{
-				Packet packet = inbox.pollFirst();
+				Packet packet = it.next();
+				if (packet.due <= now)
+				{
+					due.add(packet);
+					it.remove();
+				}
+			}
+			for (Packet packet : due)
+			{
+				// The listener may close this end while it reads
+				if (!open)
+					break;
 				Net_Peer peer = table.peer(packet.from, Wire_Peer::new);
 				table.heard(packet.from);
 				count++;
@@ -171,11 +197,13 @@ public class Net_Loopback
 	{
 		final String from;
 		final byte[] bytes;
+		final long due;
 
-		Packet(String from, byte[] bytes)
+		Packet(String from, byte[] bytes, long due)
 		{
 			this.from = from;
 			this.bytes = bytes;
+			this.due = due;
 		}
 	}
 

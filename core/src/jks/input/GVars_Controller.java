@@ -55,11 +55,19 @@ public class GVars_Controller
 		PlayerId player = localDevices.get(device) ;
 		if(player == null)
 		{
-			player = PlayerId.of(nextNumber ++) ;
+			player = newPlayer() ;
 			localDevices.put(device, player) ;
 		}
 		return player ;
 	}
+	
+	/**
+	 * A player nobody has been yet, with no device behind it : what a host hands a peer (phase 1.4).
+	 * Local devices mint theirs here too, so a host that also plays and the peers it lets in share one
+	 * numbering, and a host with no local player at all is just a host that never called identify.
+	 */
+	public static PlayerId newPlayer()
+	{return PlayerId.of(nextNumber ++) ;}
 	
 	
 	

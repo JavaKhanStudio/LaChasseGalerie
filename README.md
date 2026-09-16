@@ -74,16 +74,22 @@ It cannot see rendering bugs. `./gradlew build` compiles it but does not run it.
 ## Net gate
 
 ```sh
-./gradlew nettest    # the transport seam, over real UDP on loopback and an in-memory wire
-./gradlew netmirror  # a headless host's snapshots applied every tick to clients with no world
+./gradlew nettest     # the seam, codec, mirror and session rules, then netsession and netprocs (~15 s)
+./gradlew netsession  # the game headless behind a HostSession, three ClientSessions in the same JVM
+./gradlew netprocs    # a host JVM and two client JVMs, over UDP on 127.0.0.1, in real time
+./gradlew netmirror   # a headless host's snapshots applied every tick to clients with no world
 ```
 
 `core/src/jks/net` is the seam the online plan is built on: the game sends bytes through a
 `Net_Transport` and never touches a socket itself, because a desktop player is a UDP endpoint and a
-browser player is a WebRTC data channel. `nettest` holds it to its contract in a couple of seconds
-with no window and no game — round trips, a host learning a peer it has never seen, the 1200 byte
-payload cap, seeded packet loss, reordering, duplicates, and a peer that goes quiet being reported
-lost once and forgotten. Nothing in the game calls it yet; see `docs/online-multiplayer.md`.
+browser player is a WebRTC data channel. `nettest` first holds it to its contract in a couple of
+seconds with no window and no game — round trips, a host learning a peer it has never seen, the 1200
+byte payload cap, seeded packet loss, latency, reordering, duplicates, and a peer that goes quiet being
+reported lost once and forgotten — along with the session rules (`HostSession`, `ClientSession`) on a
+toy world. Then it plays them for real: `netsession` runs the game headless behind a host that has no
+hero of its own and fails when a client draws an entity away from where the host had it, and
+`netprocs` does it across three processes over UDP. Nothing in the windowed game calls it yet (that
+is phase 1.5); see `docs/online-multiplayer.md`.
 `netmirror` plays 8 headless players and holds `core/src/jks/online` to the world: every entity the
 host's snapshot names must be where its body is on a client that owns no physics.
 
@@ -133,11 +139,11 @@ iconutil -c icns icon.iconset -o desktop/packaging/icon.icns
 core/      game code (shared, backend independent)
   src/jks/parralax/           the night river scene, drawn with io.github.javakhanstudio:parallax-background
   src/jks/net/                the transport seam for online play (./gradlew nettest)
-  src/jks/online/             the world as a snapshot, and a client's picture built from one (./gradlew netmirror)
+  src/jks/online/             snapshots, HostSession and ClientSession (./gradlew netmirror, netsession, netprocs)
 desktop/   LWJGL3 launcher and all game assets (desktop/assets)
            packaging/ is where an icon goes for ./gradlew jpackage
 headless/  the game with no window or sound: the loop a host with no screen runs (jks.headless.Headless_Runner)
-smoke/     the headless gates (./gradlew smoke, nettest, netmirror, netcensus); smoke drives headless/
+smoke/     the headless gates (./gradlew smoke, nettest, netsession, netprocs, netmirror, netcensus); smoke drives headless/
 docs/      design notes: online-multiplayer.md (the plan for going online),
            browser-target.md (whether this can run in a browser, and what it would cost)
 tools/     browser-spike/ compiles the game to JavaScript and serves it (not part of the build)

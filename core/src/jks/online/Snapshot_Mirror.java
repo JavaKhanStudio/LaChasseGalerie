@@ -24,7 +24,8 @@ import jks.net.Net_Snapshot;
  * the host (GVars_Game.newEntityId), and a snapshot that names one twice is refused whole.
  *
  * UDP reorders and duplicates : a snapshot no newer than the last one applied changes nothing.
- * Interpolating between two snapshots is phase 1.4's and 1.5's, not this class's.
+ * Interpolating between two snapshots is not this class's : {@link ClientSession} applies the older
+ * of the two it draws between, then moves this mirror's entities to where they were in between.
  */
 public final class Snapshot_Mirror
 {

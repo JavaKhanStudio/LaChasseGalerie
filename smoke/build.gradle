@@ -23,13 +23,16 @@ tasks.register('smoke', JavaExec) {
     args providers.gradleProperty('seed').orElse('1').get(), providers.gradleProperty('seconds').orElse('60').get(), providers.gradleProperty('runs').orElse('2').get()
 }
 
-// ./gradlew nettest : holds jks.net to its contract over real UDP on loopback and over the
-// in-memory wire. No window, no game, no assets — a couple of seconds.
+// ./gradlew nettest : holds jks.net and jks.online to their contracts over real UDP on loopback and
+// over the in-memory wire, with a toy world behind the host (no window, no game, a couple of seconds),
+// THEN plays the sessions for real : netsession (the game headless behind a host, clients in the same
+// JVM) and netprocs (a host JVM and two client JVMs over UDP). About 15 s in all.
 tasks.register('nettest', JavaExec) {
     group = 'verification'
-    description = 'Checks the transport seam: round trips, the MTU cap, unknown peers, loss, timeouts.'
+    description = 'Checks the transport, codec, mirror and session rules, then plays host and clients in one JVM and across three.'
     mainClass = 'jks.smoke.Net_Run'
     classpath = sourceSets.main.runtimeClasspath
+    finalizedBy 'netsession', 'netprocs'
 }
 
 // ./gradlew netcensus : how big a snapshot the real game makes. Plays the headless loop with 8
@@ -56,4 +59,31 @@ tasks.register('netmirror', JavaExec) {
     workingDir = rootProject.file('desktop/assets')
     jvmArgs '--enable-native-access=ALL-UNNAMED'
     args providers.gradleProperty('players').orElse('8').get(), providers.gradleProperty('seconds').orElse('90').get(), providers.gradleProperty('seed').orElse('1').get()
+}
+
+// ./gradlew netsession : phase 1.4's in-process gate. The real game headless behind a HostSession with
+// no hero of its own, three world-less ClientSessions over the in-memory wire with latency and loss;
+// fails when a client draws an entity away from where the host had it. ./gradlew netsession -Pseconds=60 -Pseed=1
+tasks.register('netsession', JavaExec) {
+    group = 'verification'
+    description = 'Plays a headless host and three clients in one JVM and checks the clients track the host.'
+    mainClass = 'jks.smoke.Net_Session'
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = rootProject.file('desktop/assets')
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    args providers.gradleProperty('seconds').orElse('60').get(), providers.gradleProperty('seed').orElse('1').get()
+    mustRunAfter 'nettest'
+}
+
+// ./gradlew netprocs : phase 1.4 across processes. A host JVM runs the game headless on a UDP port the
+// OS picks; two client JVMs that never load the game join it over 127.0.0.1 in real time for 8 s.
+tasks.register('netprocs', JavaExec) {
+    group = 'verification'
+    description = 'Plays a headless host JVM and two client JVMs over UDP on loopback, in real time.'
+    mainClass = 'jks.smoke.Net_Procs'
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = rootProject.file('desktop/assets')
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    // Real time on one machine : not while the in-process gate is using the CPU
+    mustRunAfter 'nettest', 'netsession'
 }

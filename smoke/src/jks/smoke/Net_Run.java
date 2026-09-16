@@ -70,6 +70,17 @@ public class Net_Run
 		check("mirror/duplicate-ids-are-refused", Net_Mirror_Checks::duplicateIdsAreRefused);
 		check("mirror/id-changing-kind", Net_Mirror_Checks::idChangingKind);
 		check("mirror/late-joiner-and-rejoin", Net_Mirror_Checks::lateJoinerAndRejoin);
+		check("wire/latency-and-jitter", Net_Session_Checks::latencyAndJitter);
+		check("session/welcome-and-join-with-no-host-hero", Net_Session_Checks::welcomeAndJoin);
+		check("session/hello-again-is-the-same-player", Net_Session_Checks::helloAgainIsTheSamePlayer);
+		check("session/input-lands-once-in-order", Net_Session_Checks::inputLandsOnceInOrder);
+		check("session/future-frames-wait-for-their-tick", Net_Session_Checks::futureFramesWaitForTheirTick);
+		check("session/strangers-are-ignored", Net_Session_Checks::strangersAreIgnored);
+		check("session/rejoin-after-death", Net_Session_Checks::rejoinAfterDeath);
+		check("session/leave-and-timeout", Net_Session_Checks::leaveAndTimeout);
+		check("session/full-and-host-ended", Net_Session_Checks::fullAndHostEnded);
+		check("session/version-is-refused", Net_Session_Checks::versionIsRefused);
+		check("session/clients-track-the-host", Net_Session_Checks::clientsTrackTheHost);
 
 		System.out.println(failed == 0 ? "NET ok, " + checks + " checks" : "NET FAILED " + failed + " of " + checks + " check(s)");
 		System.exit(failed == 0 ? 0 : 1);

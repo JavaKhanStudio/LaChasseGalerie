@@ -305,7 +305,7 @@ disagree:
 | 1.1 the `Transport` seam + its gate | **done, this commit** | `#network` |
 | 1.2 the wire protocol | **done, r37** | `#network` |
 | 1.3 entity ids and snapshots | **done, r38** | `#network` `#gameplay` |
-| 1.4 `HostSession` / `ClientSession` on loopback | r39 | `#network` |
+| 1.4 `HostSession` / `ClientSession` on loopback | **done, r39** | `#network` |
 | 1.5 a client that renders what it does not simulate | r40 | `#network` `#gameplay` |
 | 2.1 the lobby service | r41 | `#network` |
 | 2.2 ICE: IPv6, punch, relay — and say which | r42 | `#network` |
@@ -356,6 +356,36 @@ which is where phase 1.5 hangs its sprites. The gate plays 8 headless players fo
 past 0xFFFF half way, and every tick applies the snapshot to one client as it is, to one through the
 codec, and to a third that joins late. All three must agree with the world, read straight off the
 bodies, entity by entity. nettest holds the mirror's rules in 5 more checks (29 in all).
+
+**Phase 1.4 is in** (`core/src/jks/online`, `./gradlew nettest`, which now ends by running
+`netsession` and `netprocs`). `HostSession` owns nothing but seats: the world sits behind
+`Host_Simulation` — mint a player, spawn, press, remove, read — with `Game_Simulation` as the real
+game and a toy world in nettest, and the loop that owns the clock hands `tick` the step to run. **No
+hero, device or screen is the host's**: the gates run a host with none, and a host that also plays
+does it beside the session on the same numbering (`GVars_Controller.newPlayer`, which `identify` now
+uses too), so a keyboard never takes a remote player's number. HELLO from an unknown peer is a new
+`PlayerId` and a WELCOME (again the same one, if the WELCOME was lost); JOIN from a player with no
+living hero is a hero, which is how a dead player comes back; LEAVE or the transport's timeout takes the
+hero out with no death counted and removes the score row; a ninth seat, or a packet of another protocol
+version, gets a LEAVE naming `HostSession.NOBODY` (0xFFFF), because the codec refuses a player 0.
+Input frames are stamped with the client's guess at the host tick and applied **at the tick they
+claim, or the first tick after it the host still has** — without prediction that is nearly always the
+next tick — once per tick number; frames that land together keep the newest held buttons and fire
+every one-shot once, so a burst of late packets neither drops nor repeats a jump; a claim more than
+30 ticks ahead is a broken clock and lands now. The host reads and broadcasts the world every 3rd tick.
+`ClientSession` owns no world: it resends HELLO and JOIN every half second until answered, sends its
+buttons every tick (which is also its keepalive), and draws the run **6 ticks (100 ms) behind its
+clock**, between the two snapshots around that moment, through a `Snapshot_Mirror` that creates and
+destroys entities when the drawing time reaches them. Its clock catches up to a newer snapshot at once
+and steps back a tick a second while every snapshot is older than it. `Net_Loopback` now has seeded
+latency and jitter off its virtual clock. **Measured**: in `netsession` (60 s, 40±20 ms, 3% loss)
+the picture ran 8 ticks behind the host, 11 at worst, with a mean position error of 1.9 cm (heroes
+1.3 cm, axes 3.8 cm); each position is held to its entity's fastest step on the host times the gap
+between the two snapshots it was drawn between, plus quantizing and 1 cm, which is what a straight
+line can honestly promise. Across processes, both clients got 20.0 snapshots/s and their heroes
+walked the way they pressed 269–272 ticks out of 272. nettest holds the session rules in 11 more
+checks (40 in all), and mutating the interpolation, the tick a picture is drawn at, the dedupe of
+copies, the wait for a future frame or the coalescing of presses each fails it.
 
 ### A door left open
 
