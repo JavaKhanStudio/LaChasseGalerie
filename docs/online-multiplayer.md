@@ -23,7 +23,17 @@ Everything below is measured against the code as of `58d8c79`.
   as an assumption for phase 1 rather than treated as a second decision: on a machine that is in
   an online game, whichever local device is touched drives that machine's one hero — a pad can be
   handed across the couch — instead of a second device being refused or spawning a second hero.
+- **d7 → the browser is a client, not a demo (r26): "a way for people to join games if possible,
+  as a player".** A tab is a player in somebody's game. A browser cannot open a UDP socket — that is
+  the sandbox, not libGDX — so its transport is a WebRTC data channel, and two things follow for
+  this plan: **phase 1 sends its packets through a transport interface**, not through
+  `DatagramChannel` calls spread across the session code, and **the lobby service is the WebRTC
+  signalling server as well** as the endpoint mirror it already had to be. `docs/browser-target.md`
+  §6 carries the reasoning and the cost.
 - **d6 is still open**: what happens when two players cannot punch through to each other (§3, §7).
+  It is now also the browser question: the relay we would pay for is the same box that bridges a
+  tab to a host that cannot speak WebRTC itself, so answering d6 with a relay makes d7 cheaper and
+  answering it with "forward a port" leaves browser players with nothing.
   Simon answered it with questions rather than a letter — how often punching actually fails, how
   early we can detect it, whether a player can be warned *before* the game starts, and what it
   would cost in CPU to host the games ourselves. Those want numbers, not another proposal.
@@ -103,6 +113,9 @@ no interest management, no persistence. That is a very forgiving target for a fi
    │  sends snapshots 20/s          │      └────────────────┘
    └────────────────────────────────┘
 ```
+
+A browser player (d7) is a client like any other in this picture; only the line between it and the
+host changes, from raw UDP to a WebRTC data channel, with the lobby doing the signalling.
 
 **Host authority, dumb clients.** The host runs the one simulation. Clients send an input bitmask and
 receive snapshots; **a client does not need a Box2D world at all** — it creates, moves and destroys
@@ -224,7 +237,10 @@ velocities and spawns land). Do them one ticket at a time, each with a smoke run
 
 ### Phase 1 — netcode on localhost
 
-Snapshot/input protocol, `HostSession` (owns the sim, applies remote inputs, broadcasts at 20 Hz),
+A `Transport` interface first — send bytes to a peer, hand back what arrives, say when a peer is
+gone — with one UDP implementation behind it. That is the whole cost of keeping browser players
+possible (d7), and it is an afternoon now against a phase later. Then the snapshot/input protocol,
+`HostSession` (owns the sim, applies remote inputs, broadcasts at 20 Hz),
 `ClientSession` (sends inputs at 60 Hz, interpolates snapshots, owns no physics), entity ids, join and
 leave as network events — the game already lets people join and rejoin mid-run, which maps straight
 onto it, one hero per connection (d5 → A). Everything over loopback, two JVMs on one machine, plus
@@ -234,7 +250,8 @@ no internet in this phase.**
 
 ### Phase 2 — lobbies and the real internet
 
-Lobby service on a VPS; the shared-socket STUN trick; ICE via ice4j with a coturn relay behind it;
+Lobby service on a VPS, doubling as the WebRTC signalling server for browser players (d7); the
+shared-socket STUN trick; ICE via ice4j with a coturn relay behind it;
 keepalives; IPv6-first ordering; version gating; a join-by-code screen and a lobby screen in scene2d
 (the skin and `Stage` are already there); `jpackage` so the firewall prompt names the game; UPnP as a
 bonus. Tested by actually playing across two households and one phone hotspot — the hotspot is the

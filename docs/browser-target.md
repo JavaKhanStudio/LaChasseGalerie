@@ -13,9 +13,9 @@ things stand between that and a playable page, and only one of them is about lib
    fixable — §4.
 2. **32 MB of assets** must download before the first frame — §5.
 3. **A browser cannot open a UDP socket, at all, ever.** That is not a libGDX limitation, it is the
-   sandbox. It collides head-on with the online plan in `docs/online-multiplayer.md`, and *how* it
-   collides depends entirely on what the browser build is for — §6. This is the question to settle
-   before spending a day on the rest.
+   sandbox. It collides head-on with the online plan in `docs/online-multiplayer.md` — and since
+   **d7 settled that the browser build is a way for people to join games as players** (r26), that
+   collision is the work, not a footnote. §6 says what it costs.
 
 Measured against the code at `58d8c79`; every version below was read from Maven Central on
 2026-09-16.
@@ -131,7 +131,12 @@ game starts rather than before it. Plan on an asset pass as part of the work, no
 
 ---
 
-## 6. The collision with the online plan — read this before deciding anything
+## 6. The collision with the online plan — the part that is now the work
+
+> **Settled — d7 (r26): "a way for people to join games if possible, as a player."** The browser
+> build is not a demo. A person in a tab is a player in somebody's game, the same as a person on a
+> desktop — one tab, one hero, consistent with d5 → A. The "if possible" is honest: what it costs is
+> below, and it is the middle case of the three, not the cheap one.
 
 `docs/online-multiplayer.md` plans host-authoritative play over raw UDP, and records that libGDX's
 own `Net.Protocol` has a single constant, `TCP`. The sharper and more useful statement is this:
@@ -145,9 +150,9 @@ unordered — the closest thing to the transport the plan wants).
 So the plan does not simply "not work in a browser". It changes shape, and the cost depends on what
 the browser build is for:
 
-- **A browser build as a demo — single player, or local co-op on one keyboard and pads.** No conflict
-  at all. Everything in §1–§5 applies and nothing else.
-- **A browser build as a way friends join an online game.** Then the desktop host must speak WebRTC:
+- ~~A browser build as a demo — single player, or local co-op on one keyboard and pads.~~ Not what
+  was asked for. It stays available as a first milestone (§8), but it is not the destination.
+- **← THIS ONE. A browser build as a way friends join an online game.** Then the desktop host must speak WebRTC:
   a Java host needs a real WebRTC stack (`dev.onvoid.webrtc:webrtc-java` 0.18.0, published
   2026-09-15, is maintained — but it is JNI with native libraries per platform, exactly the kind of
   dependency `#build` already pins for LWJGL), or every browser player is bridged through a server
@@ -157,10 +162,30 @@ the browser build is for:
   server-side simulation, and the d6 question ("what happens when players cannot punch through")
   answers itself in the most expensive direction.
 
-The `#network` pack currently says a browser build and the online seam are mutually exclusive and
-that this is permanent. That is right for the transport as planned and wrong as a general statement:
-WebRTC DataChannels exist precisely for this, and the real answer is that a browser client moves cost
-from the player's machine to ours. It should be corrected to say that.
+### What d7 therefore requires of the online plan
+
+Three things, and the first is free if it is done now and expensive if it is done later:
+
+1. **The transport is an interface from phase 1, not raw `DatagramChannel` calls spread through the
+   session code.** Something as small as "send these bytes to that peer, hand me what arrives, tell
+   me when it drops" — one implementation over UDP for desktop peers, another over a WebRTC data
+   channel for tabs. Writing phase 1 against an interface costs an afternoon; retrofitting one
+   costs the phase.
+2. **The lobby service becomes the WebRTC signalling server too.** It already mirrors endpoints
+   between peers for the UDP punch; offer/answer/ICE-candidate relaying is the same job with a
+   different payload, and we are already paying for the box.
+3. **d6 and d7 collapse onto the same machine.** If we pay for a relay so that players behind CGNAT
+   can be reached, that box is also what a browser player is bridged through when the desktop host
+   cannot speak WebRTC directly. Answering d6 with "we pay for a relay" makes d7 cheaper, and
+   answering it with "tell them to forward a port" leaves browser players with nothing.
+
+A desktop host that speaks WebRTC directly (`dev.onvoid.webrtc:webrtc-java`, JNI natives per
+platform) keeps "the host carries the traffic" true for browser players as well. The bridge is the
+fallback, and it is ours to pay for. Which one ships first is a phase 2 decision, not a phase 0 one.
+
+**The `#network` pack must stop saying a browser build and the online seam are mutually exclusive
+and that this is permanent** (notice n4). With d7 settled it is not a nuance any more, it is the
+opposite of the instruction: a browser player joining a game is the goal.
 
 ---
 
@@ -185,9 +210,10 @@ question in §6 decides whether it is worth paying.
 
 ## 8. Recommendation
 
-1. **Settle §6 first** — what is the browser build *for*. It changes which of these paragraphs
-   matter. It is a question for Simon, not an engineering finding (raised as a doubt on this task).
-2. **Then spend one day on a spike, not a port.** A throwaway `html` module that compiles `core/`
+1. **§6 is settled (d7): browser players join real games.** That does not change the order of the
+   work below — it raises what is at the end of it, and it adds the transport interface of §6 to
+   phase 1 of the online plan, which is the cheapest thing on this page.
+2. **Spend one day on a spike, not a port.** A throwaway `html` module that compiles `core/`
    against `gdx-backend-gwt:1.14.2` and puts the river on a page with no sound and no gamepads,
    with the parallax library patched locally to see whether §4 is the only thing in the way. That
    turns every "should" in this document into a yes or a no, including the Gradle 9 question and
