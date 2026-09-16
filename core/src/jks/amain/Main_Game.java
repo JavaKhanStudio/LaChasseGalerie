@@ -4,9 +4,11 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 
+import jks.camera.GVars_Camera;
 import jks.sounds.GVars_AudioManager;
 import jks.vars.FVars_Heart;
 import jks.vars.GVars_Heart;
+import jks.vinterface.GVars_Interface;
 import jks.vue.models.Vue_Game;
 import jks.vue.models.Vue_Menu;
 
@@ -50,6 +52,14 @@ public class Main_Game extends ApplicationAdapter
 		}
 		
 		GVars_Heart.vue.render();
+	}
+	
+	@Override
+	public void resize(int width, int height)
+	{
+		GVars_Camera.resize(width, height);
+		if(GVars_Interface.mainInterface != null)
+			GVars_Interface.mainInterface.getViewport().update(width, height, true);
 	}
 	
     @Override

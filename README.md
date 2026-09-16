@@ -21,7 +21,7 @@ Launcher options (combine as needed):
 
 | Option         | Effect                                                   |
 |----------------|----------------------------------------------------------|
-| `--fullscreen` | Fullscreen at the monitor's native resolution            |
+| `--fullscreen` | Fullscreen at the monitor's native resolution, black bars if it is not 16:9 |
 | `--mute`       | No music or river ambiance                               |
 | `--debug`      | Box2D collision shapes, FPS counter, reduced asset load  |
 | `--menu`       | Open on the start menu instead of starting a run         |

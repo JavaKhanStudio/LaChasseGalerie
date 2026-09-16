@@ -77,7 +77,7 @@ public class Vue_Game extends AVue_Model
 		GVars_AudioManager.PlayAmbiance(Enum_Ambiance.WATER);
 		
 		star1 = new Sprite(new Texture("stars/Stars Small_1.png")) ; 
-		star1.setPosition(0, Gdx.graphics.getHeight()/1.1f * GVars_Camera.worldMutiplier);
+		star1.setPosition(0, GVars_Camera.viewHeight/1.1f * GVars_Camera.worldMutiplier);
 		
 		// Last, once the world, the score table and the canoe exist : the pad or the keyboard that
 		// chose this run is already player 1 and does not press a second time to get in (d9)
@@ -87,9 +87,12 @@ public class Vue_Game extends AVue_Model
     @Override
     public void render() 
     {
-    	camera.update();
-    	Gdx.gl.glClearColor(1, 1, 1, 1);
+    	// Black bars outside the world, then the world's view : everything below is drawn inside it
+    	Gdx.gl.glViewport(0, 0, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight());
+    	Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+    	GVars_Camera.viewport.apply();
+    	camera.update();
 
         staticBatch.setProjectionMatrix(camera.combined);
     	
@@ -119,6 +122,8 @@ public class Vue_Game extends AVue_Model
     	if(GVars_Debug.collisionDebug)
     		debugRenderer.render(world, camera.combined.cpy().scale(PPM, PPM, 1));
     	
+    	// The HUD is laid out on the window, not in the world
+    	GVars_Interface.mainInterface.getViewport().apply();
     	GVars_Interface.mainInterface.draw();
     	
     	for (ToRender rende : toRender) 

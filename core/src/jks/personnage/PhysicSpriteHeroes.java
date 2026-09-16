@@ -3,7 +3,6 @@ package jks.personnage;
 import static jks.physic.FVars_Physic.PPM;
 import static jks.physic.Gvars_Physic.world;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.controllers.Controller;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
@@ -74,7 +73,7 @@ public class PhysicSpriteHeroes extends SpriteModel
 		score = scoreRegister ;
 		score.setColor(index.color);
 		this.controller = controller ; 
-		this.position.add(Gdx.graphics.getWidth()/2 * GVars_Camera.worldMutiplier,Gdx.graphics.getHeight()/2 * GVars_Camera.worldMutiplier) ; 
+		this.position.add(GVars_Camera.viewWidth/2 * GVars_Camera.worldMutiplier,GVars_Camera.viewHeight/2 * GVars_Camera.worldMutiplier) ; 
 		currentFrame = currentState.getKeyFrame(0,false) ;
 		
 		BodyDef bodyDef = new BodyDef();

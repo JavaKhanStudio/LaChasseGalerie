@@ -1,9 +1,9 @@
 package jks.parralax;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 
+import jks.camera.GVars_Camera;
 import jks.tools2d.parallax.Utils_Parallax;
 import jks.tools2d.parallax.heart.Parallax_Heart;
 
@@ -23,7 +23,8 @@ public class GVars_Parralax
 		if(background != null)
 			return ;
 		
-		float worldHeight = Utils_Parallax.calculateOtherDimension(true, worldWidth, Gdx.graphics.getWidth(), Gdx.graphics.getHeight()) ; 
+		// The shape of the world, not of the window : the game's viewport letterboxes the rest
+		float worldHeight = Utils_Parallax.calculateOtherDimension(true, worldWidth, GVars_Camera.viewWidth, GVars_Camera.viewHeight) ; 
 		OrthographicCamera worldCamera = new OrthographicCamera() ; 
 		worldCamera.setToOrtho(false, worldWidth, worldHeight);
 		SpriteBatch batch = new SpriteBatch() ; 

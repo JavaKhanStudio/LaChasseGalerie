@@ -3,7 +3,6 @@ package jks.physic.objects;
 import static jks.physic.FVars_Physic.PPM;
 import static jks.physic.Gvars_Physic.world;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.Sprite;
@@ -29,8 +28,8 @@ public class PhysicSpriteCanoe
 	
 	public PhysicSpriteCanoe()
     {
-		Vector2 size = new Vector2(Gdx.graphics.getWidth()/1.6f * GVars_Camera.worldMutiplier,Gdx.graphics.getHeight()/7.5f * GVars_Camera.worldMutiplier); 
-		Vector2 position = new Vector2(Gdx.graphics.getWidth()/2/2 * GVars_Camera.worldMutiplier - size.x/8,Gdx.graphics.getHeight()/5.4f * GVars_Camera.worldMutiplier) ; 
+		Vector2 size = new Vector2(GVars_Camera.viewWidth/1.6f * GVars_Camera.worldMutiplier,GVars_Camera.viewHeight/7.5f * GVars_Camera.worldMutiplier); 
+		Vector2 position = new Vector2(GVars_Camera.viewWidth/2/2 * GVars_Camera.worldMutiplier - size.x/8,GVars_Camera.viewHeight/5.4f * GVars_Camera.worldMutiplier) ; 
 		
 		sprite_Front = new Sprite(new Texture("tools/Canoe_Front.png")) ;
         sprite_Front.setPosition(position.x,position.y);

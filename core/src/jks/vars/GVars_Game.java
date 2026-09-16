@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.controllers.Controller;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.Joint;
@@ -87,8 +86,8 @@ public class GVars_Game
 		PhysicSpriteEnnemy physic = 
 				new PhysicSpriteEnnemy(
 						Index_Sprite.getRandomEnnemy(),
-						Gdx.graphics.getWidth() * GVars_Camera.worldMutiplier * (GVars_Random.random.nextInt(100) + 1)/100,
-						Gdx.graphics.getHeight() * GVars_Camera.worldMutiplier
+						GVars_Camera.viewWidth * GVars_Camera.worldMutiplier * (GVars_Random.random.nextInt(100) + 1)/100,
+						GVars_Camera.viewHeight * GVars_Camera.worldMutiplier
 						) ;
 		ennemies.add(physic) ; 
 	}
@@ -98,8 +97,8 @@ public class GVars_Game
 		PhysicSpriteEnnemy physic = 
 				new PhysicSpriteEnnemy(
 						Index_Sprite.getRandomEnnemy(),
-						GVars_Random.random.nextBoolean() ? Gdx.graphics.getWidth() * 2 : 0,
-						Gdx.graphics.getHeight() * GVars_Camera.worldMutiplier / (GVars_Random.random.nextInt(2) + 2)
+						GVars_Random.random.nextBoolean() ? GVars_Camera.viewWidth * 2 : 0,
+						GVars_Camera.viewHeight * GVars_Camera.worldMutiplier / (GVars_Random.random.nextInt(2) + 2)
 						) ;
 		ennemies.add(physic) ; 
 	}
@@ -108,8 +107,8 @@ public class GVars_Game
 	{
 		PhysicSpriteHp physic = 
 				new PhysicSpriteHp(	
-						GVars_Random.random.nextInt(Gdx.graphics.getWidth()) * GVars_Camera.worldMutiplier ,
-						Gdx.graphics.getHeight() * GVars_Camera.worldMutiplier
+						GVars_Random.random.nextInt(GVars_Camera.viewWidth) * GVars_Camera.worldMutiplier ,
+						GVars_Camera.viewHeight * GVars_Camera.worldMutiplier
 						) ;
 		hpStack.add(physic) ; 
 	}
