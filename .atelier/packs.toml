@@ -1,0 +1,449 @@
+# lachassegalerie's TAGS AND THEIR CONTEXT PACKS — read by Atelier (projects/lachassegalerie.toml says
+# packs = ".atelier/packs.toml"). A pack is what a session reads BEFORE the code it describes, so
+# when a change makes one wrong, fix it here IN THE SAME COMMIT. Only [tags.<slug>]
+# tables belong in this file: label, description, context, color, sort.
+
+[tags.gameplay]
+label = "Gameplay"
+description = "The run's timeline, spawns, heroes, monsters, the axe, potions, score"
+color = "#ff7070"
+sort = 10
+context = """
+core/src/jks/story/GVars_Story.java is the whole run: music at 10s, monsters from 15s,
+take-off at 37s, stabilise at 45s, all static timers.
+A RUN TEARS DOWN (3630376, phase 0.4): Vue_Game.dispose, called by GVars_Heart.changeVue, disposes
+the Box2D world whole and drops lists, queues, HUD Stage, batch, canoe, star and players; what a
+run changes that init did not undo is reset where the run STARTS (GVars_Story.init rewinds the
+clock, timers and music cue; camera river speed back to 7.5; Index_Sprite hands every colour back;
+setPages rewinds the river's static Enum_ColdNight pages). ADD A STATIC THAT A RUN MUTATES AND YOU
+OWE IT A RESET THERE — smoke plays the seed twice in one JVM and fails if run 2 differs.
+Nothing in the game yet ASKS to go back to the menu; a run never ends (the doubt on r34).
+Monsters and potions scale with GVars_Game.heroes.size(): with nobody joined nothing
+spawns.
+core/src/jks/vars/GVars_Game.java (lists, spawning, addPlayer),
+personnage/PhysicSpriteHeroes (move, double jump, hp, invulnerability, death),
+PhysicSpriteEnnemy (chases a random hero), Weapon_AXE, physic/objects/PhysicSpriteHp, and
+physic/MyContactListener, where every rule that fires on contact lives. The Box2D side of
+all of these, meaning bodies, the destroy queue, contact dispatch and units, is #physics:
+read it before removing or adding anything that has a body.
+A hero being removed must null every enemy.target pointing at it (PhysicSpriteHeroes.kill
+does); a monster stepping toward a destroyed body is the native crash ac3da1d fixed.
+THE WORLD HAS A FIXED SIZE (053a6a4, phase 0.2): spawn points, the canoe, the spawners and the
+parallax read GVars_Camera.viewWidth/viewHeight (1280x720, times worldMutiplier), and the camera
+sits behind a FitViewport, so a bigger window only adds black bars. NEVER read
+Gdx.graphics.getWidth()/getHeight() for a world position again — that is exactly what made a
+1920x1200 run a different game. Only the HUD and the menu are laid out on the window.
+EVERY DIE COMES FROM GVars_Random.random (fe08efc, phase 0.5), one seeded stream. Do not add a
+`new Random()` anywhere: an unseeded roll breaks the smoke replay and a host's one start seed.
+--debug is NOT the real game: Index_Sprite loads only 2 hero colours and 1 monster in
+debug.
+README.md's Controls and scoring paragraph (4 hearts, +1 per axe hit, potion heals or +2
+at full health, death halves the score) is the documented rule set: change a rule, fix it
+in the SAME commit.
+Gates: `./gradlew smoke` (smoke/src/jks/smoke/Smoke_Run.java: 60s of the real loop headless
+in about 1.5s, 3 players joining and dying, fails on a monster chasing a removed hero), then
+PLAY it: `./gradlew :desktop:run --args=--mute`. The smoke stubs GL and cannot see anything
+drawn.
+"""
+
+[tags.physics]
+label = "Physics"
+description = "The Box2D world: bodies, fixtures, contacts, the destroy queue, units, the fixed step"
+color = "#9fa8ff"
+sort = 15
+context = """
+core/src/jks/physic/: Gvars_Physic (the World, gravity from FVars_Physic, world.step),
+MyContactListener, Enum_FictureType, tools/BoxBodyBuilder (circle bodies: monsters and the
+axe), tools/RevoluteJoint (the hero-to-axe joint), objects/PhysicSpriteCanoe (static) and
+PhysicSpriteHp. Hero bodies are built inside personnage/PhysicSpriteHeroes itself. The rules
+that fire on contact are #gameplay.
+NEVER DESTROY A BOX2D BODY OR JOINT WHERE IT IS FOUND. Queue it in
+GVars_Game.toBeDestroy_Body / toBeDestroy_Jointure / toDie; Vue_Game.cleanUp() destroys
+them before the next world.step. Those are LinkedHashSets on purpose: two contacts in one
+step queue the same body twice, and a double destroy kills the JVM in native code — no
+Java stack, only an hs_err_pid*.log in the working directory (desktop/assets for
+:desktop:run, smoke/build/smoke for ./gradlew smoke).
+A body must leave the game's list (heroes, ennemies, hpStack) in the same step it is
+queued, or the next act() reads a destroyed body.
+Contacts dispatch by fixture userData through Enum_FictureType.findIntence: the canoe is
+the STRING "CANOE" (matched by toString()), everything else is `this`. A fixture with NO
+userData is typed NONE silently; one holding an unknown class prints "IMPOSSIBLE DE TROUVER
+INTANCE!". Either way every rule ignores it. Only PLAYER and AXE contacts do anything; add a
+branch there or the new body never interacts.
+THE WORLD HAS ITS OWN CLOCK, NOT THE FRAME'S (r23, commit in that ticket): Main_Game.render
+accumulates real time and calls vue.update(FVars_Heart.step = 1/60) once per WHOLE step, at
+most 5 in one frame; Gvars_Physic.act(delta) steps the world with exactly that. NEVER step the
+world or advance a timer from Gdx.graphics.getDeltaTime() — that was the bug: at 30 fps the
+world ran at half speed and at 144 fps at 1.5x, while the story clock kept real time. Anything
+that must age with the game (animation stateTime included) belongs in act(delta), not in draw().
+Velocities are still set as `speed * delta` with delta = one step, so the tuning is per 1/60:
+change the step and jump height and speeds change with it.
+Units: FVars_Physic.PPM = 100 px per metre, BUT BoxBodyBuilder has its own WORLD_TO_BOX =
+0.01 for circle radii and the axe joint anchors: change PPM and those two stay behind.
+CreateCircleBody sets gravityScale 0, so monsters and axes do not fall. GVars_Camera.
+worldMutiplier = 2 makes the sprite world twice the WINDOW's pixels.
+./gradlew smoke checks, every frame, that world.getBodyCount() equals canoe + 2 per hero +
+monsters + potions + the destroy queue, and getJointCount() equals heroes + the joint
+queue. A NEW KIND OF BODY fails that check until Smoke_Run.checkInvariants counts it:
+extend the check, do not loosen it.
+Gates: `./gradlew build`, `./gradlew smoke` (it catches a double destroy before the native
+crash: a scratch copy that kept the destroy queue failed at frame 194), then PLAY it:
+`./gradlew :desktop:run --args=--mute`.
+"""
+
+[tags.input]
+label = "Input & players"
+description = "Joining, keyboard and gamepads, controller mappings"
+color = "#6ee787"
+sort = 20
+context = """
+core/src/jks/input/: IKM_Game_Keyboard (the one keyboard player), IKM_Game_XBoxController
+(every gamepad, despite its name), Utils_Controller (stick thresholds), Player_Inputs
+(flags consumed once per frame in act), PlayerId, GVars_Controller.
+A PLAYER IS A PlayerId, NOT A Controller (081f992, phase 0.3): GVars_Controller.playerList and
+GVars_Game.playerRegister are TreeMaps on PlayerId, and PhysicSpriteHeroes carries its PlayerId.
+A remote player has no Controller, so never key anything about a player on one again. A device
+(null = the keyboard, still) reaches its player only through GVars_Controller.identify /
+getLocalPlayer, used by the input edge, Menu_Picker and the smoke. Offline, identify mints one
+PlayerId per device in join order and a device keeps it across deaths, so a label follows its pad.
+The first key or button press only JOINS (GVars_Game.addPlayer) and returns without
+acting; pressing after death joins again under the same PlayerId and ScoreLabel.
+Buttons go through controller.getMapping() (buttonA/B/X, axisLeftX/Y) — ac3da1d replaced
+the hard-coded Xbox codes. Never compare raw button numbers again; they differ per pad and
+per OS. Vue_Game.init calls Controllers.clearListeners() before adding its listener.
+Swing keys look swapped and are documented that way: D swings LEFT, Q swings RIGHT;
+gamepad B left, X right. README.md's Controls table is the contract — change a binding,
+fix the table in the SAME commit.
+keyUp only releases LEFT/RIGHT; everything else is a one-shot flag cleared in
+Player_Inputs.act. GVars_Game.inCinematic swallows input but nothing ever sets it true.
+The input processor is an InputMultiplexer with the HUD Stage FIRST: a scene2d actor that
+handles key events will eat the join key before IKM_Game_Keyboard sees it.
+Gate: `./gradlew :desktop:run --args=--mute`, join from the keyboard AND a gamepad, die,
+rejoin.
+"""
+
+[tags.background]
+label = "Parallax background"
+description = "The night river scene and the parallax-background library it draws with"
+color = "#e879f9"
+sort = 30
+context = """
+The scene is built IN JAVA, not from .plax files: core/src/jks/parralax/ColdNightModel.java
+declares every layer (region name + regionPosition, sizeRatio, parallax ratios, drift speed,
+start pads) and Enum_ColdNight wraps two lists of them into COLD_NIGHT and COLD_WATER. That
+package is three files. Atlas desktop/assets/parralax/models/OneNight.atlas: a layer picks its
+image by region NAME + regionPosition among same-named regions.
+THE LIBRARY IS A DEPENDENCY, NOT A COPY IN THIS REPO: io.github.javakhanstudio:parallax-background
+(core/build.gradle, parallaxVersion in gradle.properties). ad38949 deleted the vendored
+core/src/jks/tools2d/parallax, so there is nothing here to diff against upstream any more. Its
+source is the Parallax board — project 'parallax', /home/simon/Documents/GitHub/parralax.
+TWO HEARTS, ONE SCENE: GVars_Parralax.background (COLD_NIGHT) and .foreground (COLD_WATER).
+Vue_Game.render draws background, then canoe back / heroes / monsters / potions / canoe front,
+then foreground — so the foreground's water and clouds pass IN FRONT of the heroes on purpose.
+Moving a layer between the two lists moves it across the characters.
+NOTHING MOVES A CAMERA. GVars_Parralax.scroll(delta, moveX, moveY) adds move/delta into both
+hearts' screenSpeedConsumableX/Y; Parallax_Heart.act(delta) spends that and zeroes it. So you
+pass the distance for THIS frame and it must be followed by act() in the same frame. Vue_Game
+passes GVars_Camera.screenMovementSpeed as moveX — a distance per FRAME, not per second — and
+GVars_Story adds delta*flyingSpeed vertically during take-off. "Faster river" is that number.
+THE TRAP THAT FAILS SILENTLY: ColdNightModel.layer() converts the start pads with
+Gvars_Parallax.getWorldHeight()/getWorldWidth(), read when Enum_ColdNight is FIRST TOUCHED.
+That static pair defaults to 40x40 (javap on the 2.1.0 jar's static initialiser) and only the
+Parallax_Heart constructor in GVars_Parralax.init sets the real 40x22.5. Touch the enum before
+init and every horizontal pad is 1.78x too large, with no error anywhere. Vue_Game.init has the
+order right: GVars_Heart.init() first, setPages() after. That size is JVM-wide, so both hearts
+must keep the same one (parallax r27).
+ColdNightModel's numbers are EXACT conversions of the old library's (decal_X = pad_X*100*H/W,
+speedXAtRest = -speed/ratio, r9 handoff), not approximations. Do not re-tune them.
+Gate: `./gradlew :desktop:run --args=--mute` and LOOK — past 37s for the take-off.
+"""
+
+[tags.hud]
+label = "HUD"
+description = "The scene2d score table, skin and debug FPS overlay"
+color = "#ff9f43"
+sort = 40
+context = """
+core/src/jks/vinterface/GVars_Interface.java (the Stage, the skin, the bottomScore table),
+personnage/ScoreLabel.java (one player's name, score and deaths),
+vinterface/Utils_Interface (texture -> drawable), debug/ShowFPS (only with --debug).
+Skin: desktop/assets/skin/freezing-ui.json + .atlas, which loads font-export.fnt,
+font-button-export.fnt and font-title-export.fnt — all three are needed. Icons:
+ui/score.png, ui/death.png, tinted per player with the hero's colour in
+ScoreLabel.setColor.
+Every size is computed ONCE in GVars_Interface.init from Gdx.graphics: the table is 70% x
+12% of the window and ScoreLabel.buttonSize is a static Float set there. A ScoreLabel
+built before init unboxes a null Float and NPEs; nothing recomputes on another resolution.
+ScoreLabel's widgets override getPrefWidth/getPrefHeight in anonymous subclasses — that,
+not the skin, is what sizes the icons. Label text is "   Player N   " with the padding in
+the string. The Stage is FIRST in the InputMultiplexer (Vue_Game.init): a HUD actor that
+handles keys eats the join key.
+The HUD draws after both parallax pages; hearts over a hero are NOT HUD — they are
+PhysicSpriteHeroes.drawHp, in the sprite batch (#gameplay).
+ASCII ONLY, AND IT FAILS SILENTLY: all three .fnt files carry 98 glyphs. No accented letter and
+no dash but '-'. An em dash drew as a BLANK in r18's first menu render; 'Créer une partie' would
+lose its e the same way. Either stay in ASCII or re-export the fonts.
+A SECOND VIEW EXISTS NOW (r18, Vue_Menu, behind --menu): it builds its OWN Stage, because
+GVars_Interface.init unconditionally puts the score table on the shared one. Widgets outside the
+game go through GVars_Interface.loadSkin(), which gives the skin without the HUD.
+ITS BUTTONS ARE NOT THE MOUSE'S ALONE (d8, r28): each one is a choice in a
+jks.vinterface.Menu_Focus ring, which the pointer, IKM_Menu_Keyboard (arrows, Space, Enter) and
+IKM_Menu_XBoxController (left stick, d-pad, A) all move and pick. Add a choice with
+focus.add(button, action), NOT with a ChangeListener of its own, and leave a choice nobody can
+take out of the ring. The focused one is drawn with the style's 'down' background, unfocused ones
+at alpha 0.85, a disabled one at 0.6. A pick does NOT run where it is triggered: Menu_Focus holds
+it until the view's next update, because changeVue inside a scene2d or a gdx-controllers callback
+disposes the very thing being iterated. A pick also carries WHO made it (d9, r52): a Menu_Picker -
+a pad, the keyboard, or a pointer that is nobody - which Vue_Game takes in its constructor and
+joins as player 1 at the END of init. Anything that opens a run from a menu must pass one, and
+anything that joins a player must come after GVars_Interface.init and the canoe.
+Gate: `./gradlew :desktop:run --args=--mute`, join two players, and look at it windowed
+AND with --fullscreen.
+"""
+
+[tags.audio]
+label = "Audio"
+description = "Music, river ambiance, mute and volume"
+color = "#b48cff"
+sort = 50
+context = """
+core/src/jks/sounds/GVars_AudioManager.java (the only player: one music, one ambiance,
+both libGDX Music streams), GVars_Audio (muted, volume), Enum_Music / Enum_Ambiance.
+Files:
+desktop/assets/musics/pagayez.mp3 and ambiance/courant1.mp3.
+Audio is DRIVEN BY THE TIMELINE, not by the audio code: GVars_Story starts the music at
+10s and fades the ambiance during take-off; IKM_Game_Keyboard's E lowers the ambiance by
+0.1.
+GVars_Story tests `currentlyRunningMusic == null` to know whether the music has started —
+and under --mute it stays null FOREVER, so that branch (which also speeds the river up)
+runs every frame. Anything that treats "no Music object" as "not started yet" has the same
+bug.
+Every Music is null when muted: check for null before touching one (ac3da1d fixed the NPEs
+that came from not doing so).
+Neither stream loops. Enum_Ambiance.CLOUD exists but PlayAmbiance only handles WATER and
+prints "Unknown Ambiance" for the rest. Main_Game.dispose and GVars_Heart.changeVue stop
+and dispose both.
+README.md's launcher-option table documents --mute: change what it does, fix the table in
+the SAME commit.
+Gate: play once WITH sound and once with `--args=--mute` — the two paths differ.
+"""
+
+[tags.assets]
+label = "Art & assets"
+description = "desktop/assets: atlases, sprites, how code finds them"
+color = "#2dd4bf"
+sort = 60
+context = """
+Everything lives in desktop/assets and is loaded by RELATIVE path through
+Gdx.files.internal, which reads the working directory first, then the classpath
+(FileHandle.read).
+`:desktop:run` sets workingDir = desktop/assets, and desktop/build.gradle also puts
+desktop/assets on the runtime classpath (resources.srcDirs), so the game loads its assets
+from any working directory: the dist jar was run from another directory at 60 fps.
+Names are built in code, so renaming a file breaks at runtime, never at compile time:
+personnage/index/SIW_Data.getHeroData -> perso/Hero<Name>.atlas, where <Name> is the
+string in Index_Sprite.addColor ("Red", "Blue", "Green", "Teal", "Yellow", "Gris" —
+French). Monsters -> ennemy/monster<N>.atlas for N in 1, 2, 4, 5 (there is no 3).
+Animation names are atlas region names: heroes r_run, r_idle, r_jump_up, r_hit, Dead,
+Walk; monsters IDLE. A missing one does NOT fail: SpriteModel.changeAnimationState falls
+back to the first animation and prints "Impossible de trouver l'animation", and
+SpriteModel.draw swallows any exception with another French println. Watch stdout.
+The .atlas files are TexturePacker output and the source images are not in the repo: there
+is no packer step here, so an edited sprite sheet means re-packing it elsewhere.
+Textures are created with `new Texture(...)` and never disposed. One made per join must be a
+shared static (Weapon_AXE.axeTexture, PhysicSpriteHeroes.heartTexture), or every join leaks.
+Referenced nowhere (Java, skin JSON or atlases): tools/Sirop.png, stars/Stars-Big_*,
+stars/Stars Small_2.png. Data files load assets too — search the whole repo before calling
+one unused: freezing-ui.json loads all three skin fonts. Several names contain spaces
+("stars/Stars Small_1.png").
+Gate: `./gradlew :desktop:run --args=--mute`, read stdout for the French fallbacks, and
+`./gradlew dist` then run the jar from ANOTHER directory.
+"""
+
+[tags.build]
+label = "Build & launcher"
+description = "Gradle, dependency versions, the LWJGL3 launcher, the smoke gate, the dist jar"
+color = "#f2d45c"
+sort = 70
+context = """
+gradle.properties holds every version: gdxVersion, gdxControllersVersion, lwjglVersion,
+parallaxVersion. FOUR modules (settings.gradle): core (java-library, sources in src/), headless
+(Headless_Runner: stub GL, mock graphics, muted audio, one fixed 1/60 tick, exit 0/1 — what a
+screenless host runs; not in core so the game never depends on a backend, d7dfc70), desktop
+(application, `run`, `dist`), smoke — which carries FOUR tasks: `smoke`, `nettest`, `netcensus`
+and `netmirror`.
+Smoke_Run is now a Headless_Runner.Session: scripted players, invariants, seed, report.
+SMOKE SEED 1 IS deaths=20, monstersKilled=76 since fe08efc (one RNG stream replaced four); the old
+21/81 in any handover is stale. A change that claims to leave the game alone must reproduce 20/76.
+The root build.gradle sets Java `release = 17` for every subproject. There is no CI: the gates
+below are all there is.
+`./gradlew smoke` IS A REAL TEST and `build` only compiles it (Simon's choice on r4): it plays
+60s of the real game loop headless in about 1.5s — players joining, fighting and dying — and
+fails on the first broken invariant. Run it after anything that touches core. -Pseed/-Pseconds
+replay or lengthen a run. It plays the seed TWICE in one JVM, back through the start menu, and
+fails unless both reports match (-Pruns=N, 3630376) — that is the teardown gate.
+`./gradlew nettest` (99f9ac6) IS THE SECOND GATE, and it is not a slower smoke: no window, no
+game, no assets, 40 checks (c587b5a, 20cf217, d779fa5) holding core/src/jks/net and jks.online to
+their contract, THEN netsession (the real game headless + 3 clients in one JVM over a lossy,
+jittery wire) and netprocs (a host JVM and two client JVMs over UDP on 127.0.0.1) — about 12 s. Run it after anything under jks.net or jks.online — smoke
+never touches that code, and build only compiles it.
+`./gradlew netmirror` (20cf217) plays 8 headless players for 90 s and fails unless an exact, a
+codec-quantized and a late-joining world-less client agree with the bodies every tick.
+`./gradlew netcensus` measures the real snapshot size (peak ~434 B of 1200); it reports, it is the
+number to re-read when a field is added to a snapshot.
+LWJGL IS PINNED ABOVE WHAT LIBGDX SHIPS: desktop/build.gradle forces every org.lwjgl module to
+lwjglVersion (3.3.6) because libGDX 1.14.2 brings 3.3.3, which rejects the JNI version of Java
+24+. Bump libGDX and check that pin before deleting it. Tested with JDK 25.
+desktop/build.gradle adds --enable-native-access=ALL-UNNAMED (also in the jar manifest) and, on
+Java 24+, --sun-misc-unsafe-memory-access=allow; macOS needs -XstartOnFirstThread.
+desktop/src/jks/launcher/: Launcher_Game (parses --fullscreen, --mute, --debug, --menu) and
+settings/Utils_Launcher. preferX11OnLinux() MUST run before the Lwjgl3Application is created:
+native Wayland on GNOME + NVIDIA loses decorations and can stall rendering, and a GLFW hint set
+after init is ignored silently. The window is 1280x720 (16:9 x 80), not resizable, 60 fps cap —
+spawns depend on the size (#gameplay), speeds on the rate (#physics), and the parallax world is
+sized from it once at init (#background).
+`run` IS WRAPPED: gradle/offscreen.gradle, applied from the root build.gradle, sends a board
+agent's window into cage and its sound into desktop/build/audio/run.wav. It is a copy of the
+Atelier skill run-offscreen — change it there first unless the change is about this project.
+org.gradle.configuration-cache=true: a build script that reads the environment or a file at
+configuration time is cached; `./gradlew --no-configuration-cache` when a change seems ignored.
+`dist` is a fat jar that EXCLUDES META-INF signatures; LaChasseGalerie-1.0.jar must run from any
+directory.
+README.md documents the requirements, run commands, launcher options, the smoke run and dist:
+change any of them and fix it in the SAME commit.
+Gates: `./gradlew build`, `./gradlew smoke`, `./gradlew nettest`, `./gradlew netmirror`, `./gradlew :desktop:run
+--args="--debug --mute"`, and
+`./gradlew dist && (cd /tmp && java -jar <root>/desktop/build/libs/LaChasseGalerie-1.0.jar)`.
+"""
+
+[tags.network]
+label = "Online & netcode"
+description = "Lobbies, UDP, NAT traversal, snapshots — the online multiplayer seam"
+color = "#ff8cc6"
+sort = 25
+context = """
+THE LOBBY SERVICE EXISTS (r41, phase 2.1): jks.net.Lobby_Codec/Lobby_Message are its pure wire
+protocol ('L' | version | type | body | CRC-32; the 'L' is how one socket tells lobby packets from
+game packets, and Net_Codec refuses a lobby packet as NOT_OURS, so a session never answers the
+service with a LEAVE). jks.lobby.Lobby_Service holds lobbies and nothing else: HOST (opens/refreshes,
+asks for its old code back), BROWSE (same game version only), JOIN (answers JOINED with the host's
+addresses and MIRRORS the joiner's to the host as PEER), PING/PONG (the address the service saw),
+CLOSE. Reap = 20 s after the last HOST; it deliberately ignores the transport's lost(). 20 answers per
+address per second (forged sources). jks.lobby.Lobby_Client IS BUILT ON THE GAME'S TRANSPORT and gives
+the session game(), the same socket minus the service's packets - never open a second socket for the
+lobby. Refresh/PING every 3 s (a 10 s peer timeout with 5 s pings calls the service lost after one
+lost answer). The `lobby` module is the deployable (Lobby_Main, core's classes WITHOUT libGDX): keep
+jks.net and jks.lobby JDK-only or it breaks. Candidates (LAN, IPv6) and the punch plug into
+Lobby_Client.candidates and takeJoiners() (r42). Tab signalling (r46) needs a message bigger than a
+packet and a non-UDP front on the same lobbies.
+SESSIONS EXIST (d779fa5, phase 1.4): jks.online.HostSession owns the only world, behind
+Host_Simulation (Game_Simulation is the real game), and has no hero of its own - a zero-hero host is
+what the gates run; a local keyboard joins beside it via GVars_Controller.newPlayer. ClientSession
+owns NO world: buttons up at 60 Hz, draws 100 ms behind between two snapshots through a
+Snapshot_Mirror. Both talk ONLY to Net_Transport. No launcher or menu starts them yet (phase 1.5+).
+THE TRANSPORT SEAM (99f9ac6). core/src/jks/net is
+Net_Transport — the interface everything above it must talk to — with Transport_Udp behind it for
+desktop peers and Net_Loopback for tests, plus Net_Peer, Net_Listener and Net_PeerTable.
+THE WIRE PROTOCOL EXISTS (c587b5a, phase 1.2): Net_Codec is a pure codec, no socket and no game
+object, so a browser build compiles it. Every packet is version u8 | type u8 | body | CRC-32,
+version FIRST so a lobby can gate on it; HELLO, WELCOME, JOIN, LEAVE, KEEPALIVE, INPUT (15 B, the
+newest four button masks - no reliability layer), SNAPSHOT (positions s16 at 1/256 m clamped
++-128, angles s16 at 1/8192 rad). Encoding past 1200 B THROWS; decoding REFUSES whole, never
+half-reads. Change a layout and bump the version.
+THE WORLD READS INTO SNAPSHOTS (20cf217, phase 1.3): every hero, monster and potion has a 16-bit
+entity id from GVars_Game.newEntityId (never 0, reset per run; a rejoin is a new id).
+jks.online.Snapshot_View is world -> Net_Snapshot, read-only; Snapshot_Mirror is the client side
+and must stay FREE OF Box2D AND GVars_*. Potions that fell off the world are not sent — the game
+never removes them (n7). READ THE
+JAVADOC IN Net_Transport.java: the contract is written there. Phase 1 builds ON this seam, not
+beside it — a DatagramChannel call anywhere outside jks.net is the one mistake that costs a phase
+to undo, because a tab cannot open a socket and d7 says a tab is a player.
+FOUR THINGS THE CODE HAS ALREADY DECIDED, and the javadoc says do not "fix" them: MAX_PAYLOAD is
+1200 and send REFUSES a bigger buffer rather than letting IP fragment it; Transport_Udp.open()
+binds port 0, so every mapping is one our own outbound packet made, no router or firewall is ever
+asked for anything and Windows never raises the "wants to accept connections" prompt (only a
+dedicated server passes a fixed port); the channel is NEVER connect()ed, because a packet from an
+address the host has never seen IS the punch, at the price of accepting bytes from anyone, so the
+protocol above must not trust them; and Net_PeerTable times a peer out after 10 s of silence and
+reports it lost ONCE, off an injected clock. Net_Loopback is an in-memory wire with seeded loss,
+reorder and duplicate rates and a virtual clock, so a protocol test fails because the protocol is
+wrong and a failure replays — it does NOT model latency, which is phase 1.4's job to add.
+This tag exists because d4 -> A created the seam before the code, so that online work stops being
+routed to #build and #gameplay by accident.
+READ docs/online-multiplayer.md FIRST (263 lines, committed in 84caf83). It is r15's analysis,
+measured against the code at 58d8c79, and it is the plan — not a suggestion. Everything below is
+the short version of why you cannot skip it.
+THE SHAPE IS DECIDED, do not redesign it: we host the LOBBY service; once a game starts the HOST
+PLAYER owns the only Box2D world, applies everyone's inputs and broadcasts snapshots at 20 Hz;
+clients send an input bitmask at 60 Hz, interpolate between the last two snapshots and OWN NO
+PHYSICS WORLD AT ALL. Lockstep and deterministic rollback are OFF THE TABLE: libGDX ships a
+native Box2D per platform and float behaviour differs between machines. The host can cheat; for a
+game you play with friends that is the accepted trade. Recommendation on record: NO host
+migration — if the host quits, the run ends and everyone returns to the lobby.
+d5 -> A IS BINDING ON IDENTITY: online is ONE PLAYER PER MACHINE, and local co-op stays
+offline-only. A PlayerId is a peer id, not a peer id plus a device slot. Do not size lobbies,
+snapshots or the join flow for 'this machine brings its keyboard and four pads'.
+d6 HAS NO LETTER, BUT IT HAS NUMBERS (r25, doc section 9 — read it before re-opening this).
+Punching fails for about ONE PAIR IN TEN (Tailscale's fleet: direct connection over 90% of the
+time). Detection is cheap and EARLY: two STUN binding requests from the SAME socket, compare the
+mapped port, RFC 5780 — measured at 67 ms here — then a real ICE check WHEN A PLAYER JOINS THE
+LOBBY, not when the host presses start, so every lobby row can say direct / relayed / cannot
+connect while people are still choosing colours. Hosting the games ourselves is NOT a CPU
+question: the real loop headless costs 1.43 ms of CPU per second of game time at 8 players,
+about 0.14% of a core, ~700 sessions per core; it is a BANDWIDTH question at ~225 MB per
+session-hour. Still KEEP PHASE 1 FREE OF 'THE HOST IS ALSO A PLAYER' ASSUMPTIONS: the
+server-side option turns the host into a headless server and that must not become a rewrite.
+Sessions can now follow each other in one JVM (phase 0.4 DONE, 3630376), but still not run side
+by side — the GVars_* are static — and a JVM still loads every texture (269 MB RSS) even headless.
+PHASE 0 WAS NOT YOURS AND IS NOW ALL DONE (0.1-0.6), so phase 1 is claimable in order. It was the
+game's own bugs, each fixed in the seam that owns that code, NOT in #network: the frame-locked
+clock (#physics — DONE, 81fd446, an accumulator in Main_Game), the world whose
+coordinates came from the window size (#background and #gameplay — DONE, 053a6a4), a player
+being a Controller object (#input — DONE, 081f992: it is a PlayerId), one seeded RNG (DONE,
+fe08efc), the headless runner (DONE, d7dfc70), and session teardown (#gameplay — DONE, 3630376).
+libGDX GIVES YOU NOTHING HERE: com.badlogic.gdx.Net.Protocol has exactly one constant, TCP.
+There is no UDP in libGDX. Use java.nio.channels.DatagramChannel on desktop — Transport_Udp
+already does, behind the interface, and that is the only place it belongs.
+BROWSER PLAYERS ARE NOT EXCLUDED — d7 -> they are the point. Simon settled r26 with 'a way for
+people to join games if possible, as a player'. A tab cannot open a UDP or raw TCP socket (the
+sandbox, not libGDX) but a WebRTC data channel can be unreliable and unordered, which is the
+transport this plan wants. So: SEND THROUGH A TRANSPORT INTERFACE from phase 1 — send bytes to a
+peer, hand back what arrives, say when one is gone — with UDP behind it for desktop peers and room
+for a data channel behind it for tabs. DatagramChannel calls spread across the session code is the
+one mistake here that costs a phase to undo. The lobby service is also the WebRTC signalling
+server, and the d6 relay is also the bridge for a host that cannot speak WebRTC itself.
+docs/browser-target.md sections 6 and 8 carry the cost.
+THE TRAP THAT WASTES A WEEK: talk to the lobby service over the SAME UDP socket the game will
+use. The public ip:port the service sees is then free STUN and is exactly the mapping game
+traffic will arrive on. A second socket for lobby chatter advertises an endpoint that does not
+work, and it fails only for other people.
+NAT mappings expire in about 30 s: both an idle lobby connection and an idle game connection need
+a keepalive every 5-15 s, or a lobby that sat two minutes cannot be joined. Try IPv6 direct
+first, then the IPv4 punch, then a relay. Punching works for full-cone, restricted and
+port-restricted NAT and FAILS on symmetric NAT and CGNAT (mobile tethering, and a growing share
+of ISPs). Never require port forwarding.
+BUDGETS, so you know when something is wrong: a snapshot is about 430 B at 8 players, 20/s is
+about 9 kB/s per client, a host with 7 clients sends about 0.5 Mbit/s up. Keep a packet under
+about 1200 B or IP fragments it. Input needs no reliability layer: put the last three input
+frames in every packet. Caveat from the doc's risk 4: monster spawns scale with heroes.size(),
+so 8 players means far more bodies than that 430 B assumes — measure before sizing the protocol.
+LIBRARIES, checked against Maven Central on 2026-09-16: ice4j (org.jitsi, Apache-2.0, released
+2026-09-14) is the recommendation for phase 2 ICE/STUN/TURN — hole punching done properly is more
+corner cases than it looks. KryoNet on Central is 2.22.0-RC1 from 2014; the maintained fork is
+com.github.crykn:kryonet on JitPack. Netty is overkill for the game socket, reasonable for the
+lobby service. weupnp for best-effort UPnP, never relied on. coturn is what a relay VPS runs.
+The Windows Defender prompt saying 'java.exe wants to accept connections' is a real reason people
+click No, and it is a #build problem (jpackage), not yours.
+Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 50 checks (10 of them the lobby's) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
+jks.net and the mirror (codec round trips, every truncation and bit flip, checksummed lies, the
+size refusal, and): round trips over real UDP on loopback and over the in-memory wire, the payload cap,
+whole-or-nothing delivery, a host learning an unknown peer, a pump that never blocks, a peer
+timing out, IPv6 loopback, seeded loss, duplicates and reorder, a keepalive keeping a peer alive,
+and a closed end that stops being reachable. Add a check there for every rule you add to the seam.
+`./gradlew smoke` is the safety net for anything that touches core — it asserts the body
+and joint invariants a refactor of this shape breaks. There is no CI. Phase 1 is proven on
+LOOPBACK, two JVMs on one machine, plus an in-process host-and-2-clients test asserting the
+clients' positions track the host's within tolerance. Phase 2 is only proven by playing across
+two households and one phone hotspot — the hotspot IS the CGNAT case and it is what proves the
+relay.
+"""
