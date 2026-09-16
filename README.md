@@ -112,8 +112,17 @@ normally `jlink` a small runtime itself, but it cannot on Fedora — the distro 
 `conf/security/java.security` after the build and `jlink` then refuses with *"has been
 modified"*. Build one elsewhere and pass `-Pruntime=<dir>` for a smaller image.
 
-Drop an icon at `desktop/packaging/icon.png` (`icon.ico` on Windows, `icon.icns` on macOS) and it
-is picked up. There is none yet: the game has no icon art.
+The icon is `desktop/packaging/icon.png` (512×512) and `icon.ico` (Windows, 16 to 256 px): the
+double axe on the night sky, made from the game's own art — `tools/double_axe.png` over a night
+sky — which is what Simon picked on d11 because it is the one that still reads at 32 px. The same
+picture is the window and taskbar icon, from `desktop/assets/ui/icon_*.png`. **macOS needs an
+`icon.icns`** and there is none; nothing here can make a real one. On a Mac:
+
+```sh
+mkdir icon.iconset && for s in 16 32 128 256 512; do
+  sips -z $s $s desktop/packaging/icon.png --out icon.iconset/icon_${s}x${s}.png; done
+iconutil -c icns icon.iconset -o desktop/packaging/icon.icns
+```
 
 ## Project layout
 

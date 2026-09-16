@@ -160,8 +160,8 @@ have nowhere to go. So:
   with `jpackage` so the prompt at least carries the game's name and icon.
   **Both are done (r44).** `Transport_Udp` binds port 0 and never asks for an inbound mapping, and
   `./gradlew jpackage` builds a launcher named `LaChasseGalerie` carrying its own runtime, so the
-  prompt names the game. The icon half is waiting on there being an icon: the game has no icon art
-  (d11), and the build picks one up from `desktop/packaging/` the day it does.
+  prompt names the game. It carries the icon too since d11 → B (r50): the double axe on the night
+  sky, in `desktop/packaging/`, on the binary and on the window.
 - **libGDX gives us nothing here.** Verified on the 1.14.2 jar: `com.badlogic.gdx.Net.Protocol` has a
   single constant, `TCP`. libGDX has no UDP. That is fine on desktop — `java.nio.channels.DatagramChannel`
   is all we need — but it does mean netplay could never run on a GWT/HTML backend. The project is
