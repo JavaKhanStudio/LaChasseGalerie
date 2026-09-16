@@ -19,6 +19,8 @@ import jks.physic.tools.BoxBodyBuilder;
 public class PhysicSpriteEnnemy extends SpriteModel
 {
 
+	/** This monster's entity id, for snapshots. */
+	public final int id = GVars_Game.newEntityId() ; 
 	public Body body ;
 
 	public Fixture fixture_Main ;

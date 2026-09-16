@@ -21,6 +21,7 @@ public class GVars_Story
 	public static void init()
 	{
 		timming_currentStoryTime = 0 ; 
+		skyScrolled = 0 ; 
 		musicCueFired = false ; 
 		screenSpeed = 0 ; 
 		numberHp = 0 ; 
@@ -38,6 +39,16 @@ public class GVars_Story
 	}
 	
 	static float timming_currentStoryTime ; 
+	/** How far the take-off has scrolled the sky, in world units : what the star and the river's Y follow. */
+	static float skyScrolled ; 
+	
+	/** Seconds since the run started : what the music, the take-off and the spawns are timed on. */
+	public static float storyTime()
+	{return timming_currentStoryTime ;}
+	
+	/** How far the sky has scrolled up since the run started, in world units (phase 1.3's snapshot). */
+	public static float skyScroll()
+	{return skyScrolled ;}
 	
 	static float timming_timeUntil_Music = 10 ; 
 	static float timming_timeUntil_Monster = 5 ; 
@@ -76,6 +87,7 @@ public class GVars_Story
 			}
 				
 			GVars_Parralax.scroll(delta, 0, delta * flyingSpeed) ; 
+			skyScrolled += delta * flyingSpeed ; 
 			GVars_Camera.screenMovementSpeed += accelerationGoingUp * delta ; 
 			Vue_Game.star1.setPosition(Vue_Game.star1.getX(), Vue_Game.star1.getY() - delta * flyingSpeed/3);
 			if(GVars_AudioManager.currentlyRunningAmbiance != null)
@@ -91,6 +103,7 @@ public class GVars_Story
 			{canoe.body.setTransform(canoe.body.getPosition(), 0);}
 			
 			GVars_Parralax.scroll(delta, 0, delta * flyingSpeed) ; 
+			skyScrolled += delta * flyingSpeed ; 
 			Vue_Game.star1.setPosition(Vue_Game.star1.getX(), Vue_Game.star1.getY() - delta * flyingSpeed/3);
 		}
 		

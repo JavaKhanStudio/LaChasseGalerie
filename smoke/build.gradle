@@ -44,3 +44,16 @@ tasks.register('netcensus', JavaExec) {
     jvmArgs '--enable-native-access=ALL-UNNAMED'
     args providers.gradleProperty('players').orElse('8').get(), providers.gradleProperty('seconds').orElse('120').get(), providers.gradleProperty('seed').orElse('1').get()
 }
+
+// ./gradlew netmirror : phase 1.3's gate. A headless host reads its world into a snapshot every tick
+// and world-less clients apply it, exactly and through the codec; fails on the first entity they
+// disagree on. ./gradlew netmirror -Pplayers=8 -Pseconds=90 -Pseed=1
+tasks.register('netmirror', JavaExec) {
+    group = 'verification'
+    description = 'Applies every tick of a headless run to world-less clients and checks they agree with the world.'
+    mainClass = 'jks.smoke.Net_Mirror'
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = rootProject.file('desktop/assets')
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    args providers.gradleProperty('players').orElse('8').get(), providers.gradleProperty('seconds').orElse('90').get(), providers.gradleProperty('seed').orElse('1').get()
+}

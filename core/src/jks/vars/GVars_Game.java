@@ -37,9 +37,20 @@ public class GVars_Game
 	/** Sorted by PlayerId, like GVars_Controller.playerList. */
 	public static TreeMap<PlayerId,ScoreLabel> playerRegister ; 
 	
+	/**
+	 * The last entity id handed out this run (phase 1.3). A hero, a monster and a potion each get one
+	 * when they are made, from this one counter, so no two living entities share an id whatever
+	 * their kind : a snapshot names them by it, and a client creates, moves and destroys by it.
+	 * 16 bits on the wire, so it wraps past 0xFFFF ; 0 is never handed out.
+	 */
+	private static int lastEntityId ; 
+	private static boolean entityIdsWrapped ; 
+	
 	public static void init()
 	{
 		inCinematic = false ; 
+		lastEntityId = 0 ; 
+		entityIdsWrapped = false ; 
 		heroes = new ArrayList<PhysicSpriteHeroes>() ; 
 		ennemies = new ArrayList<PhysicSpriteEnnemy>() ;
 		toBeDestroy_Body = new LinkedHashSet<Body>() ; 
@@ -68,6 +79,40 @@ public class GVars_Game
 		playerRegister = null ; 
 	}
 
+
+	/**
+	 * A fresh id for an entity being made. A hero that dies and rejoins is a new entity, so a new id
+	 * for the same player. After a wrap an id still worn by a living entity is skipped : a potion that
+	 * fell off the world keeps its body, and its id, forever (n7).
+	 */
+	public static int newEntityId()
+	{
+		while(true)
+		{
+			lastEntityId++ ; 
+			if(lastEntityId > 0xFFFF)
+			{
+				lastEntityId = 1 ; 
+				entityIdsWrapped = true ; 
+			}
+			if(!entityIdsWrapped || !entityIdInUse(lastEntityId))
+				return lastEntityId ; 
+		}
+	}
+	
+	private static boolean entityIdInUse(int id)
+	{
+		for(PhysicSpriteHeroes hero : heroes)
+			if(hero.id == id)
+				return true ; 
+		for(PhysicSpriteEnnemy ennemy : ennemies)
+			if(ennemy.id == id)
+				return true ; 
+		for(PhysicSpriteHp hp : hpStack)
+			if(hp.id == id)
+				return true ; 
+		return false ; 
+	}
 
 	/**
 	 * Gives this player a hero. Local devices get their PlayerId from GVars_Controller.identify ;

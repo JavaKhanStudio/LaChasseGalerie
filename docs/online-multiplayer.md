@@ -201,7 +201,8 @@ single tick had them all at once (8 heroes, 26 monsters, 8 potions), comes to 47
 real but small: monsters peak around 26, not far above the estimate. What does *not* stay bounded
 is potions: every potion that misses the canoe falls forever and is never removed (n7), 109 of
 them after ten minutes. The snapshot view has to leave out anything that has left the world, or
-no layout fits.
+no layout fits — and since r38 it does (`Snapshot_View` drops fallen potions and heroes already
+queued to die), so the same seed-1 run now peaks at 434 B.
 
 At 20 snapshots/s that is **~9 kB/s (70 kbit/s) per client**, so a host with 7 clients sends
 **~0.5 Mbit/s upstream** — comfortable on any home connection, and one packet stays far under the
@@ -303,7 +304,7 @@ disagree:
 | 0.6 headless runner out of `Smoke_Run` | r36 | `#build` |
 | 1.1 the `Transport` seam + its gate | **done, this commit** | `#network` |
 | 1.2 the wire protocol | **done, r37** | `#network` |
-| 1.3 entity ids and snapshots | r38 | `#network` `#gameplay` |
+| 1.3 entity ids and snapshots | **done, r38** | `#network` `#gameplay` |
 | 1.4 `HostSession` / `ClientSession` on loopback | r39 | `#network` |
 | 1.5 a client that renders what it does not simulate | r40 | `#network` `#gameplay` |
 | 2.1 the lobby service | r41 | `#network` |
@@ -338,6 +339,23 @@ jumping twice. Encoding a packet past 1200 B throws and names the counts. Decodi
 never half-reads, a packet that is truncated, corrupted, of another version, or whose checksum is
 right but whose content no encoder writes. nettest holds all of that, plus the measured 8-player
 peak, in 10 more checks (24 in all).
+
+**Phase 1.3 is in** (`core/src/jks/online`, `./gradlew netmirror`). Every hero, monster and potion
+gets an entity id when it is made, from one per-run counter (`GVars_Game.newEntityId`): one
+namespace across kinds, 16 bits, never 0, and after a wrap an id still worn by a living entity is
+skipped. A hero that dies and rejoins is a new id for the same player. The canoe has no id — there
+is one per run and it travels as `canoeAngle` — and an axe rides on its hero. `Snapshot_View.read`
+is the host's pass: it reads the world into a `Net_Snapshot` and changes nothing. It leaves out a
+hero already queued to die and a potion below the world (n7), and it always sends monsters, because
+one chasing a drowning hero dips under the water line and climbs back. `Snapshot_Mirror` is the
+client's pass and imports no Box2D, no `GVars_*` and no asset: it creates what is new, moves what
+exists (the same object, so a sprite hung on it lives as long as the entity) and destroys what
+vanished, destroys before it creates, keeps the host's drawing order, ignores a snapshot no newer
+than the last, and refuses one that names an id twice. A `Listener` hears every create and destroy,
+which is where phase 1.5 hangs its sprites. The gate plays 8 headless players for 90 s, pushes the ids
+past 0xFFFF half way, and every tick applies the snapshot to one client as it is, to one through the
+codec, and to a third that joins late. All three must agree with the world, read straight off the
+bodies, entity by entity. nettest holds the mirror's rules in 5 more checks (29 in all).
 
 ### A door left open
 

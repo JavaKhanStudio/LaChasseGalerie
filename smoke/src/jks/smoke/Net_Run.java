@@ -65,6 +65,11 @@ public class Net_Run
 		check("codec/oversized-is-refused-out-loud", Net_Codec_Checks::oversizedIsRefused);
 		check("codec/measured-8-player-peak-fits", Net_Codec_Checks::measuredPeakFits);
 		check("codec/input-survives-loss", Net_Codec_Checks::inputSurvivesLoss);
+		check("mirror/create-move-destroy", Net_Mirror_Checks::createMoveDestroy);
+		check("mirror/stale-is-ignored", Net_Mirror_Checks::staleIsIgnored);
+		check("mirror/duplicate-ids-are-refused", Net_Mirror_Checks::duplicateIdsAreRefused);
+		check("mirror/id-changing-kind", Net_Mirror_Checks::idChangingKind);
+		check("mirror/late-joiner-and-rejoin", Net_Mirror_Checks::lateJoinerAndRejoin);
 
 		System.out.println(failed == 0 ? "NET ok, " + checks + " checks" : "NET FAILED " + failed + " of " + checks + " check(s)");
 		System.exit(failed == 0 ? 0 : 1);

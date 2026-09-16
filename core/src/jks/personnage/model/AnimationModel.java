@@ -14,6 +14,10 @@ public abstract class AnimationModel
 	
 	public abstract void draw(Batch batch) ; 
 	
+	/** Facing right : what a snapshot sends, so a client draws the sprite the way the host does. */
+	public boolean isReversed()
+	{return reverse ;}
+	
 	public void reverse(boolean reverse)
 	{this.reverse = reverse ;}
 	

@@ -53,6 +53,8 @@ public class PhysicSpriteHeroes extends SpriteModel
 	public int hp_left = hp_max ; 
 //	public int hp_left = 1 ; 
 	
+	/** This hero's entity id, for snapshots : a new one each time the player rejoins. */
+	public final int id = GVars_Game.newEntityId() ; 
 	/** Who this hero is. The device driving it, if any, is GVars_Controller's business. */
 	public final PlayerId player ; 
 	public boolean invulnerable ; 

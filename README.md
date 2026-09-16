@@ -75,6 +75,7 @@ It cannot see rendering bugs. `./gradlew build` compiles it but does not run it.
 
 ```sh
 ./gradlew nettest    # the transport seam, over real UDP on loopback and an in-memory wire
+./gradlew netmirror  # a headless host's snapshots applied every tick to clients with no world
 ```
 
 `core/src/jks/net` is the seam the online plan is built on: the game sends bytes through a
@@ -83,6 +84,8 @@ browser player is a WebRTC data channel. `nettest` holds it to its contract in a
 with no window and no game — round trips, a host learning a peer it has never seen, the 1200 byte
 payload cap, seeded packet loss, reordering, duplicates, and a peer that goes quiet being reported
 lost once and forgotten. Nothing in the game calls it yet; see `docs/online-multiplayer.md`.
+`netmirror` plays 8 headless players and holds `core/src/jks/online` to the world: every entity the
+host's snapshot names must be where its body is on a client that owns no physics.
 
 ## Building a standalone jar
 
@@ -130,10 +133,11 @@ iconutil -c icns icon.iconset -o desktop/packaging/icon.icns
 core/      game code (shared, backend independent)
   src/jks/parralax/           the night river scene, drawn with io.github.javakhanstudio:parallax-background
   src/jks/net/                the transport seam for online play (./gradlew nettest)
+  src/jks/online/             the world as a snapshot, and a client's picture built from one (./gradlew netmirror)
 desktop/   LWJGL3 launcher and all game assets (desktop/assets)
            packaging/ is where an icon goes for ./gradlew jpackage
 headless/  the game with no window or sound: the loop a host with no screen runs (jks.headless.Headless_Runner)
-smoke/     the headless gates (./gradlew smoke, ./gradlew nettest); smoke drives headless/
+smoke/     the headless gates (./gradlew smoke, nettest, netmirror, netcensus); smoke drives headless/
 docs/      design notes: online-multiplayer.md (the plan for going online),
            browser-target.md (whether this can run in a browser, and what it would cost)
 tools/     browser-spike/ compiles the game to JavaScript and serves it (not part of the build)
