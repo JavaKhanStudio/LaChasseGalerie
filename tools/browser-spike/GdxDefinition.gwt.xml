@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module rename-to="html">
+	<inherits name="com.badlogic.gdx.backends.gdx_backends_gwt" />
+	<inherits name="com.badlogic.gdx.physics.box2d.box2d-gwt" />
+	<inherits name="com.badlogic.gdx.controllers.controllers-gwt" />
+
+	<!-- The whole game, plus the parallax library which lives under the same jks package.
+	     jks.net is the UDP transport: java.nio.channels does not exist in a browser. -->
+	<source path="">
+		<exclude name="net/**" />
+	</source>
+
+	<entry-point class="jks.html.HtmlLauncher" />
+	<set-configuration-property name="gdx.assetpath" value="@ASSETS@" />
+	<set-configuration-property name="xsiframe.failIfScriptTag" value="FALSE" />
+	<!-- One browser, one permutation: a spike does not need six -->
+	<set-property name="user.agent" value="safari" />
+</module>

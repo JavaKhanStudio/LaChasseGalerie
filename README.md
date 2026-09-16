@@ -126,4 +126,5 @@ desktop/   LWJGL3 launcher and all game assets (desktop/assets)
 smoke/     the headless gates (./gradlew smoke, ./gradlew nettest)
 docs/      design notes: online-multiplayer.md (the plan for going online),
            browser-target.md (whether this can run in a browser, and what it would cost)
+tools/     browser-spike/ compiles the game to JavaScript and serves it (not part of the build)
 ```

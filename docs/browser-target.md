@@ -3,6 +3,14 @@
 **Question asked (r20):** libGDX used to run in a browser like Chrome. Does that still work, and
 what would it take here?
 
+> **Answered by doing it (r20, 2026-09-16).** Simon asked again with the question narrowed: *"the
+> browser would be another client. If it does not use the exact same protocol it would be fine. My
+> only question is can it be done, not is it easy."* So the spike §8.2 asked for was built, and
+> **the game runs in Chrome** — the river, the canoe, a hero joined with a real key press, the axe,
+> Box2D monsters, the HUD, the take-off at 37 seconds, and both MP3s playing. §10 is what it took
+> and what it measured; it is the section to read first now. Everything below it was written
+> before, and §10 says where it was wrong.
+
 **Short answer: yes, the browser backends are alive and current, and this game's code is unusually
 well suited to one.** libGDX's own GWT backend ships at `1.14.2` — the exact version the game uses —
 published 2026-06-05, and `core/` contains almost nothing that a browser compiler rejects. Three
@@ -133,6 +141,13 @@ game starts rather than before it. Plan on an asset pass as part of the work, no
 
 ## 6. The collision with the online plan — the part that is now the work
 
+> **Narrowed again by Simon on r20: "the browser would be another client. If it does not use the
+> exact same protocol it would be fine."** That releases the constraint this section was built
+> around: a tab does not have to speak the host's UDP protocol, it has to be a player. Which is
+> what the transport seam of phase 1 (`core/src/jks/net`, commit `99f9ac6`) already allows — one
+> `Net_Transport` implementation over UDP for desktop peers, another over a WebRTC data channel or
+> a WebSocket for tabs, with the session code above unable to tell the difference.
+
 > **Settled — d7 (r26): "a way for people to join games if possible, as a player."** The browser
 > build is not a demo. A person in a tab is a player in somebody's game, the same as a person on a
 > desktop — one tab, one hero, consistent with d5 → A. The "if possible" is honest: what it costs is
@@ -228,5 +243,100 @@ question in §6 decides whether it is worth paying.
 - Whether `gdx-box2d-teavm:1.0.0-b6` (2023) still works with `backend-teavm:1.4.0` (2025). Only a
   spike answers it.
 - Whether `org.docstr.gwt:2.2.9` is happy with Gradle 9.7 and the configuration cache.
-- Whether GWT actually refuses the parallax sources over the annotations, or merely over the missing
-  `.gwt.xml`. The mechanism is certain; the exact error is not, and it does not change the fix.
+- ~~Whether GWT actually refuses the parallax sources over the annotations, or merely over the missing
+  `.gwt.xml`.~~ **Answered in §10: neither, exactly.** The missing `.gwt.xml` turned out not to be a
+  blocker at all when the library's sources sit in the game's own translatable path, the annotations
+  are, and a third thing nobody had seen — `Cloneable` and `super.clone()` — is too.
+
+---
+
+## 10. The spike: it runs (r20, measured 2026-09-16)
+
+`tools/browser-spike/build.sh` is the whole thing, kept so this can be re-checked instead of
+believed. It is **not** part of the build — nothing it does is in `settings.gradle`, `./gradlew`
+never calls it, and it writes everything into `/tmp/browser-spike`. It resolves the GWT dependency
+set, copies `core/src` and the parallax library's published sources into one tree, patches the
+library (below), compiles with libGDX's own GWT backend and serves the result.
+
+```sh
+tools/browser-spike/build.sh          # then open http://localhost:8099/index.html
+tools/browser-spike/build.sh --prod   # the optimized compile
+```
+
+### What the page actually does
+
+A real key press through the browser — not a simulated one inside the game — joins a player, and
+from there it is the game: the hero, the jointed axe, four hearts, monsters from 15 s, potions, the
+score HUD, deaths, and the canoe leaving the river at 37 s to fly above the clouds. Screenshots are
+attached to r20. The two MP3s play in the tab (measured, not assumed: `currentlyRunningMusic` and
+`currentlyRunningAmbiance` both report `isPlaying()` after the story's 10 s mark).
+
+### Numbers
+
+| | |
+|---|---|
+| draft compile, one permutation | **6–11 s** |
+| optimized compile (`-optimize 9`), one permutation | **31.9 s**, 1.7 GB peak RSS |
+| JavaScript, draft / optimized / optimized+gzip | 9.8 MB / **3.0 MB** / **678 kB** |
+| assets downloaded before the first frame | **32.6 MB** (unchanged from §5) |
+| everything the first load pulls | **42.9 MB** |
+| navigation to first frame, on localhost | **1.95 s** |
+| frame rate, headless Chrome on SwiftShader (software WebGL, no GPU) | **~58 fps** |
+
+The compile numbers are for **one** `user.agent` permutation, which is what the spike pins. A real
+html module compiling all six is roughly six times that, and is the "minutes, not seconds" of §7.
+
+### What had to be patched, and what that says about §4
+
+§4 was right that `parallax-background:2.1.0` cannot be translated as published, and right about
+Kryo and Jackson. It was wrong about the mechanism and it missed one:
+
+1. **A missing `.gwt.xml` is not the blocker it looked like.** The library's package root is `jks`,
+   the same as the game's, so putting its sources in the game module's own translatable path
+   covers it and no module descriptor is needed at all. A published `.gwt.xml` is still the right
+   thing for a clean html module — it is just not what stops anyone today.
+2. **The Kryo and Jackson annotations are a real blocker**, as predicted. Deleting the five
+   `*_Serializer` classes plus `GVars_Serialization` and `Utils_Page`, and stripping the
+   annotations off `WholePage_Model`, `Parallax_Model`, `Page_Model` and `ParallaxLayer`, is enough.
+   Nothing the game uses is lost: it builds its pages in Java, in `ColdNightModel`, and never calls
+   `Utils_Page.loadPage` — the library's only Kryo entry point, which had to go with it.
+3. **`ParallaxLayer implements Cloneable` and calls `super.clone()`, and GWT has neither.** Not
+   mentioned anywhere before this spike. `ParallaxPageReader` calls `layer.clone()` on the real
+   drawing path, so it cannot simply be deleted; the fix is a field-by-field copy, which the
+   script writes out in full.
+
+That is the shape of **parallax-background 2.2.0**, and all of it belongs in the library, on its own
+board, not here.
+
+### Three things this spike found that nobody had written down
+
+- **`core` now contains code a browser cannot compile: `jks.net`.** `Transport_Udp` is
+  `java.nio.channels.DatagramChannel`, which does not exist in GWT. The module descriptor excludes
+  `net/**` and everything still builds, because the rest of the seam (`Net_Transport`, `Net_Peer`,
+  `Net_Listener`) is plain Java — which is exactly the split the transport interface was for. When
+  the html module becomes real, either that exclude comes with it or `Transport_Udp` moves to
+  `desktop/`.
+- **WebGL 1 rejects mipmaps on non-power-of-two textures**, and the console says so twice on every
+  load (`glGenerateMipmap: The texture is a non-power-of-two texture`). The game draws correctly
+  anyway, but it is a real difference from the desktop backend and it is worth a pass over the
+  atlases before anyone calls a browser build finished.
+- **A headless screenshot is not a gate.** `google-chrome --headless --screenshot` pumps about
+  **five** `requestAnimationFrame` callbacks and then takes the picture, so the game looks frozen
+  two frames in — nothing is wrong with the game. Driving the browser properly (puppeteer-core
+  against the system Chrome, which needs no Chromium download) runs it at full speed and can send
+  real keys. Whoever builds the browser gate later should start from that and not from `--screenshot`.
+- A fourth, smaller one: the 32 MB asset copy into the war is done by a GWT **generator**, and a
+  generator does not re-run while its output sits in the unit cache — so a second compile can
+  silently produce a page with no assets that hangs on the preloader. The script gives each work
+  directory its own cache and fails loudly if the assets are not there.
+
+### What this still does not prove
+
+- **Gamepads.** `gdx-controllers-gwt` loads and its polling starts (`startPolling` in the console),
+  but the browser Gamepad API cannot see a pad until someone presses a button on a real one, and
+  there was none to press here.
+- **The Gradle plugin route.** The spike calls the GWT compiler directly, so §9's question about
+  `org.docstr.gwt:2.2.9` under Gradle 9 with the configuration cache is still open. It matters for
+  a real `html` module and not at all for the answer to "can it be done".
+- **TeaVM.** Not tried. It is no longer on the critical path: the first-party route works.
+- **Mobile browsers**, and what 32 MB feels like on a phone.
