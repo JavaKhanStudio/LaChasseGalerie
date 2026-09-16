@@ -26,7 +26,9 @@ import jks.vue.AVue_Model;
  * score table, which a menu must not inherit.
  *
  * Three ways in, not one (d8) : the pointer, the arrows and a pad all move the same Menu_Focus, so
- * the pad a player is already holding gets them into the game without reaching for a mouse.
+ * the pad a player is already holding gets them into the game without reaching for a mouse. And by
+ * d9 that same press joins the run : whoever picks Local play is player 1, and the others press to
+ * join behind them.
  *
  * What it does NOT do, on purpose : there is no way back here from a running game. The run's timers
  * are static and never reset (#gameplay), so returning to the menu is a restart path, not a screen.
@@ -66,8 +68,9 @@ public class Vue_Menu extends AVue_Model
 		Label title = new Label("La chasse-galerie", GVars_Interface.baseSkin, "title") ;
 		table.add(title).padBottom(height * 0.08f).row();
 
+		// The hand that picks the run is already in it (d9) : it is handed to the run it opens
 		TextButton local = playButton("Local play") ;
-		focus.add(local, () -> GVars_Heart.changeVue(new Vue_Game())) ;
+		focus.add(local, picker -> GVars_Heart.changeVue(new Vue_Game(picker))) ;
 		table.add(local).width(width * 0.34f).height(height * 0.11f).padBottom(height * 0.03f).row();
 
 		// Nothing behind it yet : the plan is docs/online-multiplayer.md. It is not in the focus
@@ -84,7 +87,7 @@ public class Vue_Menu extends AVue_Model
 		table.add(soon).padTop(height * 0.01f).padBottom(height * 0.04f).row();
 
 		TextButton quit = playButton("Quit") ;
-		focus.add(quit, () -> Gdx.app.exit()) ;
+		focus.add(quit, picker -> Gdx.app.exit()) ;
 		table.add(quit).width(width * 0.34f).height(height * 0.11f).row();
 
 		stage.addActor(table);

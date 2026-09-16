@@ -32,7 +32,8 @@ public class IKM_Menu_Keyboard extends InputAdapter
 			case Keys.SPACE :
 			case Keys.ENTER :
 			case Keys.NUMPAD_ENTER :
-				focus.pick() ;
+				// The keyboard picking a run is the keyboard sitting down to play it (d9)
+				focus.pick(Menu_Picker.KEYBOARD) ;
 				return true ;
 		}
 

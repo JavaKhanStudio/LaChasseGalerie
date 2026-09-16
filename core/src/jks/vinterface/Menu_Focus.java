@@ -8,6 +8,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
 
+import jks.input.Menu_Picker;
+
 /**
  * The choices of a menu as a ring, with one focus travelling around it (d8).
  *
@@ -15,6 +17,9 @@ import com.badlogic.gdx.utils.Array;
  * different game from the one four people sit down to with pads. The ring is what lets the arrows,
  * the stick and the pad's A button reach the same choices the pointer does — jks.input's
  * IKM_Menu_Keyboard and IKM_Menu_XBoxController both talk to this, and nothing else.
+ *
+ * A choice is told WHO took it (d9) : the hand that starts a run also joins it, so the pad or the
+ * keyboard that picked has to travel from the listener that heard it to the view it opens.
  *
  * A pick is NOT run where it is triggered : it waits for the view's next update. Both callers are
  * mid-iteration when they fire one — scene2d is walking its actors, and gdx-controllers is walking
@@ -28,17 +33,22 @@ public class Menu_Focus
 	 */
 	private static final float dimmed = 0.85f ;
 
+	/** What taking a choice does, told whose hand took it. */
+	public interface Taken
+	{void by(Menu_Picker picker) ;}
+
 	private final Array<TextButton> choices = new Array<TextButton>() ;
-	private final Array<Runnable> picks = new Array<Runnable>() ;
+	private final Array<Taken> picks = new Array<Taken>() ;
 	private final Array<TextButtonStyle> resting = new Array<TextButtonStyle>() ;
 	/** The same button drawn with its pressed background : this skin has no other 'chosen' look. */
 	private final Array<TextButtonStyle> highlighted = new Array<TextButtonStyle>() ;
 
 	private int focused = -1 ;
-	private Runnable picked ;
+	private Taken picked ;
+	private Menu_Picker pickedBy ;
 
 	/** Adds a choice at the bottom of the ring. A choice nobody can take does not belong here. */
-	public void add(TextButton button, Runnable onPick)
+	public void add(TextButton button, Taken onPick)
 	{
 		final int index = choices.size ;
 
@@ -57,7 +67,7 @@ public class Menu_Focus
 		{
 			@Override
 			public void changed(ChangeEvent event, Actor actor)
-			{pick(index) ;}
+			{pick(index, Menu_Picker.POINTER) ;}
 		});
 		button.addListener(new InputListener()
 		{
@@ -84,11 +94,12 @@ public class Menu_Focus
 		focus(((focused + direction) % choices.size + choices.size) % choices.size) ;
 	}
 
-	/** Takes the focused choice. It runs on the next update, not here. */
-	public void pick()
+	/** Takes the focused choice, in the name of the hand that took it. It runs on the next
+	 *  update, not here. */
+	public void pick(Menu_Picker picker)
 	{
 		if(focused >= 0)
-			pick(focused) ;
+			pick(focused, picker) ;
 	}
 
 	/**
@@ -101,16 +112,19 @@ public class Menu_Focus
 		if(picked == null)
 			return false ;
 
-		Runnable running = picked ;
+		Taken running = picked ;
+		Menu_Picker picker = pickedBy ;
 		picked = null ;
-		running.run();
+		pickedBy = null ;
+		running.by(picker);
 		return true ;
 	}
 
-	private void pick(int index)
+	private void pick(int index, Menu_Picker picker)
 	{
 		focus(index) ;
 		picked = picks.get(index) ;
+		pickedBy = picker ;
 	}
 
 	private void focus(int index)

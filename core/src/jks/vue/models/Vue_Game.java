@@ -24,6 +24,7 @@ import jks.debug.ShowFPS;
 import jks.input.GVars_Controller;
 import jks.input.IKM_Game_Keyboard;
 import jks.input.IKM_Game_XBoxController;
+import jks.input.Menu_Picker;
 import jks.parralax.Enum_ColdNight;
 import jks.parralax.GVars_Parralax;
 import jks.personnage.PhysicSpriteEnnemy;
@@ -46,6 +47,16 @@ public class Vue_Game extends AVue_Model
     Box2DDebugRenderer debugRenderer ;
     public static Sprite star1 ; 
     
+    /** The hand that started this run, from the menu. Never null : POINTER when nobody's did. */
+    private final Menu_Picker starter ;
+    
+    /** A run nobody in particular asked for : --menu off, or a mouse click. Everyone joins by hand. */
+    public Vue_Game()
+    {this(Menu_Picker.POINTER) ;}
+    
+    public Vue_Game(Menu_Picker starter)
+    {this.starter = starter ;}
+    
     @Override
     public void init() 
     {
@@ -67,6 +78,10 @@ public class Vue_Game extends AVue_Model
 		
 		star1 = new Sprite(new Texture("stars/Stars Small_1.png")) ; 
 		star1.setPosition(0, Gdx.graphics.getHeight()/1.1f * GVars_Camera.worldMutiplier);
+		
+		// Last, once the world, the score table and the canoe exist : the pad or the keyboard that
+		// chose this run is already player 1 and does not press a second time to get in (d9)
+		starter.joinTheRun();
     }
 
     @Override

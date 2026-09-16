@@ -12,7 +12,7 @@ import jks.vinterface.Menu_Focus;
  * The menu under a pad (d8) : the left stick or the d-pad moves the focus, A takes the choice.
  *
  * Every pad drives the same focus. There is one menu on the screen, so whoever reaches for it is
- * the one steering ; who is player one is settled later, by the join gesture, inside the game.
+ * the one steering — and by d9, the one who picks a run is player 1 of it.
  */
 public class IKM_Menu_XBoxController extends ControllerAdapter
 {
@@ -38,7 +38,8 @@ public class IKM_Menu_XBoxController extends ControllerAdapter
 		else if(buttonCode == mapping.buttonDpadDown)
 			focus.move(1) ;
 		else if(buttonCode == mapping.buttonA)
-			focus.pick() ;
+			// This pad picking a run is this pad sitting down to play it (d9)
+			focus.pick(Menu_Picker.pad(controller)) ;
 		else
 			return false ;
 
