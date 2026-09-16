@@ -30,6 +30,7 @@ public class GVars_Story
 		numberEnnemies = 0 ; 
 		currentTimmer_TopEnnemy = 0 ; 
 		currentTimmer_SideEnnemy = 0 ; 
+		descentFrom = -1 ; 
 	}
 	
 	public static void act(float delta)
@@ -72,9 +73,46 @@ public class GVars_Story
 	
 	static float timming_timeUntil_Stabilise = 8f + timming_timeUntil_TakeOff ; 
 	
+	/**
+	 * The ride is the song (d12) : musics/pagayez.mp3 lasts 330.47 s, and the canoe is back on the
+	 * river on its last note. libGDX's Music cannot tell its own length, and under --mute there is no
+	 * Music at all, so it is written here : change the song, measure it again
+	 * (ffprobe -show_entries format=duration musics/pagayez.mp3).
+	 */
+	static final float songLength = 330.47f ; 
+	static float timming_timeUntil_Landing = timming_timeUntil_Music + songLength ; 
+	/** As long as the take-off's climb, which scrolls about as much sky (it stops once the canoe is level). */
+	static float timming_descentLength = 10f ; 
+	static float timming_timeUntil_Descent = timming_timeUntil_Landing - timming_descentLength ; 
+	/** When the nose comes back up, so the canoe touches the water level. */
+	static float timming_timeUntil_Level = timming_timeUntil_Landing - 2f ; 
+	/** On the river after the landing, before the run gives the window back to the start menu. */
+	static float timming_afterLanding = 5f ; 
+	
+	/** skyScrolled when the descent began : what it brings back down to 0. -1 until then. */
+	static float descentFrom ; 
+	
+	/** The canoe has landed and the song is over : nothing else happens in this run. */
+	public static boolean hasLanded()
+	{return timming_currentStoryTime >= timming_timeUntil_Landing ;}
+	
+	/** Landed, and the players had a moment on the river : the run is over and goes back to the menu. */
+	public static boolean runOver()
+	{return timming_currentStoryTime >= timming_timeUntil_Landing + timming_afterLanding ;}
+	
+	/** How far into the descent, 0 at its start and 1 on the water. */
+	static float descentProgress(float storyTime)
+	{return Math.max(0, Math.min(1, (storyTime - timming_timeUntil_Descent) / timming_descentLength)) ;}
+	
 	private static void storyTelling(float delta) 
 	{
 		timming_currentStoryTime += delta ; 
+		
+		if(timming_currentStoryTime > timming_timeUntil_Descent)
+		{
+			descend(delta) ; 
+			return ; 
+		}
 		
 		if(timming_currentStoryTime > timming_timeUntil_Music && !musicCueFired) 
 		{
@@ -115,6 +153,38 @@ public class GVars_Story
 
 
 	/**
+	 * The canoe comes back down into the river (d12) : the take-off played backwards. The sky scrolls
+	 * back to where the run started, easing in and out so the water rises gently under the canoe, the
+	 * nose dips and comes level just before it lands, and the river slows back to its speed with the
+	 * music. The star goes back up with the sky. Nothing new spawns once it has begun (calculateBots,
+	 * calculateHpDrop) : the monsters already aboard still have to be fought.
+	 */
+	private static void descend(float delta)
+	{
+		if(descentFrom < 0)
+			descentFrom = skyScrolled ; 
+		
+		float u = descentProgress(timming_currentStoryTime) ; 
+		float sky = descentFrom * (1 - u * u * (3 - 2 * u)) ; 
+		GVars_Parralax.scroll(delta, 0, sky - skyScrolled) ; 
+		Vue_Game.star1.setPosition(Vue_Game.star1.getX(), Vue_Game.star1.getY() - (sky - skyScrolled)/3);
+		skyScrolled = sky ; 
+		
+		GVars_Camera.screenMovementSpeed = riverSpeedAt(timming_currentStoryTime) ; 
+		
+		float angle = canoe.body.getAngle() ; 
+		float turn = (float)Math.toRadians(delta) * timming_angleSpeed ; 
+		if(timming_currentStoryTime < timming_timeUntil_Level)
+			angle = Math.max(-timming_maxAngle, angle - turn) ; 
+		else
+			angle = Math.min(0, angle + turn) ; 
+		if(u >= 1)
+			angle = 0 ; 
+		if(angle != canoe.body.getAngle())
+			canoe.body.setTransform(canoe.body.getPosition(), angle);
+	}
+
+	/**
 	 * The story as a CLIENT plays it (phase 1.5) : a client owns no world and runs no timers, so the
 	 * beats follow the host's story clock, read off the snapshots, instead of its own. Everything
 	 * between two story times that a picture or a speaker needs : the music cue, the river's scroll,
@@ -152,7 +222,7 @@ public class GVars_Story
 			speed += musicRiverBoost ; 
 		float climbing = Math.min(storyTime, timming_timeUntil_Stabilise) - timming_timeUntil_TakeOff ; 
 		if(climbing > 0)
-			speed += accelerationGoingUp * climbing ; 
+			speed += accelerationGoingUp * climbing * (1 - descentProgress(storyTime)) ; 
 		return speed ; 
 	}
 	
@@ -168,6 +238,9 @@ public class GVars_Story
 	
 	private static void calculateHpDrop(float delta) 
 	{
+		if(timming_currentStoryTime > timming_timeUntil_Descent)
+			return ; 
+		
 		currentTimmer_HpDrop += delta ; 
 		if(currentTimmer_HpDrop > timming_HpDrop)
 		{
@@ -190,7 +263,7 @@ public class GVars_Story
 	
 	public static void calculateBots(float delta)
 	{
-		if(timming_currentStoryTime < timming_timeUntil_Music + timming_timeUntil_Monster)
+		if(timming_currentStoryTime < timming_timeUntil_Music + timming_timeUntil_Monster || timming_currentStoryTime > timming_timeUntil_Descent)
 			return ; 
 		
 		currentTimmer_TopEnnemy += delta ; 

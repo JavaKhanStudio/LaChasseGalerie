@@ -23,6 +23,7 @@ import jks.personnage.index.Index_Sprite;
 import jks.physic.Gvars_Physic;
 import jks.vars.GVars_Game;
 import jks.vars.GVars_Heart;
+import jks.story.GVars_Story;
 import jks.vars.GVars_Random;
 import jks.vinterface.GVars_Interface;
 import jks.vue.models.Vue_Menu;
@@ -142,6 +143,19 @@ public class Smoke_Run implements Headless_Runner.Session
 			monstersBefore.clear();
 			monstersBefore.addAll(GVars_Game.ennemies);
 
+			if (GVars_Story.runOver())
+			{
+				// The song is over (d12): this step hands the window back to the menu, and the run is gone
+				checkLanded();
+				report("t=" + frame / 60 + "s ended:");
+				checkItProvedSomething();
+				runner.step();
+				if (!(GVars_Heart.vue instanceof Vue_Menu))
+					throw new IllegalStateException("the run is over but did not go back to the menu");
+				checkTornDown();
+				return;
+			}
+
 			runner.step();
 
 			monstersBefore.removeAll(GVars_Game.ennemies);
@@ -154,7 +168,12 @@ public class Smoke_Run implements Headless_Runner.Session
 		}
 
 		report("done in " + (System.currentTimeMillis() - start) + " ms:");
-		// A run that spawned nothing or killed nobody proves nothing
+		checkItProvedSomething();
+	}
+
+	/** A run that spawned nothing or killed nobody proves nothing. */
+	void checkItProvedSomething()
+	{
 		if (seconds >= 30 && mostMonsters == 0)
 			throw new IllegalStateException("no monster ever spawned");
 		if (deaths() < forcedDeaths)
@@ -221,6 +240,19 @@ public class Smoke_Run implements Headless_Runner.Session
 			hero.getHurt(hero);
 		}
 		forcedDeaths++;
+	}
+
+	/** The descent (d12) put everything back where the run started: the sky, the canoe's nose, the river. */
+	void checkLanded()
+	{
+		if (!GVars_Story.hasLanded())
+			throw new IllegalStateException("the run ended before the canoe landed");
+		if (GVars_Story.skyScroll() != 0)
+			throw new IllegalStateException("landed with the sky still scrolled by " + GVars_Story.skyScroll());
+		if (GVars_Game.canoe.body.getAngle() != 0)
+			throw new IllegalStateException("landed with the canoe tilted by " + GVars_Game.canoe.body.getAngle());
+		if (GVars_Camera.screenMovementSpeed != GVars_Story.riverSpeedAt(GVars_Story.storyTime()))
+			throw new IllegalStateException("landed with the river at " + GVars_Camera.screenMovementSpeed);
 	}
 
 	/** Before cleanUp runs: destroying a body the world no longer holds is the double-destroy crash. */

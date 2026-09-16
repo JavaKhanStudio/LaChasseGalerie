@@ -134,6 +134,14 @@ public class Vue_Game extends AVue_Model
 	@Override
 	public void update(float delta) 
 	{
+		// The song is over and the canoe is back on the river (d12). Before anything of this run is
+		// touched, since changeVue disposes it. A host keeps its run : its peers have nowhere to go yet
+		if(GVars_Story.runOver() && GVars_Heart.hostPort < 0)
+		{
+			GVars_Heart.changeVue(new Vue_Menu());
+			return ; 
+		}
+		
 		cleanUp() ; 
 		Gvars_Physic.act(delta);
     	GVars_Story.act(delta);

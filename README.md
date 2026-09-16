@@ -67,11 +67,15 @@ Press any key or gamepad button to join. Press again after dying to jump back in
 Each hero has four hearts. Hitting a monster with your axe scores a point; a potion heals you, or scores two points
 at full health. Falling into the river or losing every heart costs a death and halves your score.
 
+A run lasts as long as its song. Near the song's end nothing new spawns, the canoe comes back down into the
+river, and five seconds after it lands the game goes back to the start menu (a `--host` run stays on the river).
+
 ## Smoke run
 
 ```sh
 ./gradlew smoke                          # a minute of game time, headless, in a few seconds
 ./gradlew smoke -Pseed=42 -Pseconds=120  # another run, or a longer one
+./gradlew smoke -Pseconds=360           # through the landing and back to the menu
 ```
 
 There are no unit tests. `smoke` runs the real game loop with no window and no sound, and a stubbed GL.
