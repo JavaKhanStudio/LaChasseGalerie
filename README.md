@@ -71,6 +71,19 @@ the game has lost track of, a body queued to be destroyed twice. Those are the b
 JVM with only an `hs_err_pid*.log`, which lands in `smoke/build/smoke/`. The seed replays the same run.
 It cannot see rendering bugs. `./gradlew build` compiles it but does not run it.
 
+## Net gate
+
+```sh
+./gradlew nettest    # the transport seam, over real UDP on loopback and an in-memory wire
+```
+
+`core/src/jks/net` is the seam the online plan is built on: the game sends bytes through a
+`Net_Transport` and never touches a socket itself, because a desktop player is a UDP endpoint and a
+browser player is a WebRTC data channel. `nettest` holds it to its contract in a couple of seconds
+with no window and no game — round trips, a host learning a peer it has never seen, the 1200 byte
+payload cap, seeded packet loss, reordering, duplicates, and a peer that goes quiet being reported
+lost once and forgotten. Nothing in the game calls it yet; see `docs/online-multiplayer.md`.
+
 ## Building a standalone jar
 
 ```sh
@@ -85,8 +98,9 @@ The jar bundles every dependency and asset, so it runs from any directory.
 ```
 core/      game code (shared, backend independent)
   src/jks/parralax/           the night river scene, drawn with io.github.javakhanstudio:parallax-background
+  src/jks/net/                the transport seam for online play (./gradlew nettest)
 desktop/   LWJGL3 launcher and all game assets (desktop/assets)
-smoke/     the headless smoke run (./gradlew smoke)
+smoke/     the headless gates (./gradlew smoke, ./gradlew nettest)
 docs/      design notes: online-multiplayer.md (the plan for going online),
            browser-target.md (whether this can run in a browser, and what it would cost)
 ```

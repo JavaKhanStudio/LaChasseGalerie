@@ -24,3 +24,12 @@ tasks.register('smoke', JavaExec) {
     // ./gradlew smoke -Pseed=42 -Pseconds=120
     args providers.gradleProperty('seed').orElse('1').get(), providers.gradleProperty('seconds').orElse('60').get()
 }
+
+// ./gradlew nettest : holds jks.net to its contract over real UDP on loopback and over the
+// in-memory wire. No window, no game, no assets — a couple of seconds.
+tasks.register('nettest', JavaExec) {
+    group = 'verification'
+    description = 'Checks the transport seam: round trips, the MTU cap, unknown peers, loss, timeouts.'
+    mainClass = 'jks.smoke.Net_Run'
+    classpath = sourceSets.main.runtimeClasspath
+}

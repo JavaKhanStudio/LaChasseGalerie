@@ -225,7 +225,7 @@ the invariants that a refactor of this shape breaks.
 
 | # | work | touches | how it is proven |
 |---|---|---|---|
-| 0.1 | Fixed-step sim clock: an accumulator in `Main_Game.render`, `simulate(1/60)` separate from `render()`, animation time fed by the sim clock, not `Gdx.graphics.getDeltaTime()` | `Main_Game`, `AVue_Model`, `Vue_Game`, `Gvars_Physic`, `SpriteModel` | smoke passes; the game plays the same at 60 fps and *keeps* playing the same when frames drop |
+| 0.1 ✅ | **Done, `81fd446`.** Fixed-step sim clock: an accumulator in `Main_Game.render`, `simulate(1/60)` separate from `render()`, animation time fed by the sim clock, not `Gdx.graphics.getDeltaTime()` | `Main_Game`, `AVue_Model`, `Vue_Game`, `Gvars_Physic`, `SpriteModel` | smoke passes; the game plays the same at 60 fps and *keeps* playing the same when frames drop |
 | 0.2 | A world of fixed size, window as viewport | `GVars_Camera` (+ a `Viewport`), the 9 sites listed in §1.5 | smoke passes; run at 1280×720 and fullscreen and compare |
 | 0.3 | `PlayerId` instead of `Controller` as identity — a peer id online (d5 → A), the local device offline | `GVars_Controller`, `GVars_Game`, `PhysicSpriteHeroes`, both `IKM_*`, `Smoke_Run` | smoke passes with keyboard + 2 pads |
 | 0.4 | Session teardown: dispose the world and clear every `GVars_*`, so a second run starts clean | all `GVars_*` | a smoke variant that plays two runs in one JVM |
@@ -263,6 +263,45 @@ Delta-compressed snapshots, client prediction + reconciliation for the local her
 axe hits, disconnect and reconnect handling. **Recommendation: no host migration** — if the host quits,
 the run ends and everyone returns to the lobby. Host migration for a physics game costs more than it
 is worth here.
+
+### Where each of these lives on the board
+
+The phases above were a table in a document for a while, which is not somewhere work can be picked
+up from. They are tickets now (r15's children), and the ticket is the copy to trust if the two ever
+disagree:
+
+| phase | ticket | tag |
+|---|---|---|
+| 0.1 fixed-step clock | **done, `81fd446`** | — |
+| 0.2 fixed world size, window as viewport | r32 | `#background` `#gameplay` |
+| 0.3 `PlayerId` instead of `Controller` | r33 | `#input` |
+| 0.4 session teardown | r34 | `#gameplay` |
+| 0.5 one seeded RNG | r35 | `#gameplay` |
+| 0.6 headless runner out of `Smoke_Run` | r36 | `#build` |
+| 1.1 the `Transport` seam + its gate | **done, this commit** | `#network` |
+| 1.2 the wire protocol | r37 | `#network` |
+| 1.3 entity ids and snapshots | r38 | `#network` `#gameplay` |
+| 1.4 `HostSession` / `ClientSession` on loopback | r39 | `#network` |
+| 1.5 a client that renders what it does not simulate | r40 | `#network` `#gameplay` |
+| 2.1 the lobby service | r41 | `#network` |
+| 2.2 ICE: IPv6, punch, relay — and say which | r42 | `#network` |
+| 2.3 the lobby screen | r43 | `#hud` `#network` |
+| 2.4 `jpackage`, so the firewall prompt names the game | r44 | `#build` |
+| 2.5 decide and deploy the relay | r45, **blocked on d6** | `#network` |
+| 2.6 a browser tab as a player | r46 | `#network` |
+| 3 feel, measured first | r47 | `#network` |
+| 3 disconnects, and the host leaving | r48 | `#network` |
+
+Phase 0 items are **not** `#network` on purpose: each is a bug in the existing game, owned by the
+seam that owns that code, and each is worth doing even if online is cancelled.
+
+**Phase 1.1 is in the tree** (`core/src/jks/net`, `./gradlew nettest`): `Net_Transport` with
+`Transport_Udp` behind it and an in-memory `Net_Loopback` with seeded loss, reordering and
+duplicates for the tests that 1.2 and 1.4 will need. Nothing in the game calls it yet — that is 1.4.
+The contract it fixes, and that everything above it may now assume: a packet arrives whole or not at
+all, a payload past 1200 bytes is refused out loud, a host learns a peer from the packet that
+punched its way in and can answer that address, and a peer that goes quiet past the timeout is
+reported lost exactly once and forgotten.
 
 ### A door left open
 
