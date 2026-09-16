@@ -1,6 +1,7 @@
 package jks.online;
 
 import java.nio.ByteBuffer;
+import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
@@ -31,6 +32,11 @@ import jks.net.Net_Transport;
  * catches up at once when a snapshot is newer, and it drifts back a tick per second while every
  * snapshot is older than it thinks. Input frames are stamped with it, so the host can put each one
  * on a tick, once.
+ *
+ * Who this machine is travels in every HELLO as its rejoin key (d13 -> C) : a session made with the key
+ * an earlier one used - after a crash, a lost connection, a new address - is given back the player that
+ * one was, score row included. Keep one key per machine ({@link #newKey()} makes one) ; a session made
+ * without a key gets a fresh one, and is a new player to the host every time.
  *
  * Joining is asked, not assumed : {@link #join()} asks for a hero, and keeps asking until one for
  * this player is in a snapshot. A hero that dies is gone from the snapshots, and the next join()
@@ -86,6 +92,7 @@ public final class ClientSession implements AutoCloseable
 	/** The version the host speaks, when it turned us away for speaking another. */
 	private int hostVersion = -1;
 	private int player;
+	private final long key;
 
 	/** The client's guess at the host's tick, and the tick the last input frame claimed. */
 	private int clock, lastFrameTick;
@@ -107,16 +114,43 @@ public final class ClientSession implements AutoCloseable
 
 	public ClientSession(Net_Transport transport, String hostAddress)
 	{
-		this(transport, hostAddress, new Snapshot_Mirror.Listener() {});
+		this(transport, hostAddress, newKey(), new Snapshot_Mirror.Listener() {});
 	}
 
-	/** The listener hears the {@link #view()}'s entities come and go : where phase 1.5 hangs its sprites. */
+	public ClientSession(Net_Transport transport, String hostAddress, long key)
+	{
+		this(transport, hostAddress, key, new Snapshot_Mirror.Listener() {});
+	}
+
 	public ClientSession(Net_Transport transport, String hostAddress, Snapshot_Mirror.Listener entities)
 	{
+		this(transport, hostAddress, newKey(), entities);
+	}
+
+	/**
+	 * @param key this machine's rejoin key, never 0
+	 * @param entities hears the {@link #view()}'s entities come and go : where phase 1.5 hangs its sprites
+	 */
+	public ClientSession(Net_Transport transport, String hostAddress, long key, Snapshot_Mirror.Listener entities)
+	{
+		if (key == 0)
+			throw new IllegalArgumentException("a rejoin key is never 0");
 		this.transport = transport;
 		this.host = transport.resolve(hostAddress);
+		this.key = key;
 		this.view = new Snapshot_Mirror(entities);
-		send(new Net_Message.Hello());
+		send(new Net_Message.Hello(key));
+	}
+
+	/** A rejoin key no other machine will have : 64 random bits, never 0. */
+	public static long newKey()
+	{
+		SecureRandom random = new SecureRandom();
+		long key;
+		do
+			key = random.nextLong();
+		while (key == 0);
+		return key;
 	}
 
 	/**
@@ -134,7 +168,7 @@ public final class ClientSession implements AutoCloseable
 				if (++retry >= RETRY_TICKS)
 				{
 					retry = 0;
-					send(new Net_Message.Hello());
+					send(new Net_Message.Hello(key));
 				}
 				break;
 			case IN:
@@ -193,6 +227,12 @@ public final class ClientSession implements AutoCloseable
 	public int hostVersion()
 	{
 		return hostVersion;
+	}
+
+	/** The rejoin key every HELLO carries. */
+	public long key()
+	{
+		return key;
 	}
 
 	/** This machine's PlayerId number, 0 before the WELCOME. */

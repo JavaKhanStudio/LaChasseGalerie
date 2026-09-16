@@ -16,6 +16,7 @@ import jks.net.Net_Input;
 import jks.net.Net_Loopback;
 import jks.net.Net_Message;
 import jks.net.Net_Peer;
+import jks.net.Net_Snapshot;
 import jks.net.Net_Transport;
 import jks.online.ClientSession;
 import jks.online.HostSession;
@@ -46,7 +47,13 @@ class Net_Session_Checks
 
 		ClientSession client(String name)
 		{
-			ClientSession client = new ClientSession(wire.open(name), "host");
+			return client(name, ClientSession.newKey());
+		}
+
+		/** A client on a new address that says HELLO with this rejoin key. */
+		ClientSession client(String name, long key)
+		{
+			ClientSession client = new ClientSession(wire.open(name), "host", key);
 			clients.add(client);
 			return client;
 		}
@@ -214,7 +221,7 @@ class Net_Session_Checks
 		HostSession host = new HostSession(wire.open("host"), world);
 		Net_Transport raw = wire.open("raw");
 		Net_Peer toHost = raw.resolve("host");
-		raw.send(toHost, Net_Codec.encode(new Net_Message.Hello()));
+		raw.send(toHost, Net_Codec.encode(new Net_Message.Hello(1)));
 		host.tick(world::step);
 		raw.send(toHost, Net_Codec.encode(new Net_Message.Join()));
 		host.tick(world::step);
@@ -306,6 +313,8 @@ class Net_Session_Checks
 		eq(1, rig.host.seats().size(), "a LEAVE frees a's seat");
 		is(!rig.world.hasHero(PlayerId.of(a.player())), "and takes a's hero out");
 		eq(1, rig.world.removed.size(), "removed, not killed");
+		is(rig.world.scores.containsKey(PlayerId.of(a.player())), "a's score row stays for a to come back to (d13 -> C)");
+		eq(0, rig.world.forgotten.size(), "and nobody was forgotten");
 		eq(List.of(Net_Message.Leave.Reason.QUIT), reasons, "why a left");
 
 		// b stops ticking : its transport says nothing more, and the host's timeout finds out
@@ -351,7 +360,7 @@ class Net_Session_Checks
 		eq(ClientSession.State.IN, client.state(), "same version plays");
 
 		Net_Transport future = wire.open("future-client");
-		ByteBuffer hello = Net_Codec.encode(new Net_Message.Hello());
+		ByteBuffer hello = Net_Codec.encode(new Net_Message.Hello(1));
 		hello.put(0, (byte) (Net_Codec.VERSION + 1));
 		future.send(future.resolve("host"), hello);
 		host.tick(world::step);
@@ -373,6 +382,137 @@ class Net_Session_Checks
 		eq(ClientSession.State.ENDED, stranded.state(), "a client refused by another version");
 		eq(Net_Message.Leave.Reason.VERSION, stranded.endedBecause(), "why");
 		eq(9, stranded.hostVersion(), "the version the host speaks");
+	}
+
+	/**
+	 * d13 -> C : a machine that left comes back as the player it was. Its row stayed on everyone's screen
+	 * while it was gone, and the JOIN puts a hero back on that row, deaths and all.
+	 */
+	static void returningMachineGetsItsPlayerBack() throws Exception
+	{
+		Rig rig = new Rig(13, 0.001f);
+		long key = ClientSession.newKey();
+		ClientSession a = rig.client("a", key), b = rig.client("b");
+		rig.frames(3);
+		a.join();
+		b.join();
+		rig.frames(20);
+		PlayerId player = PlayerId.of(a.player());
+		rig.world.kill(player);
+		rig.frames(3);
+
+		List<HostSession.Seat> returned = new ArrayList<HostSession.Seat>();
+		rig.host.events = new HostSession.Events()
+		{
+			@Override
+			public void returned(HostSession.Seat seat)
+			{
+				returned.add(seat);
+			}
+		};
+		a.close();
+		rig.frames(20);
+		eq(1, rig.host.seats().size(), "a left");
+		is(scoreOf(b, player.number()) != null, "b still shows the row of a player who left");
+		eq(1, scoreOf(b, player.number()).deaths, "with its death");
+
+		// A new process, a new address, the same machine
+		ClientSession again = rig.client("a-again", key);
+		rig.frames(3);
+		eq(ClientSession.State.IN, again.state(), "the machine came back in");
+		eq(player.number(), again.player(), "as the player it was");
+		eq(1, returned.size(), "and the host heard a return, not a stranger");
+		again.join();
+		rig.frames(20);
+		is(again.hasHeroInNewest(), "a JOIN brings its hero back");
+		eq(2, again.newest().scores.size(), "on the same row : no new one");
+		eq(1, scoreOf(again, player.number()).deaths, "that kept its deaths");
+
+		// Another machine is another player, with a row of its own
+		ClientSession stranger = rig.client("c");
+		rig.frames(3);
+		is(stranger.player() != player.number() && stranger.player() != b.player(), "a new key is a new player : " + stranger.player());
+	}
+
+	/**
+	 * The machine is back before the host noticed it had gone : its old seat has been silent, so the HELLO
+	 * takes it over, hero and all, and the old address timing out later changes nothing.
+	 */
+	static void silentSeatIsTakenOver() throws Exception
+	{
+		Rig rig = new Rig(17, 0.001f);
+		long key = ClientSession.newKey();
+		ClientSession a = rig.client("a", key);
+		rig.frames(3);
+		a.join();
+		rig.frames(20);
+		int hero = rig.world.heroes.get(PlayerId.of(a.player())).id;
+
+		// a's process dies without a word
+		rig.clients.remove(a);
+		rig.frames(2 * 60);
+		ClientSession again = rig.client("a-again", key);
+		rig.frames(3);
+		eq(a.player(), again.player(), "the same player, before any timeout");
+		eq(1, rig.host.seats().size(), "in the one seat");
+		eq(hero, rig.world.heroes.get(PlayerId.of(a.player())).id, "with the hero it had : nothing was removed");
+		is(again.hasHeroInNewest(), "and it sees that hero");
+
+		rig.frames(12 * 60);
+		eq(1, rig.host.seats().size(), "the old address timing out left the new seat alone");
+		eq(0, rig.world.removed.size(), "and removed nobody");
+	}
+
+	/** Two windows on one machine share a key : while the first plays, the second is a new player, and its row goes with it. */
+	static void sharedKeyWhileSeatedIsANewPlayer() throws Exception
+	{
+		Rig rig = new Rig(19, 0.001f);
+		long key = ClientSession.newKey();
+		ClientSession first = rig.client("first", key);
+		// Long past TAKEOVER_TICKS since the first's HELLO : only what it keeps sending says it is there
+		rig.frames(2 * 60);
+		ClientSession second = rig.client("second", key);
+		rig.frames(3);
+		eq(2, rig.host.seats().size(), "both play");
+		is(first.player() != second.player(), "as two players : " + first.player() + ", " + second.player());
+		first.join();
+		second.join();
+		rig.frames(20);
+		second.close();
+		rig.frames(3);
+		is(!rig.world.scores.containsKey(PlayerId.of(second.player())), "the second's row went : no key brings it back");
+		is(rig.world.scores.containsKey(PlayerId.of(first.player())), "the first's row did not");
+		eq(first.player(), rig.host.seats().get(0).player.number(), "and the first still holds its seat");
+	}
+
+	/** Rows outlive their players, but not without end : past MAX_ROWS the one who left longest ago is forgotten. */
+	static void rowsAreCapped() throws Exception
+	{
+		Rig rig = new Rig(23, 0.001f);
+		List<Integer> players = new ArrayList<Integer>();
+		for (int i = 0; i < HostSession.MAX_ROWS + 4; i++)
+		{
+			ClientSession client = rig.client("c" + i);
+			rig.frames(3);
+			client.join();
+			rig.frames(10);
+			players.add(client.player());
+			client.close();
+			rig.frames(3);
+			rig.clients.clear();
+			is(rig.world.scores.size() <= HostSession.MAX_ROWS, "rows after " + (i + 1) + " players : " + rig.world.scores.size());
+		}
+		eq(HostSession.MAX_ROWS, rig.world.scores.size(), "the table is full, not past it");
+		eq(4, rig.world.forgotten.size(), "four forgotten");
+		eq(players.subList(0, 4).toString(), rig.world.forgotten.stream().map(PlayerId::number).toList().toString(), "the four who left first");
+	}
+
+	static Net_Snapshot.Score scoreOf(ClientSession client, int player)
+	{
+		for (Net_Snapshot.Score score : client.newest().scores)
+			if (score.player == player)
+				return score;
+		return null;
 	}
 
 	/**

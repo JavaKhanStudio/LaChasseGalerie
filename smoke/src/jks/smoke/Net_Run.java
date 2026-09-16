@@ -80,6 +80,10 @@ public class Net_Run
 		check("session/leave-and-timeout", Net_Session_Checks::leaveAndTimeout);
 		check("session/full-and-host-ended", Net_Session_Checks::fullAndHostEnded);
 		check("session/version-is-refused", Net_Session_Checks::versionIsRefused);
+		check("session/returning-machine-gets-its-player-back", Net_Session_Checks::returningMachineGetsItsPlayerBack);
+		check("session/silent-seat-is-taken-over", Net_Session_Checks::silentSeatIsTakenOver);
+		check("session/shared-key-while-seated-is-a-new-player", Net_Session_Checks::sharedKeyWhileSeatedIsANewPlayer);
+		check("session/rows-are-capped", Net_Session_Checks::rowsAreCapped);
 		check("session/clients-track-the-host", Net_Session_Checks::clientsTrackTheHost);
 		check("lobby/codec-round-trip", Net_Lobby_Checks::codecRoundTrip);
 		check("lobby/codec-refuses-and-never-mixes-with-game-packets", Net_Lobby_Checks::codecRefuses);

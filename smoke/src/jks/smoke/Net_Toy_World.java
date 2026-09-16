@@ -44,6 +44,7 @@ class Net_Toy_World implements Host_Simulation
 	/** Per player, "tick:bits" for every press that fired, in order. */
 	final Map<PlayerId, List<String>> presses = new LinkedHashMap<PlayerId, List<String>>();
 	final List<PlayerId> removed = new ArrayList<PlayerId>();
+	final List<PlayerId> forgotten = new ArrayList<PlayerId>();
 	int monsterId = nextId++, potionId;
 
 	@Override
@@ -81,8 +82,14 @@ class Net_Toy_World implements Host_Simulation
 	public void remove(PlayerId player)
 	{
 		heroes.remove(player);
-		scores.remove(player);
 		removed.add(player);
+	}
+
+	@Override
+	public void forget(PlayerId player)
+	{
+		scores.remove(player);
+		forgotten.add(player);
 	}
 
 	/** A death : the hero goes, the score row stays, like the game. */

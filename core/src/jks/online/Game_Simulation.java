@@ -62,6 +62,11 @@ public class Game_Simulation implements Host_Simulation
 		for (PhysicSpriteHeroes hero : GVars_Game.heroes)
 			if (hero.player.equals(player))
 				GVars_Game.toDie.add(hero); // kill() at the next update : not a death, nobody hit it
+	}
+
+	@Override
+	public void forget(PlayerId player)
+	{
 		ScoreLabel label = GVars_Game.playerRegister.remove(player);
 		if (label != null)
 			label.remove();

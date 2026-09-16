@@ -149,7 +149,7 @@ class Net_Lobby_Checks
 			refused(ByteBuffer.wrap(flipped), "a JOIN with bit " + bit + " flipped");
 		}
 
-		eq(Net_Rejected.Reason.NOT_OURS, reason(Net_Codec.encode(new Net_Message.Hello())), "a game HELLO at the lobby");
+		eq(Net_Rejected.Reason.NOT_OURS, reason(Net_Codec.encode(new Net_Message.Hello(1))), "a game HELLO at the lobby");
 		try
 		{
 			Net_Codec.decode(Lobby_Codec.encode(new Lobby_Message.Ping()));

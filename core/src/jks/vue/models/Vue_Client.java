@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.Input.Keys;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.InputMultiplexer;
@@ -148,8 +149,25 @@ public class Vue_Client extends AVue_Model
 		GVars_AudioManager.PlayAmbiance(Enum_Ambiance.WATER);
 
 		transport = Transport_Udp.open() ;
-		client = new ClientSession(transport, hostAddress, entities) ;
+		client = new ClientSession(transport, hostAddress, machineKey(), entities) ;
 		Gdx.app.addLifecycleListener(leaveOnExit);
+	}
+
+	/**
+	 * This machine's rejoin key, made once and kept in the game's preferences : a game that crashed,
+	 * lost its connection or was restarted comes back to a run as the player it was (d13 -> C).
+	 */
+	static long machineKey()
+	{
+		Preferences online = Gdx.app.getPreferences("LaChasseGalerie-online") ;
+		long key = online.getLong("rejoinKey", 0) ;
+		if(key == 0)
+		{
+			key = ClientSession.newKey() ;
+			online.putLong("rejoinKey", key) ;
+			online.flush() ;
+		}
+		return key ;
 	}
 
 	@Override

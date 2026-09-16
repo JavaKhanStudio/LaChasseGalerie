@@ -17,7 +17,8 @@ import java.nio.ByteOrder;
  *
  * Bodies :
  * <pre>
- *   HELLO, JOIN, KEEPALIVE   (empty)
+ *   JOIN, KEEPALIVE   (empty)
+ *   HELLO      key u64, never 0
  *   WELCOME    player u16 | tick u32
  *   LEAVE      player u16 | reason u8
  *   INPUT      tick u32 | count u8 (1-4) | count x buttons u8, newest first
@@ -40,7 +41,7 @@ import java.nio.ByteOrder;
 public final class Net_Codec
 {
 	/** Bump on ANY change to a layout above. Peers of different versions do not play together. */
-	public static final int VERSION = 1;
+	public static final int VERSION = 2;
 
 	static final int HEADER = 2, CHECKSUM = 4;
 	static final int SNAPSHOT_FIXED = 4 + 4 + 4 + 2 + 4;
@@ -104,9 +105,14 @@ public final class Net_Codec
 		out.put((byte) message.type().ordinal());
 		switch (message.type())
 		{
-			case HELLO:
 			case JOIN:
 			case KEEPALIVE:
+				break;
+			case HELLO:
+				long key = ((Net_Message.Hello) message).key;
+				if (key == 0)
+					throw new IllegalArgumentException("a HELLO needs a rejoin key, and 0 is none");
+				out.putLong(key);
 				break;
 			case WELCOME:
 				Net_Message.Welcome welcome = (Net_Message.Welcome) message;
@@ -163,7 +169,11 @@ public final class Net_Codec
 		switch (type)
 		{
 			case HELLO:
-				message = new Net_Message.Hello();
+				expect(in, 8, type, version);
+				long key = in.getLong();
+				if (key == 0)
+					throw bad(version, "rejoin key 0");
+				message = new Net_Message.Hello(key);
 				break;
 			case JOIN:
 				message = new Net_Message.Join();
@@ -348,6 +358,8 @@ public final class Net_Codec
 	{
 		switch (message.type())
 		{
+			case HELLO:
+				return 8;
 			case WELCOME:
 				return 2 + 4;
 			case LEAVE:

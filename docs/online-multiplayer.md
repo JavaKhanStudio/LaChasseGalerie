@@ -366,7 +366,12 @@ does it beside the session on the same numbering (`GVars_Controller.newPlayer`, 
 uses too), so a keyboard never takes a remote player's number. HELLO from an unknown peer is a new
 `PlayerId` and a WELCOME (again the same one, if the WELCOME was lost); JOIN from a player with no
 living hero is a hero, which is how a dead player comes back; LEAVE or the transport's timeout takes the
-hero out with no death counted and removes the score row; a ninth seat, or a packet of another protocol
+hero out with no death counted and (since d13 -> C, r61) KEEPS the score row: a HELLO carries the
+machine's 64-bit rejoin key (protocol v2; `Vue_Client` keeps one per machine in the game's preferences),
+and a key this run has seen gets its old `PlayerId` back, taking over its old seat if that seat has been
+silent a second, so a machine that crashed or changed address is the same player on the same row. Rows
+are capped at `HostSession.MAX_ROWS` (16) by forgetting the player who left longest ago; two processes
+sharing a seated key are two players; a ninth seat, or a packet of another protocol
 version, gets a LEAVE naming `HostSession.NOBODY` (0xFFFF), because the codec refuses a player 0.
 Input frames are stamped with the client's guess at the host tick and applied **at the tick they
 claim, or the first tick after it the host still has** — without prediction that is nearly always the

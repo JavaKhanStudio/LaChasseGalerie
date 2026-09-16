@@ -5,7 +5,7 @@ import jks.net.Net_Snapshot;
 
 /**
  * What a {@link HostSession} needs from the game it hosts, and nothing more : mint a player, give
- * one a hero, press its buttons, take it out, and read the world.
+ * one a hero, press its buttons, take it out, forget it, and read the world.
  *
  * It is an interface for two reasons. The session's rules - who is in, which input frame lands on
  * which tick, who gets told what - are checked in `./gradlew nettest` against a toy world, in
@@ -34,8 +34,14 @@ public interface Host_Simulation
 	 */
 	void press(PlayerId player, int held, int pressed);
 
-	/** The player left the run : their hero goes, with no death counted, and so does their score row. */
+	/**
+	 * The player left the run : their hero goes, with no death counted. Their score row STAYS (d13 -> C) :
+	 * the machine may come back as the same player, and a JOIN then brings a hero to the same row.
+	 */
 	void remove(PlayerId player);
+
+	/** A player who left will not be back : their score row goes too. Only ever called after remove. */
+	void forget(PlayerId player);
 
 	/** The world as it stands after the given tick. Reads, changes nothing. */
 	Net_Snapshot read(int tick);

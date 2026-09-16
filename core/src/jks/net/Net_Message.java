@@ -28,9 +28,25 @@ public abstract class Net_Message
 
 	public abstract Type type();
 
-	/** Client to host, first : "I speak this protocol, let me in". The version byte is the question. */
+	/**
+	 * Client to host, first : "I speak this protocol, let me in". The version byte is the question ; the
+	 * key says who is asking. It is this machine's rejoin key, a random number that is never 0 : a host
+	 * that has seen the key this run gives the machine back the player it was, score row and all (d13 ->
+	 * C), because under d5 -> A a player is a machine, not a connection.
+	 */
 	public static final class Hello extends Net_Message
 	{
+		public long key;
+
+		public Hello()
+		{
+		}
+
+		public Hello(long key)
+		{
+			this.key = key;
+		}
+
 		@Override
 		public Type type()
 		{
@@ -40,19 +56,20 @@ public abstract class Net_Message
 		@Override
 		public boolean equals(Object other)
 		{
-			return other instanceof Hello;
+			return other instanceof Hello && ((Hello) other).key == key;
 		}
 
 		@Override
 		public int hashCode()
 		{
-			return Type.HELLO.ordinal();
+			return Long.hashCode(key);
 		}
 	}
 
 	/**
 	 * Host to client, the answer to HELLO : you are this player, and the simulation is at this tick.
-	 * Under d5 -> A the player is the machine, so this is the only identity a client ever gets.
+	 * Under d5 -> A the player is the machine, so this is the only identity a client ever gets, and a
+	 * machine that says HELLO again with the same key gets the same one.
 	 */
 	public static final class Welcome extends Net_Message
 	{

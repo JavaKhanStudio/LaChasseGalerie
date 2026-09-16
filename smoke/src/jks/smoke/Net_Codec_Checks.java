@@ -21,6 +21,7 @@ import jks.net.Net_Peer;
 import jks.net.Net_Rejected;
 import jks.net.Net_Snapshot;
 import jks.net.Net_Transport;
+import jks.online.HostSession;
 
 /**
  * nettest's checks for the game protocol (phase 1.2, r37) : Net_Codec in and out, no socket needed
@@ -44,7 +45,9 @@ class Net_Codec_Checks
 
 	static void controlRoundTrip() throws Exception
 	{
-		roundTrip(new Net_Message.Hello(), 6);
+		roundTrip(new Net_Message.Hello(1), 14);
+		roundTrip(new Net_Message.Hello(-1), 14);
+		roundTrip(new Net_Message.Hello(Long.MIN_VALUE), 14);
 		roundTrip(new Net_Message.Join(), 6);
 		roundTrip(new Net_Message.Keepalive(), 6);
 		roundTrip(new Net_Message.Welcome(1, 0), 12);
@@ -212,7 +215,9 @@ class Net_Codec_Checks
 		eq(Net_Codec.VERSION + 1, rejectedBy(signed(Net_Codec.VERSION + 1, 0)).version, "the version it says it is");
 		eq(Net_Codec.VERSION + 1, Net_Codec.versionOf(signed(Net_Codec.VERSION + 1, 0)), "versionOf reads the first byte");
 		eq(Net_Rejected.Reason.UNKNOWN_TYPE, reason(signed(Net_Codec.VERSION, 200)), "an unknown type");
-		eq(Net_Rejected.Reason.LENGTH, reason(signed(Net_Codec.VERSION, Net_Message.Type.HELLO.ordinal(), 0)), "a HELLO with a body");
+		eq(Net_Rejected.Reason.LENGTH, reason(signed(Net_Codec.VERSION, Net_Message.Type.HELLO.ordinal(), 0)), "a HELLO with a one-byte key");
+		eq(Net_Rejected.Reason.LENGTH, reason(signed(Net_Codec.VERSION, Net_Message.Type.HELLO.ordinal())), "a HELLO with no key");
+		eq(Net_Rejected.Reason.BAD_VALUE, reason(signed(Net_Codec.VERSION, Net_Message.Type.HELLO.ordinal(), 0, 0, 0, 0, 0, 0, 0, 0)), "rejoin key 0");
 		eq(Net_Rejected.Reason.BAD_VALUE, reason(signed(Net_Codec.VERSION, Net_Message.Type.LEAVE.ordinal(), 0, 1, 99)), "an unknown leave reason");
 		eq(Net_Rejected.Reason.BAD_VALUE, reason(signed(Net_Codec.VERSION, Net_Message.Type.WELCOME.ordinal(), 0, 0, 0, 0, 0, 1)), "player 0");
 		eq(Net_Rejected.Reason.BAD_VALUE, reason(signed(Net_Codec.VERSION, Net_Message.Type.INPUT.ordinal(), 0, 0, 0, 1, 5, 0, 0, 0, 0, 0)), "five input frames");
@@ -260,7 +265,7 @@ class Net_Codec_Checks
 		}
 		try
 		{
-			Net_Codec.encode(new Net_Message.Hello(), ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN));
+			Net_Codec.encode(new Net_Message.Hello(1), ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN));
 			is(false, "encoded into a little-endian buffer");
 		}
 		catch (IllegalArgumentException expected)
@@ -277,6 +282,12 @@ class Net_Codec_Checks
 		eq(size, packet.remaining(), "snapshotSize agrees with the encoder");
 		System.out.println("NET      measured 8-player peak : " + size + " B of " + Net_Transport.MAX_PAYLOAD
 				+ ", " + (Net_Transport.MAX_PAYLOAD - size) + " B to spare");
+
+		// Rows outlive their players (d13 -> C) : the table a host keeps at its cap, around the same crowd
+		int kept = Net_Codec.snapshotSize(HostSession.MAX_ROWS, MEASURED_HEROES, MEASURED_MONSTERS, MEASURED_POTIONS);
+		is(kept <= Net_Transport.MAX_PAYLOAD, "the measured peak with " + HostSession.MAX_ROWS + " score rows is " + kept + " B");
+		eq(kept, Net_Codec.encode(crowd(HostSession.MAX_ROWS, MEASURED_HEROES, MEASURED_MONSTERS, MEASURED_POTIONS)).remaining(),
+				"a snapshot with every row kept encodes");
 	}
 
 	/**
@@ -457,7 +468,7 @@ class Net_Codec_Checks
 	static List<Net_Message> everyKind()
 	{
 		List<Net_Message> all = new ArrayList<Net_Message>();
-		all.add(new Net_Message.Hello());
+		all.add(new Net_Message.Hello(0x0123456789ABCDEFL));
 		all.add(new Net_Message.Join());
 		all.add(new Net_Message.Keepalive());
 		all.add(new Net_Message.Welcome(3, 77));
