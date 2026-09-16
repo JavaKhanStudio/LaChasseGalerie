@@ -1,0 +1,18 @@
+// The lobby service (phase 2.1, docs/online-multiplayer.md) : the small always-on process we host.
+// It needs jks.net and jks.lobby, which use nothing but the JDK, so it takes core's classes WITHOUT
+// libGDX : the deployable is a couple of jars and a JRE, and the process gate runs it on that
+// classpath, which is what proves the lobby code never reaches for the game.
+//   ./gradlew :lobby:run --args=7770        a service on UDP port 7770 (the default)
+//   ./gradlew :lobby:installDist            lobby/build/install/lobby/bin/lobby, for the VPS
+
+apply plugin: 'application'
+
+sourceSets.main.java.srcDirs = ['src']
+
+dependencies {
+    implementation(project(':core')) { transitive = false }
+}
+
+application {
+    mainClass = 'jks.lobby.Lobby_Main'
+}

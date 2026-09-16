@@ -84,9 +84,10 @@ It cannot see rendering bugs. `./gradlew build` compiles it but does not run it.
 ## Net gate
 
 ```sh
-./gradlew nettest     # the seam, codec, mirror and session rules, then netsession and netprocs (~15 s)
+./gradlew nettest     # the seam, codec, mirror, session and lobby rules, then netsession, netprocs and netlobby (~25 s)
 ./gradlew netsession  # the game headless behind a HostSession, three ClientSessions in the same JVM
 ./gradlew netprocs    # a host JVM and two client JVMs, over UDP on 127.0.0.1, in real time
+./gradlew netlobby    # the same, found through a lobby service JVM: the clients know only the code
 ./gradlew netmirror   # a headless host's snapshots applied every tick to clients with no world
 ```
 
@@ -100,6 +101,14 @@ toy world. Then it plays them for real: `netsession` runs the game headless behi
 hero of its own and fails when a client draws an entity away from where the host had it, and
 `netprocs` does it across three processes over UDP. The windowed game uses it through `--host` and
 `--join` (phase 1.5); see `docs/online-multiplayer.md`.
+`netlobby` adds the lobby service (phase 2.1): a fourth JVM runs it with no libGDX on its classpath,
+the host opens a lobby on the very socket it plays on, and the clients reach it knowing only the
+service's address and a six-letter code. The service is its own deployable:
+
+```sh
+./gradlew :lobby:run --args=7770       # a lobby service on UDP port 7770 (the default)
+./gradlew :lobby:installDist           # lobby/build/install/lobby: two jars and a start script, for a VPS
+```
 `netmirror` plays 8 headless players and holds `core/src/jks/online` to the world: every entity the
 host's snapshot names must be where its body is on a client that owns no physics.
 
@@ -150,12 +159,14 @@ core/      game code (shared, backend independent)
   src/jks/parralax/           the night river scene, drawn with io.github.javakhanstudio:parallax-background
   src/jks/net/                the transport seam for online play (./gradlew nettest)
   src/jks/online/             snapshots, HostSession and ClientSession (./gradlew netmirror, netsession, netprocs)
+  src/jks/lobby/              the lobby service and the client that talks to it on the game's own socket (./gradlew netlobby)
   src/jks/draw/               how a hero, monster, potion and the canoe are drawn, with no body: the host's
                               physics sprites extend these, and a client (vue/models/Vue_Client) draws them from snapshots
 desktop/   LWJGL3 launcher and all game assets (desktop/assets)
            packaging/ is where an icon goes for ./gradlew jpackage
+lobby/     the lobby service as a process (jks.lobby.Lobby_Main): core's jks.net and jks.lobby, without libGDX
 headless/  the game with no window or sound: the loop a host with no screen runs (jks.headless.Headless_Runner)
-smoke/     the headless gates (./gradlew smoke, nettest, netsession, netprocs, netmirror, netcensus); smoke drives headless/
+smoke/     the headless gates (./gradlew smoke, nettest, netsession, netprocs, netlobby, netmirror, netcensus); smoke drives headless/
 docs/      design notes: online-multiplayer.md (the plan for going online),
            browser-target.md (whether this can run in a browser, and what it would cost)
 tools/     browser-spike/ compiles the game to JavaScript and serves it (not part of the build)

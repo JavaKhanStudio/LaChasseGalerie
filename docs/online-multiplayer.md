@@ -307,7 +307,7 @@ disagree:
 | 1.3 entity ids and snapshots | **done, r38** | `#network` `#gameplay` |
 | 1.4 `HostSession` / `ClientSession` on loopback | **done, r39** | `#network` |
 | 1.5 a client that renders what it does not simulate | **done, r40** | `#network` `#gameplay` |
-| 2.1 the lobby service | r41 | `#network` |
+| 2.1 the lobby service | **done, r41** | `#network` |
 | 2.2 ICE: IPv6, punch, relay — and say which | r42 | `#network` |
 | 2.3 the lobby screen | r43 | `#hud` `#network` |
 | 2.4 `jpackage`, so the firewall prompt names the game | **done, r44** | `#build` |
@@ -405,6 +405,38 @@ Captured at the same host story time (6, 16, 26, 39 and 50 s), the client's fram
 heroes, axes, monsters, hearts, scores, canoe tilt, river and sky as the host's (renders on r40).
 The picture held 6 ticks behind the client's clock the whole run. Over loopback the round trip is
 about zero, so that is the 100 ms buffer alone; nobody has felt a real RTT yet (phase 3, r47).
+
+**Phase 2.1 is in** (`core/src/jks/net/Lobby_*`, `core/src/jks/lobby`, the `lobby` module,
+`./gradlew netlobby`). The lobby protocol is its own pure codec beside the game's: `'L' | version |
+type | body | CRC-32`, the `'L'` being what tells a lobby packet from a game packet on the one socket
+they share (the game codec now refuses one as `NOT_OURS` instead of answering it with LEAVE VERSION).
+`Lobby_Service` holds `{code, host candidates, players, seats, game version}` and nothing else: HOST
+opens a lobby or refreshes it, BROWSE lists the ones of the asker's game version (newest first, 100 to
+a packet), JOIN answers the joiner with the host's addresses and **mirrors** the joiner's to the host,
+PING answers with the address the packet came from, CLOSE ends a lobby. A code is six letters from an
+alphabet with no 0/O or 1/I. The version gate refuses a join across game versions and names the
+lobby's version, and a game speaking another *lobby* version gets OUTDATED, the one layout promised
+never to change. A lobby dies 20 s after its host's last HOST, or at once on CLOSE, and a host that
+comes back asking for its old code gets it if it is free, so a lost refresh or a service restart does
+not strand the friends who were told it. The service does not act on the transport's own timeout,
+which differs between transports. Every address gets at most 20 answers a second, because answers are
+bigger than questions and the socket takes forged sources. `Lobby_Client` is the player's side, and
+**it is built on the game's transport**: it hands `HostSession` / `ClientSession` a `game()` view of
+the same socket with the service's packets taken out, and whoever pumps, lobby packets from the service
+go to it and everything else reaches the session in arrival order. It refreshes HOST, or PINGs, every
+**3 s**, not 5: a transport forgets a peer after 10 s of silence, and at 5 s one lost answer was enough
+to call the service lost. JOIN is repeated every 500 ms until the caller says the game connection
+answered, because each copy also re-tells the host where to punch. The `lobby` module takes core's
+classes without libGDX, and `netlobby` runs the service on exactly that classpath. **Measured**: in
+`netlobby` a service JVM, a headless host JVM and two client JVMs that knew only the service's
+address and the code played as `netprocs` does (20.0 snapshots/s each, heroes walking the way they
+pressed 269-272 ticks out of 272). The host's session saw each player at exactly the address the
+service had mirrored to it, and the service logged both joins and the host closing. nettest holds the
+lobby's rules in 10 more checks (50 in all), and ten mutations of the service, the client and the
+codec each fail at least one of them. **Not in 2.1**: gathering local and IPv6 candidates and the punch
+itself (r42: `Lobby_Client.candidates` and `takeJoiners()` are where they plug in), the screen (r43),
+and signalling for a tab (r46), which needs a message bigger than a UDP packet and a front other
+than UDP beside the same lobbies. Nobody has run the service on a VPS yet.
 
 ### A door left open
 

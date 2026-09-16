@@ -137,6 +137,9 @@ public final class Net_Codec
 	public static Net_Message decode(ByteBuffer packet) throws Net_Rejected
 	{
 		int start = packet.position(), end = packet.limit(), length = end - start;
+		// A lobby packet on the shared socket is not another version of this game : nobody to tell
+		if (Lobby_Codec.isLobbyPacket(packet))
+			throw new Net_Rejected(Net_Rejected.Reason.NOT_OURS, -1, "a lobby packet");
 		int version = versionOf(packet);
 		if (length > 0 && version != VERSION)
 			throw new Net_Rejected(Net_Rejected.Reason.VERSION, version, "version " + version + ", this game speaks " + VERSION);

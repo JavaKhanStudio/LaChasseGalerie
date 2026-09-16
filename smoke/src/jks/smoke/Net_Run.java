@@ -81,6 +81,16 @@ public class Net_Run
 		check("session/full-and-host-ended", Net_Session_Checks::fullAndHostEnded);
 		check("session/version-is-refused", Net_Session_Checks::versionIsRefused);
 		check("session/clients-track-the-host", Net_Session_Checks::clientsTrackTheHost);
+		check("lobby/codec-round-trip", Net_Lobby_Checks::codecRoundTrip);
+		check("lobby/codec-refuses-and-never-mixes-with-game-packets", Net_Lobby_Checks::codecRefuses);
+		check("lobby/another-lobby-version-is-told-which", Net_Lobby_Checks::outdatedIsAnswered);
+		check("lobby/host-list-join-and-mirror", Net_Lobby_Checks::hostListJoinMirror);
+		check("lobby/version-full-and-missing-are-refused", Net_Lobby_Checks::versionFullAndMissing);
+		check("lobby/reap-close-and-the-old-code-back", Net_Lobby_Checks::reapCloseAndOldCode);
+		check("lobby/idle-two-minutes-over-loss", Net_Lobby_Checks::idleTwoMinutes);
+		check("lobby/answers-are-throttled", Net_Lobby_Checks::answersAreThrottled);
+		check("lobby/game-packets-wait-for-the-session", Net_Lobby_Checks::gamePacketsWaitForTheSession);
+		check("lobby/one-socket-for-lobby-and-game-over-udp", Net_Lobby_Checks::sharedSocketOverUdp);
 
 		System.out.println(failed == 0 ? "NET ok, " + checks + " checks" : "NET FAILED " + failed + " of " + checks + " check(s)");
 		System.exit(failed == 0 ? 0 : 1);

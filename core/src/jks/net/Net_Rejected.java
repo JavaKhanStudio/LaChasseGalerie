@@ -24,7 +24,9 @@ public class Net_Rejected extends Exception
 		/** The body is not the length its type and counts say it must be. */
 		LENGTH,
 		/** A field holds something no encoder writes : an unknown bit, a player 0, a NaN. */
-		BAD_VALUE
+		BAD_VALUE,
+		/** Not a packet of this protocol at all : a game packet at the lobby service, a lobby packet at a session, or noise. */
+		NOT_OURS
 	}
 
 	public final Reason reason;

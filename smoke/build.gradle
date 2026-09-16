@@ -32,7 +32,7 @@ tasks.register('nettest', JavaExec) {
     description = 'Checks the transport, codec, mirror and session rules, then plays host and clients in one JVM and across three.'
     mainClass = 'jks.smoke.Net_Run'
     classpath = sourceSets.main.runtimeClasspath
-    finalizedBy 'netsession', 'netprocs'
+    finalizedBy 'netsession', 'netprocs', 'netlobby'
 }
 
 // ./gradlew netcensus : how big a snapshot the real game makes. Plays the headless loop with 8
@@ -86,4 +86,22 @@ tasks.register('netprocs', JavaExec) {
     jvmArgs '--enable-native-access=ALL-UNNAMED'
     // Real time on one machine : not while the in-process gate is using the CPU
     mustRunAfter 'nettest', 'netsession'
+}
+
+// ./gradlew netlobby : phase 2.1 across processes (r41). netprocs, found through the lobby service : a
+// service JVM on the lobby module's classpath (no libGDX), a host JVM that opens a lobby on the socket
+// it plays on, and two client JVMs that know only the service and the code.
+evaluationDependsOn(':lobby')
+tasks.register('netlobby', JavaExec) {
+    group = 'verification'
+    description = 'Plays netprocs through a lobby service JVM: the clients find the host by code alone.'
+    mainClass = 'jks.smoke.Net_Procs'
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = rootProject.file('desktop/assets')
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    def lobbyClasspath = project(':lobby').sourceSets.main.runtimeClasspath
+    inputs.files(lobbyClasspath)
+    doFirst { systemProperty 'lobby.classpath', lobbyClasspath.asPath }
+    args 'lobby'
+    mustRunAfter 'nettest', 'netsession', 'netprocs'
 }

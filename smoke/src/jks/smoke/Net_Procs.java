@@ -3,11 +3,15 @@ package jks.smoke;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import jks.headless.Headless_Runner;
+import jks.lobby.Lobby_Client;
 import jks.net.Net_Input;
 import jks.net.Net_Message;
 import jks.net.Net_Snapshot;
@@ -31,9 +35,15 @@ import jks.vars.GVars_Random;
  * </ul>
  * The parent starts them, prefixes their output, and fails if any of them does or if they overrun.
  *
- *   java jks.smoke.Net_Procs                     the gate
- *   java jks.smoke.Net_Procs host [clients]      a host on an ephemeral port : prints PORT n
- *   java jks.smoke.Net_Procs client port name    a client for that many seconds
+ * `./gradlew netlobby` is the same game found through the lobby service (phase 2.1, r41) : a fourth JVM
+ * runs jks.lobby.Lobby_Main on the lobby module's classpath, which has NO libGDX on it ; the host opens a
+ * lobby on the socket it plays on, and the clients know nothing but the service's address and the code.
+ * On top of the above, the host holds each player it let in to have come from the address the service
+ * mirrored to it, and the parent holds the service to have logged both joins and the host closing.
+ *
+ *   java jks.smoke.Net_Procs [lobby]                          the gate, direct or through a lobby
+ *   java jks.smoke.Net_Procs host clients [service]           a host : prints PORT n, or CODE c once the service opened its lobby
+ *   java jks.smoke.Net_Procs client port|service/CODE name    a client for that many seconds
  */
 public class Net_Procs
 {
@@ -43,27 +53,49 @@ public class Net_Procs
 	public static void main(String[] args) throws Exception
 	{
 		if (args.length > 0 && args[0].equals("host"))
-			Headless_Runner.launch(1280, 720, runner -> host(runner, args.length > 1 ? Integer.parseInt(args[1]) : CLIENTS));
+			Headless_Runner.launch(1280, 720, runner -> host(runner, args.length > 1 ? Integer.parseInt(args[1]) : CLIENTS, args.length > 2 ? args[2] : null));
 		else if (args.length > 0 && args[0].equals("client"))
-			System.exit(client(Integer.parseInt(args[1]), args[2]));
+			System.exit(client(args[1], args[2]));
 		else
-			System.exit(gate());
+			System.exit(gate(args.length > 0 && args[0].equals("lobby")));
 	}
 
 	// ---------------------------------------------------------------- the parent
 
-	static int gate() throws Exception
+	static int gate(boolean viaLobby) throws Exception
 	{
 		List<Process> processes = new ArrayList<Process>();
-		CompletableFuture<Integer> port = new CompletableFuture<Integer>();
-		Process host = start("host", port, "host", String.valueOf(CLIENTS));
-		processes.add(host);
+		List<String> serviceLog = Collections.synchronizedList(new ArrayList<String>());
+		Process service = null;
 		int failures = 0;
+		String code = null;
 		try
 		{
-			int hostPort = port.get(DEADLINE_SECONDS, TimeUnit.SECONDS);
+			String lobby = null;
+			if (viaLobby)
+			{
+				String classpath = System.getProperty("lobby.classpath");
+				if (classpath == null)
+					throw new IllegalStateException("-Dlobby.classpath is not set : run it as ./gradlew netlobby");
+				CompletableFuture<String> servicePort = new CompletableFuture<String>();
+				// Port 0 : the gate must not depend on a free fixed port. A deployed service passes one
+				service = start("lobby", servicePort, "PORT ", serviceLog, java(classpath, "jks.lobby.Lobby_Main", "0"));
+				lobby = "127.0.0.1:" + servicePort.get(DEADLINE_SECONDS, TimeUnit.SECONDS);
+			}
+
+			CompletableFuture<String> ready = new CompletableFuture<String>();
+			Process host = viaLobby
+					? start("host", ready, "CODE ", null, java(System.getProperty("java.class.path"), Net_Procs.class.getName(), "host", String.valueOf(CLIENTS), lobby))
+					: start("host", ready, "PORT ", null, java(System.getProperty("java.class.path"), Net_Procs.class.getName(), "host", String.valueOf(CLIENTS)));
+			processes.add(host);
+			String target = ready.get(DEADLINE_SECONDS, TimeUnit.SECONDS);
+			if (viaLobby)
+			{
+				code = target;
+				target = lobby + "/" + code;
+			}
 			for (int i = 1; i <= CLIENTS; i++)
-				processes.add(start("client" + i, null, "client", String.valueOf(hostPort), "client" + i));
+				processes.add(start("client" + i, null, null, null, java(System.getProperty("java.class.path"), Net_Procs.class.getName(), "client", target, "client" + i)));
 
 			long deadline = System.currentTimeMillis() + DEADLINE_SECONDS * 1000L;
 			for (Process process : processes)
@@ -77,26 +109,64 @@ public class Net_Procs
 				else if (process.exitValue() != 0)
 					failures++;
 			}
+
+			if (viaLobby)
+			{
+				String closed = "CLOSED " + code + " : closed";
+				for (int i = 0; i < 200 && !serviceLog.contains(closed); i++)
+					Thread.sleep(10);
+				int joins = 0;
+				synchronized (serviceLog)
+				{
+					for (String line : serviceLog)
+						if (line.startsWith("JOINING " + code))
+							joins++;
+				}
+				if (!service.isAlive())
+				{
+					System.out.println("PROCS the lobby service died");
+					failures++;
+				}
+				if (joins < CLIENTS)
+				{
+					System.out.println("PROCS the service mirrored " + joins + " joins to " + code + ", expected at least " + CLIENTS);
+					failures++;
+				}
+				if (!serviceLog.contains(closed))
+				{
+					System.out.println("PROCS the service never logged the host closing " + code);
+					failures++;
+				}
+			}
 		}
 		finally
 		{
 			for (Process process : processes)
 				process.destroyForcibly();
+			if (service != null)
+				service.destroyForcibly();
 		}
-		System.out.println(failures == 0 ? "PROCS ok : a host JVM and " + CLIENTS + " client JVMs played over UDP on 127.0.0.1" : "PROCS FAILED : " + failures + " process(es)");
+		String what = viaLobby ? "a lobby service JVM with no libGDX, a host JVM and " + CLIENTS + " client JVMs that knew only the code"
+				: "a host JVM and " + CLIENTS + " client JVMs";
+		System.out.println(failures == 0 ? "PROCS ok : " + what + " played over UDP on 127.0.0.1" : "PROCS FAILED : " + failures + " problem(s)");
 		return failures == 0 ? 0 : 1;
 	}
 
-	/** This JVM again, same classpath and working directory, its output prefixed with the name. */
-	static Process start(String name, CompletableFuture<Integer> port, String... args) throws Exception
+	static List<String> java(String classpath, String main, String... args)
 	{
 		List<String> command = new ArrayList<String>();
 		command.add(ProcessHandle.current().info().command().orElse("java"));
 		command.add("--enable-native-access=ALL-UNNAMED");
 		command.add("-cp");
-		command.add(System.getProperty("java.class.path"));
-		command.add(Net_Procs.class.getName());
+		command.add(classpath);
+		command.add(main);
 		command.addAll(List.of(args));
+		return command;
+	}
+
+	/** Starts the command, its output prefixed with the name ; completes the future with what follows the first line starting with the prefix. */
+	static Process start(String name, CompletableFuture<String> value, String prefix, List<String> lines, List<String> command) throws Exception
+	{
 		Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
 
 		Thread pipe = new Thread(() ->
@@ -106,8 +176,10 @@ public class Net_Procs
 				String line;
 				while ((line = reader.readLine()) != null)
 				{
-					if (port != null && line.startsWith("PORT "))
-						port.complete(Integer.valueOf(line.substring(5).trim()));
+					if (value != null && line.startsWith(prefix))
+						value.complete(line.substring(prefix.length()).trim());
+					if (lines != null)
+						lines.add(line);
 					System.out.println(String.format("%-8s| ", name) + line);
 				}
 			}
@@ -115,8 +187,8 @@ public class Net_Procs
 			{
 				// The process died : its exit value says so
 			}
-			if (port != null)
-				port.completeExceptionally(new IllegalStateException(name + " exited before it printed its port"));
+			if (value != null)
+				value.completeExceptionally(new IllegalStateException(name + " exited before it printed " + prefix.trim()));
 		}, name + "-output");
 		pipe.setDaemon(true);
 		pipe.start();
@@ -125,16 +197,19 @@ public class Net_Procs
 
 	// ---------------------------------------------------------------- the host
 
-	static void host(Headless_Runner runner, int expected) throws Exception
+	static void host(Headless_Runner runner, int expected, String service) throws Exception
 	{
 		GVars_Random.seed(1);
 		runner.boot();
 
 		List<HostSession.Seat> joined = new ArrayList<HostSession.Seat>();
 		List<String> gone = new ArrayList<String>();
+		Set<String> mirrored = new LinkedHashSet<String>();
 		try (Net_Transport transport = Transport_Udp.open())
 		{
-			HostSession host = new HostSession(transport, new Game_Simulation(), new HostSession.Events()
+			// ONE socket : the lobby is talked to on the transport the game plays on, and the session gets the view without its packets
+			Lobby_Client lobby = service == null ? null : new Lobby_Client(transport, service, () -> System.nanoTime() / 1_000_000L);
+			HostSession host = new HostSession(lobby == null ? transport : lobby.game(), new Game_Simulation(), new HostSession.Events()
 			{
 				@Override
 				public void joined(HostSession.Seat seat)
@@ -153,8 +228,14 @@ public class Net_Procs
 						throw new IllegalStateException(seat.player + "'s input did not land : " + seat.framesApplied + " frames, " + seat.pressesApplied + " presses");
 				}
 			});
-			System.out.println("PORT " + transport.localPort());
-			System.out.flush();
+			if (lobby == null)
+			{
+				System.out.println("PORT " + transport.localPort());
+				System.out.flush();
+			}
+			else
+				lobby.host(HostSession.MAX_PLAYERS);
+			boolean announced = false;
 
 			long deadline = System.nanoTime() + (DEADLINE_SECONDS - 5) * 1_000_000_000L;
 			long next = System.nanoTime();
@@ -163,10 +244,31 @@ public class Net_Procs
 				if (System.nanoTime() > deadline)
 					throw new IllegalStateException("the host gave up : " + joined.size() + " joined, " + gone);
 				host.tick(runner::step);
+				if (lobby != null)
+				{
+					lobby.players(host.seats().size());
+					for (List<String> joiner : lobby.takeJoiners())
+						mirrored.add(joiner.get(0));
+					if (!announced && lobby.code() != null)
+					{
+						announced = true;
+						System.out.println("lobby open, the service sees this host at " + lobby.publicAddress());
+						System.out.println("CODE " + lobby.code());
+						System.out.flush();
+					}
+				}
 				next = sleepUntil(next + TICK_NANOS);
 			}
 			if (joined.size() != expected)
 				throw new IllegalStateException(joined.size() + " players joined, expected " + expected);
+			if (lobby != null)
+			{
+				for (HostSession.Seat seat : joined)
+					if (!mirrored.contains(seat.peer.address()))
+						throw new IllegalStateException(seat.player + " played from " + seat.peer.address() + ", not from an address the service mirrored : " + mirrored);
+				System.out.println("every player came from the address the service mirrored : " + mirrored);
+				lobby.close();
+			}
 			System.out.println("HOST ok : " + expected + " players over UDP port " + transport.localPort() + ", " + host.tick() + " ticks, "
 					+ host.snapshotsSent + " snapshots sent ; " + gone);
 		}
@@ -174,11 +276,30 @@ public class Net_Procs
 
 	// ---------------------------------------------------------------- a client
 
-	static int client(int port, String name) throws Exception
+	static int client(String target, String name) throws Exception
 	{
 		try (Net_Transport transport = Transport_Udp.open())
 		{
-			ClientSession client = new ClientSession(transport, "127.0.0.1:" + port);
+			ClientSession client;
+			Lobby_Client lobby = null;
+			if (target.contains("/"))
+			{
+				// Only the service and a code : where the host is comes from the lobby, on the socket the game will use
+				lobby = new Lobby_Client(transport, target.substring(0, target.indexOf('/')), () -> System.nanoTime() / 1_000_000L);
+				lobby.join(target.substring(target.indexOf('/') + 1));
+				long deadline = System.nanoTime() + 10_000_000_000L;
+				while (lobby.joined() == null)
+				{
+					if (System.nanoTime() > deadline || lobby.refused() != null)
+						throw new IllegalStateException(name + " could not join " + target + " : " + (lobby.refused() == null ? "no answer" : lobby.refused().reason));
+					lobby.pump();
+					Thread.sleep(5);
+				}
+				System.out.println(name + " : the service says the host is at " + lobby.joined().host + ", and this client at " + lobby.publicAddress());
+				client = new ClientSession(lobby.game(), lobby.joined().host.get(0));
+			}
+			else
+				client = new ClientSession(transport, "127.0.0.1:" + target);
 			int ticks = 0, inTicks = 0, heroTicks = 0;
 			int withPress = 0, againstPress = 0;
 			int lastHero = -1;
@@ -196,6 +317,8 @@ public class Net_Procs
 				int buttons = held | (inTicks % 45 == 20 ? Net_Input.JUMP : 0);
 				if (client.state() == ClientSession.State.IN)
 				{
+					if (lobby != null)
+						lobby.stopJoining();
 					inTicks++;
 					if (!client.hasHeroInNewest())
 						client.join();
