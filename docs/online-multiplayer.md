@@ -30,13 +30,13 @@ Everything below is measured against the code as of `58d8c79`.
   `DatagramChannel` calls spread across the session code, and **the lobby service is the WebRTC
   signalling server as well** as the endpoint mirror it already had to be. `docs/browser-target.md`
   §6 carries the reasoning and the cost.
-- **d6 is still open**: what happens when two players cannot punch through to each other (§3, §7).
-  It is now also the browser question: the relay we would pay for is the same box that bridges a
-  tab to a host that cannot speak WebRTC itself, so answering d6 with a relay makes d7 cheaper and
+- **d6 — no letter yet, but the four questions Simon asked instead are answered in §9 (r25)**, with
+  numbers: punching fails for roughly one pair in ten, we can tell which pair in under a second and
+  before anyone picks a hero, the lobby is where they get told, and hosting the games ourselves
+  costs about 0.14% of a core per 8-player session — which makes it a bandwidth decision, not a CPU
+  one. It is also the browser question now: the relay we would pay for is the same box that bridges
+  a tab to a host that cannot speak WebRTC itself, so answering d6 with a relay makes d7 cheaper and
   answering it with "forward a port" leaves browser players with nothing.
-  Simon answered it with questions rather than a letter — how often punching actually fails, how
-  early we can detect it, whether a player can be warned *before* the game starts, and what it
-  would cost in CPU to host the games ourselves. Those want numbers, not another proposal.
 
 ---
 
@@ -147,8 +147,8 @@ have nowhere to go. So:
   connection need a packet every 5–15 s, or a lobby that sat two minutes cannot be joined.
 - **IPv6 first.** If both ends have IPv6, connect directly — no NAT at all, just a pinhole that the
   outbound packet opens. Order: IPv6 direct → IPv4 punch → relay.
-- **Relay fallback (TURN).** For the pairs that cannot punch, traffic goes through a server we pay
-  for. Budget: one relayed session is ~0.5 Mbit/s each way (§4), so a $5–10/mo VPS with a 1 TB
+- **Relay fallback (TURN).** For the pairs that cannot punch — about one in ten, measured sources
+  in §9 — traffic goes through a server we pay for. Budget: one relayed session is ~0.5 Mbit/s each way (§4), so a $5–10/mo VPS with a 1 TB
   allowance carries on the order of a hundred hours of relayed play a month. Without a relay, some
   percentage of friends simply cannot play, and the honest fallback message is "ask the host to
   forward a port".
@@ -299,3 +299,116 @@ Nothing here needs a cloud account or a managed service at this scale.
    scale with player count (`getBaseNumber()` returns `heroes.size()`), so 8 players means far more
    bodies than the §4 estimate assumes. Worth a local 8-pad smoke run before sizing the protocol.
 5. **Cheating.** Host-authoritative means the host is trusted. Fine for friends, not for public lobbies.
+
+---
+
+## 9. d6, answered with numbers (r25)
+
+Simon did not pick a letter on d6. He asked four questions, and they are the right ones. Everything
+here was either measured on this machine on 2026-09-16 or taken from a named source.
+
+### How often would punching actually fail?
+
+The best public figure comes from Tailscale's *How NAT traversal works*, written by people running a
+large fleet of exactly this: with the standard techniques — STUN, both sides punching at once, a
+birthday-paradox port search against a symmetric peer — they put a **direct connection at "over 90%
+of the time"**, with relays covering the rest. So plan on roughly **1 pair in 10** needing help, not
+1 in 100 and not 1 in 3.
+
+That 10% splits into two very different cases:
+
+- **One side symmetric ("easy vs hard").** Recoverable by probing: their table puts 1024 random
+  probes at ~98% success against a 256-port spread, and at a modest 100 probes/second *half the
+  pairs are through in under two seconds*. Worth implementing before paying anyone.
+- **Both sides symmetric, or CGNAT on both ends.** Effectively hopeless: ~170,000 probes for 99.9%,
+  which is nine minutes of waiting at even odds. This is the case a relay exists for.
+
+Two things move the number in our favour. **IPv6**: the same article puts world adoption around 33%,
+and where both peers have it there is no NAT to punch at all — this machine has working IPv6 to the
+internet (measured: `curl -6 https://ipv6.google.com` returned 200 in 1.4 s). And **the friends who
+will actually play this**: on mobile tethering, CGNAT is the norm; on home fibre it is not. We cannot
+know Simon's group from here — but we do not have to guess, because of the next answer.
+
+### How early can we detect it?
+
+**Before anyone picks a hero, in under a second.** Two stages, and neither needs the game to start:
+
+1. **The NAT behaviour probe** — RFC 5780, *NAT Behavior Discovery Using STUN*. Send a STUN binding
+   request to two or more servers *from the same local UDP socket* and compare the port each one
+   reports. Same port = endpoint-independent mapping, punchable. Different ports = symmetric, and we
+   know it before the player has even joined a lobby. Run here as a ~40-line probe, from this
+   machine, against three public STUN servers:
+
+   ```
+   stun.l.google.com:19302      sees port 7910   (44 ms round trip)
+   stun.cloudflare.com:3478     sees port 7910   (23 ms round trip)
+   stun.nextcloud.com:3478      sees port 7910   (506 ms round trip)
+   -> mapped port stable: mapping is ENDPOINT-INDEPENDENT (punchable)
+   ```
+
+   Two servers is enough, and the two fast ones answered in **67 ms together**. A CGNAT'd player is
+   visible the same way: a private local address whose mapped address differs, and often an address
+   from `100.64.0.0/10` (RFC 6598, the shared address space carriers use).
+2. **The real answer: an ICE connectivity check between the two peers** (RFC 8445), run **when a
+   player joins the lobby**, not when the host presses start. It is the only thing that can say "this
+   pair can talk", because it tries. Roughly a second once both are in the lobby, and ice4j already
+   implements all of it.
+
+So the sequence is: probe on launch, check on join, and the lobby knows the truth while people are
+still choosing colours.
+
+### Can we warn the users before the game starts?
+
+Yes, and it should be the visible part of this whole effort. Each row in the lobby carries its own
+state — **direct**, **relayed**, or **cannot connect** — settled by the check above at the moment
+that player joins. The host sees it before starting, and the message can be specific enough to act
+on: *"you are on mobile data, which cannot be reached directly — join over Wi-Fi if you can"*, or
+*"you and the host both sit behind carrier NAT; you will be relayed and may see a little more lag"*.
+
+Two honest limits. A check that passed can still break later — a NAT mapping expires in about 30
+seconds, which is what the keepalives are for, and switching from Wi-Fi to mobile mid-game changes
+everything; ICE restarts handle that, and the lobby should say "reconnecting" rather than pretending.
+And a warning is only useful if it names the fix: "NAT type: strict" tells a player nothing.
+
+### What would hosting the games ourselves cost in CPU?
+
+**Almost nothing. It is a bandwidth question, not a CPU one.** Measured on this machine — a 13th Gen
+Intel Core i7-13650HX, one thread, the real game loop headless with no rendering, 120 seconds of game
+time per run, players rejoining every second so the population stays up:
+
+| players in the session | CPU per second of game time | 8-player sessions one core could carry in real time |
+|---|---|---|
+| 1 | 0.68 ms | — |
+| 4 | 1.02 ms | — |
+| 8 | **1.43 ms** | **~700** |
+
+A session costs about **0.14% of one core**. For comparison the same 8-player run *with* draw calls
+(which a server does not make) costs 3.69 ms/s, and the simulation's own heap is about 2 MB.
+
+Three caveats, and they matter more than the number:
+
+- **Today the game cannot host two sessions in one process.** `GVars_Game`, `Gvars_Physic.world`,
+  `GVars_Story` and friends are static singletons with no teardown, so a server would need one JVM
+  per session until phase 0.4 lands — and a JVM running the game currently sits at **269 MB RSS**,
+  because `init()` still loads every texture even headless. A server build would not load them; the
+  simulation itself is the 2 MB above.
+- **Bandwidth is the real bill.** A hosted 8-player session sends 8 × 9 kB/s ≈ **0.6 Mbit/s**, or
+  ~225 MB per session-hour. A 1 TB/month VPS allowance is therefore about **4,400 session-hours a
+  month** — hundreds of CPU-cores' worth of headroom that we will never reach, because the network
+  runs out first.
+- **Relaying is cheaper than hosting, as long as it stays rare.** A TURN relay pays twice for every
+  byte (in and out), so relaying an entire 8-player session costs roughly double what hosting it
+  does — but we would only relay the ~10% of *players* who need it, at about 18 kB/s each, not whole
+  sessions. Hosting everything means paying for 100% of the traffic to avoid a problem that affects
+  one connection in ten.
+
+### What this says, if a letter is still wanted
+
+**A — pay for the relay — with the punching done properly first**, is what the numbers support: it
+costs a $5–10 VPS plus traffic for roughly one pair in ten, it is the same box that d7 needs as a
+WebRTC bridge for browser players, and it keeps "the host carries the traffic" true for the other
+nine. **C — host the games ourselves — is not expensive in CPU** and is worth keeping reachable
+(phase 0.6 gives us the headless simulation for free), but as a default it means paying for every
+byte of every game to fix one connection in ten. **B — tell them to forward a port — is the only one
+the numbers argue against**: it fails for exactly the players who cannot fix it, the ones on carrier
+NAT, and they are the ones who will be told it is their fault.
