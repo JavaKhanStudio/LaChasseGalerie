@@ -1,0 +1,352 @@
+{
+ "board": "lachassegalerie",
+ "built_at": "2026-09-18 15:55:55",
+ "tags": [
+  "assets",
+  "audio",
+  "background",
+  "build",
+  "coordinator",
+  "gameplay",
+  "hud",
+  "input",
+  "network",
+  "physics"
+ ],
+ "tickets": [
+  {
+   "ref": "r33",
+   "title": "Phase 0.3 — a PlayerId is who a player is, not the Controller object they hold",
+   "detail": "Online plan phase 0.3 (docs/online-multiplayer.md section 6; the constraint is section 1.4).\n\nWHY IT BLOCKS ONLINE. A player IS a Controller today: GVars_Controller.playerList is\nHashMap<Controller, Player_Inputs> with null meaning the keyboard, GVars_Game.playerRegister keys\nthe score labels the same way, PhysicSpriteHeroes.controller holds the device. A remote player has\nno Controller and never will.\n\nWHAT TO DO. Introduce a PlayerId and key everything that is about a PLAYER on it — hero, score\nlabel, spawn, death. The Controller stays, but only at the local input edge (IKM_Game_Keyboard,\nIKM_Game_XBoxController), as the way this machine's devices reach a hero.\n\nd5 -> A IS BINDING: online is ONE PLAYER PER MACHINE. A PlayerId is a peer id and nothing more,\nnot a peer id plus a device slot. Local co-op (a keyboard and any number of pads on one screen)\nstays an offline mode. The assumption the plan leaves for phase 1: on a machine in an online\ngame, whichever local device is touched drives that machine's one hero, so a pad can be handed\nacross the couch.\n\nWATCH OUT (#input pack): null IS the keyboard player in two maps, and any lookup that assumes a\nreal Controller silently skips them. The first press only joins and returns without acting.\nSmoke_Run walks players in the fixed order [null, pad1, pad2] because playerList is a HashMap\nkeyed on identity hashes — it will need the same determinism through PlayerId.\n\nGATE. ./gradlew smoke (Smoke_Run has to be updated with this), the",
+   "tags": [
+    "input"
+   ]
+  },
+  {
+   "ref": "r61",
+   "title": "Apply d13: C",
+   "detail": "Simon settled doubt d13, and it needs writing.\n\nTHE DOUBT: r39 (d779fa5): when an online player leaves (quits or times out), HostSession removes their hero with no death counted AND removes their score row from the HUD and the snapshot. Reason: one connection is one PlayerId (d5 -> A), so someone who reconnects is a new player with a new row, and keeping rows would pile up dead rows with every reconnect. The cost: their score vanishes from everyone's screen the moment they drop. One line in Game_Simulation.remove changes it.\nTHE QUESTION: What should happen to a leaving player's score row? A = remove it at once (what is built) B = keep it until the run ends, greyed out, accepting a new row per reconnect C = keep it, and give a reconnecting machine its old PlayerId back (needs an identity beyond the connection, phase 2 lobby)\nHIS DECISION: C\nRAISED FROM: r39\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d13 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\nNote (fedora1-lachassegalerie-25): Started. Plan for d13=C: HELLO carries a random 64-bit rejoin key (protocol v2); HostSession maps key->PlayerId for the run, a HELLO with a known key gets the old PlayerId (a live seat on a new address moves); Game_Simulation.remove keeps the score row; rows capped by forgetting the oldest departed player so the snapshot cannot outgrow 1200 B",
+   "tags": [
+    "network"
+   ]
+  },
+  {
+   "ref": "r1",
+   "title": "--mute makes the river scroll faster every frame, without end",
+   "detail": "core/src/jks/story/GVars_Story.storyTelling: after 10s, `if(... && GVars_AudioManager.currentlyRunningMusic == null) { PlayMusic(MUSIC); GVars_Camera.screenMovementSpeed += 0.7f; }`. Under --mute PlayMusic returns before creating the Music, so the field stays null and the branch runs EVERY frame: +0.7 world units per frame (~+42/s at 60 fps) added to the speed Vue_Game.render adds to Parallax_Heart.worldCamera. Read in code, not yet seen running. Fix: a 'music cue fired' flag in GVars_Story instead of reading the audio object. Prove: ./gradlew :desktop:run --args=--mute, watch past 10s, compare with a run with sound. Found while connecting the board (procedure p21).\n\nCommit fd722d9. GVars_Story now uses a musicCueFired flag instead of reading currentlyRunningMusic == null, so the 10s cue (PlayMusic + 0.7 speed) fires once. Checked by running the game with a temporary speed print (not committed; log attached as r1_probe.txt). Old code with --mute: speed 7.5 -> 49.5 at 11s -> 91.5 at 12s -> 217 at 15s. Fixed with --mute: 7.5 -> 8.2, still 8.2 at 28s. Fixed with sound: same 8.2, music plays. ./gradlew build passes. README's --mute row is still accurate. No screenshot: import cannot capture this Wayland session, so the numbers are the evidence. Not tested in --fullscreen, because this change does not touch geometry.",
+   "tags": [
+    "audio",
+    "gameplay"
+   ]
+  },
+  {
+   "ref": "r69",
+   "title": "A client's score rows stay white for a player whose hero it never saw",
+   "detail": "Seen in r68's renders (7b7d48b): Vue_Client colours a ScoreLabel only from a hero in the snapshots, so on a client that joined after the host's hero died, that player's row (in the HUD and on the d14 score screen) keeps white icons while the host shows the hero's colour. The snapshot's score row carries no look. Fix would be a look per score row (codec bump) or keeping the last look seen.\n\nb722daf. Each snapshot score row now carries a look u8 (the model index of the player's last hero, 255 = none): ScoreLabel.wear() keeps the model, Snapshot_View sends it, Vue_Client colours rows from it instead of from live heroes. Codec VERSION 4, SCORE_BYTES 7 (docs updated). Chose the codec bump: \"keep the last look seen\" cannot help a client that joined after the death.\nGates run: `./gradlew nettest` (new: look in the round trip, look 256 refused, late mirror keeps a row's look; ENDING prints the looks), `./gradlew netmirror` (every tick every row's look equals the host label's, and it must see rows without a hero), `./gradlew smoke` - all green.\nPlayed: two EndProbe windows offscreen (host hero dies, client joins later). Sheet attached: r68 before (Player 1 white on client) vs after (yellow on client HUD and score screen, same as host).",
+   "tags": [
+    "gameplay",
+    "network"
+   ]
+  },
+  {
+   "ref": "r36",
+   "title": "Phase 0.6 — extract the headless loop out of Smoke_Run into a runner a host can use",
+   "detail": "Online plan phase 0.6 (docs/online-multiplayer.md section 6, and 'A door left open').\n\nSmoke_Run already runs the real Main_Game headless with a Proxy GL and MockGraphics at 1280x720.\nThat loop is what a host with no window runs, and it is the same binary a DEDICATED server would\nrun if player hosting turns out to be a NAT nightmare. Extracting it now is what keeps that a\ndeployment decision instead of a rewrite.\n\nWHAT TO DO. Move the headless loop into core (or a small runner module) with the test-specific\nparts — the scripted players, the invariant assertions, the seeding — left behind in smoke/.\nSmoke_Run then drives the runner instead of owning it, and ./gradlew smoke still runs.\n\nWATCH OUT. init() still loads every texture even headless, which is why a headless JVM sits at\n269 MB RSS (r25). A server build wanting to skip the textures is a separate ticket, not this one.\nDepends on 0.4: a runner that cannot be torn down is still one session per JVM.\n\nGATE. ./gradlew smoke, unchanged behaviour and unchanged report.\n\nd7dfc70. New :headless module with jks.headless.Headless_Runner. launch(width, height, Session) starts a HeadlessApplication whose own loop never runs, stubs GL and MockGraphics, mutes audio, and exits 0 when the session returns or 1 when it throws (Session.failed hook). boot() creates Main_Game; step() runs one 1/60 tick. It is a module, not core, so the game code never depends on a backend. smoke/ now depends on :headless only, and Smoke_Run implements Session",
+   "tags": [
+    "build"
+   ]
+  },
+  {
+   "ref": "r65",
+   "title": "Write tools/publish_gate.sh so the worker publishes without a session",
+   "detail": "From atelier r144. Every push on this board costs a Publish session (0.4-1M tokens each; 53.5M across 64 passes on five boards, 11-16 Sep). The worker can publish by itself (atelier worker.publish_gate): it runs [coordinator] gate on a detached worktree of the exact SHA it would push, with ATELIER_CHECKOUT naming the real checkout and ATELIER_GATE_SHA the commit; exit 0 pushes that SHA, anything else queues a Publish pass with the script's last lines. Model it on SynAndKaya/tools/publish_gate.sh (borrow heavy dirs from $ATELIER_CHECKOUT rather than rebuilding; fail if the checks change tracked files; print one ok/FAIL line per step). Checks: the smoke/nettest gate its #build pack names. Prove it both ways: exit 0 on HEAD, and non-zero on a commit you break on purpose in a scratch worktree. Commit the script in this repo. The config line lives in the atelier repo, which this checkout cannot commit to (atelier r140): once your commit exists, file it there — atelier add --project atelier --tags config \"lachassegalerie: add [coordinator] gate\" — naming the script path and that the block goes at the END of projects/lachassegalerie.toml (a bare key after a [table] is trapped in it).\nNote (fedora1-lachassegalerie-23): Gate = build, smoke, nettest (with netsession/netprocs/netlobby), dist: the ritual every Publish pass ran (handovers -8, -21). No heavy dirs to borrow: deps live in ~/.gradle, shared; .gradle/ and build/ are per-tree and borrowing them would make the gate write the rea",
+   "tags": [
+    "coordinator"
+   ]
+  },
+  {
+   "ref": "r54",
+   "title": "parallax-background needs a 2.2.0 that a browser can compile — three changes, all proven by the r20 spike",
+   "detail": "The r20 spike compiled this game to JavaScript and ran it in Chrome (commit 8eee3f1, docs/browser-target.md section 10). To do it, tools/browser-spike/build.sh patches a COPY of parallax-background 2.1.0's published sources, because the artifact cannot be translated by GWT as it stands. Those patches are the change the library needs, and the library is Simon's own — published from the Parallax board, which this session cannot reach ('atelier --project parallax list' returns nothing here). So this ticket is the message in a bottle: someone with that board should carry it over.\n\nWHAT 2.2.0 NEEDS, all of it proven by the spike:\n\n1. ParallaxLayer must not use Cloneable. It declares 'implements Cloneable' and its clone() calls super.clone(); GWT emulates neither, and this is NOT dead code — ParallaxPageReader:55 calls layer.clone() on the real drawing path. The fix is a field-by-field copy; build.sh writes the whole replacement out, copying texRegion into a new ArrayList and then the fourteen scalar fields.\n\n2. The Kryo and Jackson annotations have to come off the model classes the game touches: WholePage_Model, Parallax_Model, Page_Model, ParallaxLayer (@DefaultSerializer, @JsonIgnore, @JsonIgnoreType, @JsonIgnoreProperties and their imports). Kryo is reflection and Unsafe; it has no browser story at all. The game's own vendored copy already ran without them before ad38949 deleted it.\n\n3. The serializers should be out of the translatable path: GVars_Serialization, Color_Serialize",
+   "tags": [
+    "background",
+    "build"
+   ]
+  },
+  {
+   "ref": "r50",
+   "title": "Apply d11: B",
+   "detail": "Simon settled doubt d11, and it needs writing.\n\nTHE DOUBT: The game has no icon: the packaged launcher carries its name but no picture, and so will the firewall prompt and the taskbar\nTHE QUESTION: What becomes the game's icon? The three candidates attached to r44 are made from art the game already has, and none of them is finished work: (A) a real frame of the game - the hero on the canoe under the trees, which says what the game is but carries HUD text that will be mush at 32 px (B) the double axe on the night sky, which is the one that still reads at 32 px and is the game's one iconic object (C) the canoe alone, which at icon size is a plank (D) none of these - the icon is art somebody draws, and it waits until then\nHIS DECISION: B\nRAISED FROM: r44\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d11 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\n\nApplied. Commit c74274c.\n\nWHAT THE DECISION ASKED FOR, and where it now lives: B was 'the double axe on the night sky', so the icon is made from the game's own art — desktop/assets/tools/double_axe.png over a night sky taken from the game itself, darkened towards the edges so the white blades still carry when the picture is 32 px, with a few stars that only the big sizes show. Rendered at 512 and attached at 256/48/32/16 so the small end can be judged rather than trusted.\n\nFOUR PLA",
+   "tags": [
+    "assets",
+    "build"
+   ]
+  },
+  {
+   "ref": "r23",
+   "title": "This is an error and should be corrected. Framerate should not effect worldrate",
+   "detail": "Simon read notice n2 and asked for this.\n\nWHAT HE ASKED: This is an error and should be corrected. Framerate should not effect worldrate\n\nTHE NOTICE (n2): Found while analysing r15, true today with no networking involved: the world clock is the frame clock. Gvars_Physic.act() steps Box2D a fixed 1/60 once per rendered frame while everything else advances by the real frame delta (clamped to 1/30 in Main_Game.render), and SpriteModel reads Gdx.graphics.getDeltaTime() directly. It only behaves because Utils_Launcher pins vsync and setForegroundFPS(60). A machine that drops frames runs its world in slow motion rather than just showing fewer pictures. An accumulator in Main_Game, with simulate() separate from render(), is phase 0.1 of docs/online-multiplayer.md and is worth doing on its own.\n\nThe notice is the finding; the line above is what he wants done about it. If the two do not agree, his line wins. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\n\nFixed, measured, and played. Commit 81fd446 (unpushed). Main_Game.render now accumulates real time and runs vue.update(FVars_Heart.step = 1/60) once per WHOLE step — at most 5 in one frame, so a stall or a dragged window is time given up on rather than replayed in a burst — and Gvars_Physic.act(delta) steps Box2D with exactly the time simulated instead of a literal 1/60 per drawn frame. Animation time moved out of SpriteModel.draw (which read Gdx.graphics.getDeltaTime directly) into act(), where the re",
+   "tags": [
+    "physics"
+   ]
+  },
+  {
+   "ref": "r52",
+   "title": "Apply d9: B",
+   "detail": "Simon settled doubt d9, and it needs writing.\n\nTHE DOUBT: A pad can now start the run from the menu (d8), and the very next thing it must do is press A again - that second press is the join gesture, and it is what makes that pad player 1. On a couch that reads as the menu not having heard the first press. Joining the picker automatically is a few lines (GVars_Game.addPlayer(controller) with the Controller that picked), but it decides something d8 did not: that picking Local play is also sitting down to play. It also has no keyboard equivalent that is not odd - the keyboard player joins with any key, so 'Space picked the menu' would join them too, which may be exactly right or may be a surprise.\nTHE QUESTION: Does the pad that picks Local play join the run as player 1? (A) no - picking and joining stay separate gestures, everyone presses again once the river is up (B) yes - whoever picked Local play is already player 1, pad or keyboard, and the others join behind them\nHIS DECISION: B\nRAISED FROM: r28\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d9 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\nNote (fedora1-lachassegalerie-7): d9=B wired: new jks.input.Menu_Picker (a pad / the keyboard / a pointer that is nobody), carried by Menu_Focus from the listener that heard the press to the view it opens. Vue_Game gained a constructor",
+   "tags": [
+    "hud"
+   ]
+  },
+  {
+   "ref": "r41",
+   "title": "Phase 2.1 — the lobby service: hold lobbies, mirror endpoints, gate on version",
+   "detail": "Online plan phase 2 (docs/online-multiplayer.md sections 2, 5 and 7). The small always-on process\nWE host — no game logic, sees only endpoints.\n\nWHAT IT HOLDS. {join code, host endpoint candidates, player count, game version}: list, join,\nmirror each peer's public endpoint to the other for the punch, gate on protocol version, reap\ndead lobbies. Under ~500 lines and a $5 VPS. Netty is a reasonable choice here (it is overkill for\nthe game socket); plain Java is fine.\n\nTHE TRAP THAT WASTES A WEEK, and it is decided: the client talks to the lobby service over the\nSAME UDP socket the game will use. The public ip:port the service sees is then free STUN and is\nexactly the mapping game traffic will arrive on. A second socket for lobby chatter advertises an\nendpoint that does not work — and it fails only for other people, never on your own machine.\n\nKEEPALIVES: a NAT mapping expires in about 30 s, so an idle lobby connection needs a packet every\n5-15 s or a lobby that sat two minutes cannot be joined.\n\nThis service is ALSO the WebRTC signalling server for browser players (d7, see 2.6) — that is\ndecided, so do not design it as UDP-only inside.\nNote (fedora1-lachassegalerie-22): Started: reading plan doc sections 2, 5, 7 and jks.net / jks.online before designing the service.\nNote (fedora1-lachassegalerie-22): Design, before code: (1) core/src/jks/lobby = Lobby_Message/Lobby_Codec (header 'L' | lobbyVersion | type | body | CRC-32, so a stray game packet can't be mistaken for one), Lobby_",
+   "tags": [
+    "network"
+   ]
+  },
+  {
+   "ref": "r68",
+   "title": "Apply d14: We need a score screen, and the server wait for the next decision (Start a new run or clos",
+   "detail": "Simon settled doubt d14, and it needs writing.\n\nTHE DOUBT: d12's ending (480c9bf) sends a local run back to the start menu 5 s after the canoe lands. A --host run stays on the river instead, because nothing tells its clients the run ended: HostSession would keep ticking a Vue_Game that is gone, and each client's Vue_Client would sit on an empty river.\nTHE QUESTION: What should a hosted run do when the song ends? A = the host closes the session (clients get HOST_ENDED) and everyone goes back to their menu; B = the host stays on the river and a new song/run starts for everyone; C = leave it on the river until the online menu work decides\nHIS DECISION: We need a score screen, and the server wait for the next decision (Start a new run or close the server)\nRAISED FROM: r62\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d14 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\n\nd14 applied in 7b7d48b. A --host run whose song is over now stops its world and shows a score screen (Score_Screen: final table, best first) on the host with New run / Close the server (pointer, arrows, pads), and on every client with \"Waiting for the host\". Snapshots carry run number + over flag (Net_Codec VERSION 3, +3 B); over snapshots carry the table and no entity; a JOIN gets no hero then.\nNew run: fresh Vue_Game under the same HostSession; seats keep PlayerI",
+   "tags": [
+    "gameplay",
+    "network"
+   ]
+  },
+  {
+   "ref": "r20",
+   "title": "LibGDX used to be able to run in a navigator like chrome, does it still work ? I need that posibility to be analyzed",
+   "detail": "Note (fedora1-lachassegalerie-5): Routed #build by the coordinator (r24). It is a backend-and-dependency feasibility question — a browser target means a new Gradle module, a backend artifact and a different launcher — which is #build's territory. Asked for: an ANALYSIS, like r15 got, not a port. r15's answer landed as docs/online-multiplayer.md; the same shape would suit here.\n\nWHAT I CHECKED IN THE REPO SO YOU DO NOT START COLD:\n- There is no html module, no .gwt.xml and no TeaVM anywhere. settings.gradle is core, desktop, smoke. This would be greenfield.\n- core/ is UNUSUALLY GWT-FRIENDLY: I grepped the whole of core/src for the things that normally kill a GWT build and found NONE — no java.io, no java.nio, no Thread, no reflection or getClass(), no ClassLoader, no System.exit. The game logic is plain libGDX and Box2D.\n- core/build.gradle has four dependencies: gdx, gdx-box2d, gdx-controllers-core, and io.github.javakhanstudio:parallax-background:2.1.0.\n\nTHE ONE I WOULD CHECK FIRST, because it is the likeliest blocker and it is ours: a GWT build compiles Java SOURCE to JavaScript, so every dependency must publish a sources jar AND a .gwt.xml module descriptor. gdx-box2d and gdx-controllers have known browser stories (gdx-box2d-gwt, the Gamepad API), but parallax-background is a small third-party artifact that Simon's own other board publishes. If it ships neither sources nor a GWT module, the browser target is blocked on something we control and could fix — which is a very d",
+   "tags": [
+    "build"
+   ]
+  },
+  {
+   "ref": "r56",
+   "title": "Make it a request on the atelier board, this need to be standardized",
+   "detail": "Simon read notice n5 and asked for this.\n\nWHAT HE ASKED: Make it a request on the atelier board, this need to be standardized\n\nTHE NOTICE (n5): When an analysis ticket's deliverable is a plan, the analysing session queues the phases before it closes - the coordination pass cannot catch what is not a ticket\nSettled on r30, out of Simon's note on r15: 'I do not see why this was closed... without created any in queue sub ticket, as you clearly have a plan.'\n\nTHE RULE, for this board, until the tool carries it:\n1. A session that answers a COMPLEX ticket with a PLAN queues that plan's items as TODO tickets BEFORE it closes. Only that session knows which files each item touches and how each is proven; a coordinator reading the note has to re-derive all of it from the document.\n2. Each item gets --parent <the analysis ticket>, so that six months from now it still points at the document that justifies it. Verified: the parent's card really does show them, under 'RAISED FROM THIS' (cli.py cmd_show -> model.children).\n3. Each item gets ITS OWN --tags, explicitly. A child created with --parent and no tags INHERITS the parent's (model.py ~line 324). r15 carries #build AND #gameplay and tags are ANDed, so a phase ticket born that way would demand one agent carrying both seams - the exact mis-route a hard gate exists to prevent.\n4. The coordination pass is the SAFETY NET, not the mechanism: when a COMPLEX ticket has closed and its note contains a plan, check it has children. Nothing will f",
+   "tags": [
+    "coordinator"
+   ]
+  },
+  {
+   "ref": "r32",
+   "title": "Phase 0.2 — give the world a fixed size and make the window a viewport onto it",
+   "detail": "Online plan phase 0.2 (docs/online-multiplayer.md section 6; the constraint is section 1.5).\n\nWHY IT BLOCKS ONLINE. Nine places multiply Gdx.graphics.getWidth()/getHeight() by\nGVars_Camera.worldMutiplier to get a world position: the camera ortho, hero spawn\n(PhysicSpriteHeroes:77), the canoe (PhysicSpriteCanoe:34-35), the three spawners\n(GVars_Game:93-115), the parallax, the star. A 1920x1080 host and a 1280x720 client therefore do\nnot share a world: the host spawns monsters off the client's map and the canoe is somewhere else.\nThe host sends world coordinates and the client must be able to draw them.\n\nWHAT TO DO. Pick one world size in world units (the current 1280x720 * worldMutiplier is the\nobvious one, so nothing moves at the default window) and give the camera a libGDX Viewport, so\nthe window only decides how much black or how much crop there is, never where anything is. Then\nfix the nine sites to read the world, not the window.\n\nWATCH OUT. The parallax world is sized from the window once at init (#background), and the game\nis deliberately not resizable because of exactly this. Changing it is the point, but a Viewport\nmeans resize() now has to mean something.\n\nGATE. ./gradlew smoke must still pass and, per the handover, an unchanged run at -Pseed=1\nreplays deaths=21 monstersKilled=81 — if this refactor is meant to change nothing, those counts\nare the proof. Then play it at 1280x720 AND --fullscreen on a big monitor and compare where the\ncanoe, the spawns and the HUD land",
+   "tags": [
+    "background",
+    "gameplay"
+   ]
+  },
+  {
+   "ref": "r3",
+   "title": "Weapon_AXE loads a new double_axe texture for every hero that joins, and nothing disposes it",
+   "detail": "personnage/Weapon_AXE constructor: `new Texture(\"tools/double_axe.png\")` per hero; PhysicSpriteHeroes.kill never disposes it. Every join and rejoin (die, press again) leaks a GPU texture. Load it once (like PhysicSpriteHeroes.heartTexture, a static) — check the other per-instance `new Texture` calls in PhysicSpriteCanoe and Vue_Game at the same time. Found while connecting (p21).\n\nCommit 078a834. Weapon_AXE now keeps its texture in a lazy static, Weapon_AXE.axeTexture, the same way PhysicSpriteHeroes.heartTexture does; each hero still gets its own Sprite. Checked with a temporary probe (not committed) that joined 5 heroes, killed them all and joined 5 more, with --mute. Old code: 5 distinct axe textures, 31 managed textures. New: 1 axe texture, 22 managed. I checked the other per-instance textures: the PhysicSpriteCanoe front/back and the Vue_Game star are each created once per run (Main_Game builds a single Vue_Game, and the canoe is built in its init), so they do not grow. I left them alone. Nothing disposes any texture at exit, heartTexture included, but the process ends there, so that is not a leak worth changing now. Gates: ./gradlew build passes. :desktop:run --args=--mute printed no French fallback lines. ./gradlew dist, then the jar run from /tmp inside a headless cage for 20s: no asset errors. No screenshot: nothing visible changed (same texture, same sprite).",
+   "tags": [
+    "assets",
+    "gameplay"
+   ]
+  },
+  {
+   "ref": "r28",
+   "title": "Apply d8: B",
+   "detail": "Simon settled doubt d8, and it needs writing.\n\nTHE DOUBT: The sketch is mouse-only. Every other way into this game is a key or a gamepad button - the game's whole join gesture is 'press any key or any button'. A menu that only a mouse can use is a different game from the one where four people sit down with pads. Cheap while the menu is three buttons (a scene2d focus ring plus the gdx-controllers listener already in the codebase); awkward once there is a lobby screen with a player list.\nTHE QUESTION: How does a player drive this menu? (A) mouse only for now - it is a sketch, decide later (B) keyboard and gamepad too, from the start: arrows/stick to move, A or Space to pick, so the pad a player is already holding gets them into the game\nHIS DECISION: B\nRAISED FROM: r18\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d8 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\nNote (fedora1-lachassegalerie-7): d8=B written: new jks.vinterface.Menu_Focus (the ring: choices + one focus, pick deferred to the next update), jks.input.IKM_Menu_Keyboard (arrows move, Space/Enter pick), jks.input.IKM_Menu_XBoxController (left stick + d-pad move, A picks). Vue_Menu builds the ring instead of per-button ChangeListeners; Stage stays first in the multiplexer. core compiles. Next: render it to see the focus look.\n\nd8=B is written and looked at. commit d",
+   "tags": [
+    "hud"
+   ]
+  },
+  {
+   "ref": "r39",
+   "title": "Phase 1.4 — HostSession and ClientSession over loopback",
+   "detail": "Online plan phase 1 (docs/online-multiplayer.md section 6). The piece that makes two processes\nplay the same game, with NO lobby, NO NAT and NO internet.\n\nWHAT TO DO. HostSession owns the sim, applies remote inputs at the tick they claim, broadcasts\nsnapshots at 20 Hz, and treats join and leave as network events — the game already lets people\njoin and rejoin mid-run, which maps straight onto it, ONE HERO PER CONNECTION (d5 -> A).\nClientSession sends inputs at 60 Hz, interpolates between the last two snapshots (~100 ms buffer)\nand owns no physics.\n\nKEEP IT FREE OF 'THE HOST IS ALSO A PLAYER' (the #network pack is explicit): a headless host with\nzero local heroes must be a legal configuration, or the dedicated-server option becomes a rewrite.\nEverything goes through the Transport interface from 1.1 — no DatagramChannel call anywhere in\nsession code, or browser players (d7) cost a phase to add back.\n\nGATE. Two JVMs on one machine over loopback, plus the in-process host + 2 clients test that\nasserts the clients' entity positions track the host's within tolerance. Both belong in the\nnettest gate.\nNote (fedora1-lachassegalerie-9): BLOCKED BY d10 -> A (r51): phase 0 finishes before any more netcode. Simon settled the order and it is binding — r32 (a world that is not the window), r33 (PlayerId instead of Controller), r34 (session teardown), r35 (one seeded RNG) and r36 (the headless runner) land first, and this ticket is p5 until they do. It is not blocked on anything technical, and",
+   "tags": [
+    "network"
+   ]
+  },
+  {
+   "ref": "r63",
+   "title": "They need removing for optimization sake. See to it",
+   "detail": "Simon read notice n7 and asked for this.\n\nWHAT HE ASKED: They need removing for optimization sake. See to it\n\nTHE NOTICE (n7): Potions that fall off the world are never removed. PhysicSpriteHp only leaves hpStack when a hero picks it up (MyContactListener:67). A potion that misses the canoe falls forever: in a headless run with 8 players (seed 2, 300 s), 59 of the 65 potions left were below y=0, the lowest at y=-32972 m, and each one is still a live Box2D body stepped every frame. The count grows by about 11 a minute (115 after 10 minutes), with no upper limit. Heroes already die at y<0 (PhysicSpriteHeroes.act); potions need the same rule. It also matters online: r37's snapshot is capped at 1200 B, so the snapshot view must not send them.\n\nThe notice is the finding; the line above is what he wants done about it. If the two do not agree, his line wins. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\n\nDone in 1120a1b (unpushed). Potions that fall off the world are now destroyed.\n- New `GVars_Game.removeFallenPotions()`, called once per `Vue_Game.update` after the physics step. It applies the rule heroes already follow: a potion below y=0 is removed from hpStack and its body goes into the destroy queue. The queue is a set, so a potion picked up in the same step is never destroyed twice.\n- Snapshot_View no longer filters fallen potions, so `inWorld` is gone. Net_Mirror now checks the host kept none, Net_Census drops its \"fallen\" count, and the n7 co",
+   "tags": [
+    "gameplay"
+   ]
+  },
+  {
+   "ref": "r44",
+   "title": "Phase 2.4 — package with jpackage so the firewall prompt names the game, not java.exe",
+   "detail": "Online plan phase 2 and section 3 (docs/online-multiplayer.md).\n\nToday dist is a fat jar run as `java -jar LaChasseGalerie-1.0.jar`, so the Windows Defender dialog\na HOST sees says 'java.exe wants to accept connections' — and people click No, which is the end of\ntheir game before it starts. This is a #build problem, not a netcode one.\n\nTWO MITIGATIONS, both wanted: bind an ephemeral port and rely only on mappings our own OUTBOUND\npackets created (outbound never prompts), and package with jpackage so the prompt at least carries\nthe game's name and icon.\n\nWATCH OUT (#build pack): the LWJGL pin in desktop/build.gradle (3.3.6 over libGDX's 3.3.3),\n--enable-native-access=ALL-UNNAMED in the manifest, --sun-misc-unsafe-memory-access=allow on Java\n24+, -XstartOnFirstThread on macOS, and dist excluding META-INF signatures. A jpackage image has to\nkeep all of it. README.md documents the run commands: change them, fix it in the SAME commit.\n\nCommit 6df1f13. ./gradlew jpackage wraps the dist jar in a launcher called LaChasseGalerie with its own Java runtime: the Defender prompt a host sees now names the game instead of java.exe, and a player needs no JDK installed. -Ptype=deb/rpm/msi/dmg builds an installer instead of a folder; jpackage only ever builds for the machine it runs on, so a .exe has to be built on Windows.\n\nWHAT I HAD TO DECIDE, and how to change it: the name is LaChasseGalerie, one word, because it is also the binary's file name and the dist jar already uses it — 'La chasse-",
+   "tags": [
+    "build"
+   ]
+  },
+  {
+   "ref": "r49",
+   "title": "Teach the #build and #network packs about the new nettest gate — #network still says there is no networking code",
+   "detail": "99f9ac6 added a second headless gate next to smoke: ./gradlew nettest, about two seconds, no window and no game, 14 checks over core/src/jks/net. README.md documents it (a 'Net gate' section, and the project layout), but the packs do not, and the packs are what an agent reads before touching the code.\n\nTwo lines to add, in atelier/projects/lachassegalerie.toml (the TOML is the only place that sticks — 'atelier tag edit' prints success and does not; edit it, then 'atelier --project lachassegalerie init', and read it back with 'atelier tags --json'):\n\n- #build: the module list and the gate list. smoke/ now carries TWO tasks, 'smoke' and 'nettest'; the gates paragraph should name both.\n- #network: it opens with 'THERE IS NO NETWORKING CODE IN THIS REPO', which stopped being true at 99f9ac6. What replaces it: core/src/jks/net is the transport seam (Net_Transport, Transport_Udp on an unconnected ephemeral-port DatagramChannel, Net_Loopback with seeded loss/reorder/duplicates for tests), nothing in the game calls it yet, the gate is ./gradlew nettest, and MAX_PAYLOAD is 1200 and refuses anything bigger rather than letting IP fragment it. The rest of that pack is still accurate.\n\nThe TOML is SHARED AND DIRTY — other sessions have uncommitted work in it. Commit only your own block: build a copy of HEAD with your block swapped in, 'git hash-object -w' it and 'git update-index --cacheinfo'. 'git apply --cached' merges adjacent hunks.\n\nDONE and pushed: atelier 863a537 -> 897aed8. Both p",
+   "tags": [
+    "coordinator"
+   ]
+  },
+  {
+   "ref": "r17",
+   "title": "Rewrite the #background and #build context packs: they still describe the vendored parallax copy that ad38949 deleted",
+   "detail": "n1 raised this as a notice; a notice is never served, so here it is as work. Every claim below was verified in the checkout at 58d8c79.\n\n#background pack, what is now WRONG:\n- Its longest paragraph ('THE LIBRARY IS AN OLD SNAPSHOT, NOT AN INDEPENDENT FORK') describes core/src/jks/tools2d/parallax as 14 vendored files at upstream 01337ce plus 77 changed lines, and warns never to paste upstream files over them. That directory DOES NOT EXIST. ad38949 dropped it. The library is now a normal Maven Central dependency: core/build.gradle:10 'api \"io.github.javakhanstudio:parallax-background:$parallaxVersion\"', parallaxVersion=2.1.0 in gradle.properties. The whole diff-against-01337ce instruction is now misleading: there is nothing local to diff.\n- 'TWO CAMERAS THAT NEVER MEET' says the scroll is Parallax_Heart.worldCamera, moved by Vue_Game.render. There are now TWO Parallax_Hearts, GVars_Parralax.background and .foreground (GVars_Parralax.java:15,17,26,28), driven by GVars_Parralax.scroll(delta, moveX, moveY) at :41, whose own comment says the layers are anchored to the screen and the scroll is a SPEED, not a camera move. The pack states the opposite of the code.\n- The main-page/second-page framing (COLD_NIGHT / COLD_WATER, renderSecondePage, drawPage) needs rechecking against the background/foreground pair before it is repeated.\n- The SolarAstre / astre/divers.atlas line points at a vendored file that is gone.\n- core/src/jks/parralax/ is now only 3 files: ColdNightModel, Enum_ColdN",
+   "tags": [
+    "background",
+    "build"
+   ]
+  },
+  {
+   "ref": "r18",
+   "title": "We need a clear start and end state. So we need a starting menu and a way to get back to say starting menu. There should be an option for local play and online play. For now, a simple lab with a scetch of that starting menu would work",
+   "detail": "Note (fedora1-lachassegalerie-5): Routed #hud by the coordinator (r19). Why, and what I found in the repo so you do not rediscover it:\n\nWHAT IS ASKED NOW is the last sentence: 'a simple lab with a scetch of that starting menu would work'. So the deliverable is a menu you can LOOK at, registered as a lab surface ('atelier lab add', --about says what it lets Simon judge), not the whole state machine. Attach the render — nobody is watching your terminal.\n\nWHY #hud ALONE: a menu here is scene2d widgets on GVars_Interface.mainInterface with baseSkin = skin/freezing-ui.json, which is exactly what the #hud pack teaches. I deliberately did NOT also tag #gameplay or #input: tags are ANDed, and gating a sketch behind an agent carrying three seams would leave it unservable.\n\nTHE STRUCTURE ALREADY EXISTS — you are not inventing it. core/src/jks/vue/AVue_Model.java is an abstract view (init/update/render + a toRender list) and GVars_Heart.changeVue(AVue_Model) swaps it, stopping the music on the way. vue/models/Vue_Game.java is the ONLY concrete view today; amain/Main_Game.create() does changeVue(new Vue_Game()) and its render() just drives GVars_Heart.vue. A menu is a second AVue_Model. I grepped: there is no menu, title or main-menu code anywhere in core/src or desktop/src.\n\nTWO TRAPS I HIT WHILE READING:\n- GVars_Interface.init() unconditionally builds the bottomScore score Table and addActor's it to the single shared Stage (mainInterface). A menu view that reuses that Stage inherits th",
+   "tags": [
+    "hud"
+   ]
+  },
+  {
+   "ref": "r37",
+   "title": "Phase 1.2 — the wire protocol: input frames up, snapshots down",
+   "detail": "Online plan phase 1 (docs/online-multiplayer.md sections 4 and 6). Builds on 1.1's Transport,\nwhich moves opaque bytes and knows nothing about the game.\n\nWHAT TO DO. Define and implement the packet layout, as a pure codec with no sockets in it:\n  - INPUT (client -> host, 60 Hz): a tick number and an input bitmask, plus THE LAST THREE INPUT\n    FRAMES in every packet. That is what removes the need for any reliability layer on input.\n  - SNAPSHOT (host -> clients, 20 Hz): tick, then the entities. Budget from section 4, at 8\n    connections: hero ~13 B (pos, vel, hp, flags, anim, score), axe ~6 B, monster ~7 B, potion\n    ~6 B, plus canoe, story clock, parallax offset and header ~20 B — about 430 B total.\n  - JOIN / LEAVE / HELLO / keepalive, and a protocol version byte that the lobby can gate on.\nPositions as 16-bit fixed point, ids 16-bit. Keep a packet under ~1200 B or IP fragments it, and\nhave the codec say so out loud rather than silently emitting 1400 B.\n\nMEASURE BEFORE SIZING (risk 4 in the plan): monster spawns scale with heroes.size(), so 8 players\nmeans far more bodies than the 430 B estimate assumes. Run the headless loop with 8 players and\ncount the entities before fixing the layout.\n\nGATE. Round-trip tests in the nettest gate added by 1.1: encode -> decode -> equal, every field;\na truncated and a corrupted packet must be rejected, not misread; and the real entity counts from\na headless 8-player run must fit the budget.\nNote (fedora1-lachassegalerie-9): BLOCKED BY d1",
+   "tags": [
+    "network"
+   ]
+  },
+  {
+   "ref": "r62",
+   "title": "Apply d12: We need to add an ending, where the canoe goes down back into the river. have the ride be",
+   "detail": "Simon settled doubt d12, and it needs writing.\n\nTHE DOUBT: r34 made the way back possible (changeVue(new Vue_Menu()) tears the run down and Local play starts clean, proven twice in one JVM) but nothing in the game asks for it: no key, no button, no end of run. I did not invent one, since it is a controls/flow design choice.\nTHE QUESTION: What should take a player from a running game back to the start menu — Escape, a pad's Start/Back, a button on a game-over screen — and does a run ever END on its own (today the story has no end)?\nHIS DECISION: We need to add an ending, where the canoe goes down back into the river. have the ride be the lenght of the main song\nRAISED FROM: r34\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d12 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\n\nApplied d12 in 480c9bf (unpushed). The song, musics/pagayez.mp3, lasts 330.47 s (measured with ffprobe) and its cue is at 10 s, so the canoe lands at 340.47 s.\n- GVars_Story.descend covers the last 10 s. It is the take-off played backwards: the sky eases from about 2610 back to 0, the nose dips to -maxAngle and comes level 2 s before landing, the river speed (riverSpeedAt, which clients use too) drops back to base+music, and the star returns. Nothing new spawns once the descent starts. descentFrom is reset in init.\n- Vue_Game.update goes back to Vue_Menu 5",
+   "tags": [
+    "gameplay",
+    "input"
+   ]
+  },
+  {
+   "ref": "r15",
+   "title": "This game as for objective to be online multiplayer. This mean, we will need lobbies. I also want people to host their own game, and i want to know if that is still feasable or not. The ideal world would be, we host the lobbies, once the game start the host is the one in charge of the net transactions. That mean we need clea UPD, proper sockets controls so the firewall wont block us,and so on. Is this possible ? I want you to analyse the situation and come back with a plan",
+   "detail": "Note (fedora1-lachassegalerie-5): From the coordinator (r16), two build facts in case they reach your analysis: the #build pack you loaded is stale and r17 now tracks fixing it. (1) There are THREE gradle modules, not two — settings.gradle has core, desktop and smoke; smoke/ is a headless runtime gate, './gradlew smoke', ~1.5s, so the pack's 'No CI, no tests' is wrong. (2) The parallax library is no longer vendored under core/src/jks/tools2d/parallax; since ad38949 it is a Maven Central dependency, io.github.javakhanstudio:parallax-background:2.1.0. Neither changes your networking question, but the pack would have told you otherwise. Note also that there is currently NO networking code anywhere in this repo (no java.net, Socket, kryonet or netty), so your plan is greenfield.\n\nYes, it is feasible — and the hosted-lobby + host-authoritative-UDP topology Simon described is the right one. Wrote docs/online-multiplayer.md (commit 84caf83, attached to the card, linked from the README): what the code does today against each constraint (one global world with no teardown, simulation and rendering in the same pass, a clock locked to the frame rate, a player IS a Controller object, world coordinates taken from the window size, four scattered Randoms, Box2D not deterministic across platforms so lockstep is out); the NAT and firewall reality (punch coordinated by the lobby over the SAME UDP socket the game uses, keepalives, IPv6 first, CGNAT needing a paid relay, and the Windows prompt th",
+   "tags": [
+    "build",
+    "gameplay"
+   ]
+  },
+  {
+   "ref": "r31",
+   "title": "Commit the #assets pack edit that is live in the board but has never been in the atelier repo",
+   "detail": "projects/lachassegalerie.toml in /home/simon/Documents/GitHub/atelier carries an UNCOMMITTED edit to the #assets pack, made by fedora1-lachassegalerie-1 (r10, applying d2) and handed over untouched by every coordinator since. It is live in the board via 'atelier --project lachassegalerie init', so agents read it today, but a fresh clone of that repo does NOT have it: an init from the repo would silently put the stale text back.\n\nWHAT THE EDIT SAYS, and it is right: the axe leak is fixed (r3) so the pack now says a texture made per join must be a shared static, naming Weapon_AXE.axeTexture and PhysicSpriteHeroes.heartTexture; the 'astre/divers.atlas is MISSING' line is gone; and the paragraph about this repo being MERGED with other jks projects is gone, because d2 settled that the merge was joining this board, not a code merge.\n\nI did not commit it myself: a coordinator publishes what work sessions committed and does not commit their files for them, and its author's session is long gone. It needs someone to own it.\n\nHOW, and do not shortcut this - that repo is shared and its working tree currently also holds someone else's edits to bin/start-board and projects/parallax.toml plus an untracked web/splash.html. Do NOT 'git commit projects/lachassegalerie.toml': that commits the working-tree file wholesale. Build the intended content from 'git show HEAD:projects/lachassegalerie.toml' plus only the #assets block, check it still parses, then 'git hash-object -w' + 'git update-index ",
+   "tags": [
+    "coordinator"
+   ]
+  },
+  {
+   "ref": "r9",
+   "title": "Apply d1: Try to make things compatible. If there is features missing, add the request on the parral",
+   "detail": "Simon settled doubt d1, and it needs writing.\n\nTHE DOUBT: The game carries its own FORK of the Parallax library (core/src/jks/tools2d/parallax): all 9 files that share a path with JKS_Tools2D_ParallaxBackground differ, 7 exist only here. Upstream has since fixed tiling and cross-fade bugs.\nTHE QUESTION: A = keep the fork; fix it here independently when the game needs it  B = port the scene onto the published Parallax library and delete the fork (a ticket on this board, touching both)  C = freeze it: touch only for a game-breaking bug until the jks merge decides\nHIS DECISION: Try to make things compatible. If there is features missing, add the request on the parralax board.\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d1 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\nNote (fedora1-lachassegalerie-1): Probably already applied: r5 / commit ad38949 made the game compatible with parallax-background 2.1.0 and deleted the copy. The second page was solved with two Parallax_Heart instances, so the library was missing nothing. Check that nothing else is missing (for example tuning numbers converted approximately in ColdNightModel.layer()). File any gap as a request on the Parallax board, then close. Notice n1 is the same change seen from the context packs: the #background and #build packs are stale.\n\nd1 was already applied by ad38949",
+   "tags": [
+    "background"
+   ]
+  },
+  {
+   "ref": "r25",
+   "title": "Apply d6: How often would that happen ? How early can we detect that problem ? Can we warn the users",
+   "detail": "Simon settled doubt d6, and it needs writing.\n\nTHE DOUBT: Hole punching fails for some players — symmetric NAT, and CGNAT on mobile tethering or an ISP that shares IPv4. Without a relay those friends simply cannot join a home-hosted game. With one, we pay a small monthly bill (a coturn VPS, ~0.5 Mbit/s each way per relayed session). This decides how phase 2 ends and whether phase 1 must stay free of 'the host is also a player' assumptions.\nTHE QUESTION: What happens when two players cannot punch through to each other? (A) we pay for a relay VPS so everyone can always play (B) no relay for v1 — tell them to forward a port, and see how often it actually bites (C) skip player hosting for those cases: we host the game itself on a server, using the same headless simulation\nHIS DECISION: How often would that happen ? How early can we detect that problem ? Can we warn the users before the game start ? How much would it cost in term of CPU ressources to host the games ?\nRAISED FROM: r15\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d6 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\n\nSimon asked four questions instead of picking a letter, so the deliverable is four answers with numbers, not a proposal: docs/online-multiplayer.md section 9, commit 43e837f (unpushed), with the d6 bullet and the relay line updated to point at it. HOW OFT",
+   "tags": [
+    "network"
+   ]
+  },
+  {
+   "ref": "r40",
+   "title": "Phase 1.5 — a client that renders a game it is not simulating",
+   "detail": "Online plan phase 1 (docs/online-multiplayer.md section 2).\n\nThe client draws from snapshots: interpolate between the last two, drive the animation state from\nthe flags in the snapshot rather than from a body it does not have, and keep the parallax and the\nstory beats in step with the host's clock instead of its own.\n\nWHAT IT WILL EXPOSE. PhysicSpriteHeroes.act() reads the body and writes the drawing fields;\nSpriteModel advances stateTime from the sim clock (81fd446). Drawing has to become possible with\nthe body gone. This is the ticket where the line between simulation and rendering is actually\ndrawn, and section 1.2 calls defining that boundary most of the work.\n\nLatency is felt here first: one RTT plus the interpolation buffer, about 100 ms, with no\nprediction. That is the plan's deliberate choice — ship without prediction, measure, then decide\n(phase 3). The axe is the thing that will feel worst.\n\nGATE. Play it: host on one JVM, client on another, both windowed, and watch the client's screen.\nAttach the render.\nNote (fedora1-lachassegalerie-9): BLOCKED BY d10 -> A (r51): phase 0 finishes before any more netcode. Simon settled the order and it is binding — r32 (a world that is not the window), r33 (PlayerId instead of Controller), r34 (session teardown), r35 (one seeded RNG) and r36 (the headless runner) land first, and this ticket is p5 until they do. It is not blocked on anything technical, and that is exactly why the note exists: the reason to wait is that the netcode s",
+   "tags": [
+    "gameplay",
+    "network"
+   ]
+  },
+  {
+   "ref": "r26",
+   "title": "Apply d7: A way for people to join games if possible, as a player",
+   "detail": "Simon settled doubt d7, and it needs writing.\n\nTHE DOUBT: The browser backends are alive and core/ is ready for one (docs/browser-target.md, f2e78bf). What it costs depends entirely on this answer, and nothing else in the browser work should start before it: A is a week or so plus an asset pass; B drags a WebRTC stack onto the desktop host or a bridge we pay for; C means we host the simulation and settles d6 in the most expensive direction. A browser tab cannot open a UDP socket at all — that is the sandbox, not libGDX.\nTHE QUESTION: What is a browser build FOR? (A) a demo people can click — single player or local co-op on one machine, no online at all (B) the way friends join an online game, alongside desktop hosts (C) the only client, with the game running on our server\nHIS DECISION: A way for people to join games if possible, as a player\nRAISED FROM: r20\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d7 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\n\nd7 written where it lives. Simon's line is not one of the letters, so I read it as the middle case and said so out loud: a tab is a player in somebody's game, not a demo, with 'if possible' carried as the cost rather than dropped. Consistent with d5 -> A: one tab, one hero. Game repo commit 5280c58 (unpushed). docs/browser-target.md: the decision sits at the head of section 6,",
+   "tags": [
+    "build"
+   ]
+  },
+  {
+   "ref": "r30",
+   "title": "Settle who queues the phases when a COMPLEX ticket's deliverable is a plan — r15 closed with a four-phase plan and nothing on the board",
+   "detail": "Simon's note on r15: 'I do not see why this was closed. First, create a ticket to see why this ticket was closed without created any in queue sub ticket, as you clearly have a plan.'\n\nWHAT HAPPENED, from the board's own record. r15 asked whether online multiplayer was feasible and for a plan. Session fedora1-lachassegalerie-6 answered it in docs/online-multiplayer.md (84caf83) with a four-phase plan, ~20 named work items, each with the files it touches and how it is proven. It then closed r15 with 'done' and left NOTHING queued. Every phase item existed only as a row in a markdown table. The follow-up work reached the board only as free text in a park handover ('PICK UP FIRST: ... Phase 0 is now three items'), which is not a ticket, is not claimable, and dies with the session that wrote it. The same shape shows in r20 (browser analysis, docs/browser-target.md, closed with no sub-tickets) and r25 (d6 answered with measurements, no tickets).\n\nWHAT THIS TICKET IS FOR. Not to redo r15 — r15 is being worked now and the phase tickets are being created there. It is to settle the rule, because the board has no answer to 'an analysis produced a plan, who puts the plan on the board?':\n  - Should a COMPLEX ticket whose deliverable is a PLAN be closeable at all before its phases exist as TODO items? A 'done' that leaves the work only in a doc is indistinguishable, on the board, from a 'done' that finished it.\n  - If the answer is that the analysing session queues them, that belongs in th",
+   "tags": [
+    "coordinator"
+   ]
+  },
+  {
+   "ref": "r5",
+   "title": "Let's migrate the parralax tool from the jar into this new hosted version. You can delete the old jar once everything is clear",
+   "detail": "Note (fedora1-lachassegalerie-1): Routed #background #build. What the 'jar' is now: core/jars/parallax0.4.jar and parallax0.6.2.jar were already deleted in ac3da1d. The game compiles the library from source in core/src/jks/tools2d/parallax (a 2019 upstream snapshot at 01337ce plus ~77 lines the game added). So 'delete the old jar' means deleting that source copy and adding io.github.javakhanstudio:parallax-background:2.1.0 in core/build.gradle (same package names, so both can't be on the classpath at once). THE ISSUE: the game depends on the second page (Parallax_Utils_Page.setSecondPage, Parallax_Heart.renderSecondePage, drawPage(page)), and upstream has no second page (grep of the Parallax repo finds none). COLD_WATER is drawn IN FRONT of the heroes. The fix is either a second Parallax_Heart/reader sharing the worldCamera, or a feature on the Parallax board. Ask before choosing if it changes the depth order. Also check MIGRATING.md §3 (camera layout from the view's bottom-left corner, sizeRatio, and SquareBackground's third argument changing meaning). This ticket is Simon choosing option B on doubt d1.\nNote (fedora1-lachassegalerie-1): Related open doubt: d1 (keep, port, or freeze the fork). This ticket is option B, but d1 is Simon's to settle.\nNote from Simon: If you have any request, adresse them to the parralax board, like upgrade, optimization, new methods, etc\n\nCommit ad38949. Migrated to io.github.javakhanstudio:parallax-background:2.1.0 (Maven Central) and deleted th",
+   "tags": [
+    "background",
+    "build"
+   ]
+  },
+  {
+   "ref": "r38",
+   "title": "Phase 1.3 — entity ids and a snapshot view of the world",
+   "detail": "Online plan phase 1 (docs/online-multiplayer.md section 2 and 6).\n\nThe host has to be able to answer 'what does a second machine need to be told?' — and section 1.2\nsays no object answers it today: Vue_Game.update() steps Box2D, runs the story clock, moves\nsprites, picks animation states and scrolls the parallax in one pass.\n\nWHAT TO DO. Stable ids on every networked entity (heroes, monsters, potions, axes, the canoe), a\nhost-side pass that reads the world into a snapshot struct, and a client-side pass that applies a\nsnapshot: create what is new, move what exists, destroy what vanished. A CLIENT OWNS NO BOX2D\nWORLD AT ALL — it creates, moves and destroys sprites from ids. That is the decided shape, per the\n#network pack; do not give the client a world 'just for the local hero'.\n\nDEPENDS ON 0.3 (a hero is identified by PlayerId, not by the Controller that made it) and reads\nbetter after 0.4. Everything in it is deterministic and testable without a socket.\n\nGATE. Host a headless run, snapshot every entity each tick, apply the snapshots to a second\nworld-less state, and assert the two agree.\nNote (fedora1-lachassegalerie-9): BLOCKED BY d10 -> A (r51): phase 0 finishes before any more netcode. Simon settled the order and it is binding — r32 (a world that is not the window), r33 (PlayerId instead of Controller), r34 (session teardown), r35 (one seeded RNG) and r36 (the headless runner) land first, and this ticket is p5 until they do. It is not blocked on anything technical, and th",
+   "tags": [
+    "gameplay",
+    "network"
+   ]
+  },
+  {
+   "ref": "r4",
+   "title": "A headless smoke run that plays the loop for a minute with joined players",
+   "detail": "There are no tests and no CI: today the only gate is playing the game by hand. The two native crashes ac3da1d fixed (double Box2D destroy, monsters chasing a destroyed hero) kill the JVM with only an hs_err_pid log. A libGDX headless-backend run (gdx-backend-headless + box2d natives) driving Vue_Game.update past take-off (45s of game time at 1/60) with 2-3 joined players, some dying, would catch those classes of bug. Rendering needs GL, so it likely means separating update from render or stubbing the batch. Scope it first; this is a proposal from the connect pass (p21), not a request from Simon.\nAnswer from Simon: A\n\n58d8c79: a new :smoke module (smoke/build.gradle, smoke/src/jks/smoke/Smoke_Run.java, included in settings.gradle) and README sections (Smoke run, layout). Following Simon's A, ./gradlew smoke is a JavaExec in desktop/assets. build compiles it but does not run it, and desktop/dist do not get the headless backend (checked runtimeClasspath). It runs the real Main_Game with a Proxy GL and 1280x720 MockGraphics for 60s of game time in about 1.5s. A keyboard player and 2 fake pads join once a second and press random buttons. Deaths are forced at 20s (hearts), 40s (river, during take-off) and 50s (everyone the same frame). Invariants checked every frame: no monster targets a removed hero, world body count = canoe + 2*heroes + monsters + potions + destroy queue, joint count = heroes + queue, every queued body still in the world, playerList size = heroes, finite position",
+   "tags": [
+    "build",
+    "gameplay"
+   ]
+  },
+  {
+   "ref": "r21",
+   "title": "Apply d4: A",
+   "detail": "Simon settled doubt d4, and it needs writing.\n\nTHE DOUBT: This board has no seam for networking, and r15 is about to produce a pile of networking work. The 9 tags are gameplay, physics, input, background, hud, audio, assets, build, coordinator — none covers sockets, lobbies, serialisation or NAT traversal. #input is 'joining, keyboard and gamepads', which is joining a LOCAL game, not a lobby. r15 was routed #build #gameplay by the session working it, as the nearest available fit rather than a true home. I confirmed there is no networking code in the repo today (no java.net, Socket, DatagramChannel, kryonet or netty anywhere), so whatever r15's plan proposes lands on empty ground. That matters because a tag is a hard gate: the follow-ups (a lobby server, a UDP transport, host migration, wire serialisation) would each be served to an agent equipped for Box2D heroes or for Gradle, who would not notice the mismatch.\nTHE QUESTION: r15's networking follow-ups need a seam. A = create a #network tag with its own context pack once r15's plan lands, and route every networking follow-up there. B = no new tag; networking work keeps going to #gameplay + #build. C = create #network now, before the follow-ups exist, so r15's plan can be written against it.\nHIS DECISION: A\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d4 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this",
+   "tags": [
+    "coordinator"
+   ]
+  },
+  {
+   "ref": "r34",
+   "title": "Phase 0.4 — session teardown, so a second run can start in the same JVM",
+   "detail": "Online plan phase 0.4 (docs/online-multiplayer.md section 6; the constraint is section 1.1).\n\nWHY IT BLOCKS ONLINE, AND EVERYTHING ELSE. GVars_Game, GVars_Controller, Gvars_Physic.world,\nGVars_Story, GVars_Interface and Index_Sprite are static singletons with an init() and no\nteardown. Smoke_Run says it out loud: 'Static game state is never reset, so this is one run per\nJVM.' A lobby is a screen you come back to, and lobby -> game -> lobby -> game has no reset path.\nThe same missing path is what stops a plain 'play again' button, what the start menu sketch (r18)\ndeliberately left out, and — per r25's measurements — the one thing that forces a server to run\none JVM per session.\n\nWHAT TO DO. A dispose/reset for each GVars_*: dispose the Box2D world and rebuild it, clear the\nlists, the destroy queue, the contact listener, the score labels, and reset GVars_Story's static\ntimers (music at 10s, monsters at 15s, take-off at 37s, stabilise at 45s — all static, never\nreset today). AVue_Model.dispose() already exists as the hook, added in 3dfb43c.\n\nWATCH OUT (#physics): a body destroyed out of order, or a contact listener left pointing at a\ndisposed world, is a native crash with no Java stack. Every enemy.target pointing at a removed\nhero must be nulled (that was ac3da1d).\n\nGATE. A smoke variant that plays TWO runs in one JVM and gets the same report twice — that is the\nproof the plan asks for. Then play, finish a run, go back to the menu and start again.\n\nCommit 3630376 (unpushed). Ph",
+   "tags": [
+    "gameplay"
+   ]
+  },
+  {
+   "ref": "r12",
+   "title": "Apply d3: C",
+   "detail": "Simon settled doubt d3, and it needs writing.\n\nTHE DOUBT: The vocabulary is 7 tags because the game is ~60 files: gameplay (Box2D folded in, since physics lives inside the hero/monster classes), input, background, hud, audio, assets, build. hud (4 files) and audio (4 files) are thin.\nTHE QUESTION: A = keep the 7 as they are  B = merge hud and audio into one 'presentation' tag  C = split physics out of gameplay into its own tag\nHIS DECISION: C\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d3 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\nNote (fedora1-lachassegalerie-1): Routed #coordinator: this is vocabulary work, not game code. d3=C means splitting physics out of #gameplay into its own tag. Write it in atelier/projects/lachassegalerie.toml, where the file wins over `atelier tag edit`, then run `atelier --project lachassegalerie init`. Steps: add [tags.physics] with a pack (use /write-context-pack), and move into it the Box2D paragraphs of the #gameplay pack: the destroy queue with its LinkedHashSets and native crash, the enemy.target nulling, Enum_FictureType/userData contact dispatch, MyContactListener, PPM and worldMutiplier units, and frame-locked world.step. Then cut those from #gameplay. The split is fuzzy: physics bodies live inside PhysicSpriteHeroes/PhysicSpriteEnnemy/Weapon_AXE, so say in both packs which one owns",
+   "tags": [
+    "coordinator"
+   ]
+  },
+  {
+   "ref": "r35",
+   "title": "Phase 0.5 — one seeded RNG stream instead of four scattered Randoms",
+   "detail": "Online plan phase 0.5 (docs/online-multiplayer.md section 6; the constraint is section 1.6).\n\nThere are four static Randoms: GVars_Story, GVars_Game, Index_Sprite, PhysicSpriteCanoe. They are\nalready enumerated by Smoke_Run.seedRandoms(), which reaches them by reflection on a field named\n'random' — rename one and seeding throws.\n\nUnder host authority only the host rolls, so this is NOT fatal for online. It is cheap, it makes\ndesync visible in tests, and it lets the host send a seed at start so a client's cosmetic choices\nmatch. Do it as one stream with a settable seed.\n\nGATE. ./gradlew smoke -Pseed=42 twice gives identical reports, and -Pseed=1 still replays the\nknown run (deaths=21, monstersKilled=81) or the change in it is explained.\n\nfe08efc. The four static Randoms (GVars_Story, GVars_Game, Index_Sprite, and an unused one in PhysicSpriteCanoe) are now one GVars_Random.random with GVars_Random.seed(long). Smoke_Run seeds it directly instead of by reflection. Gate: smoke -Pseed=42 run twice gave identical reports, every 10 s line included. The seed-1 baseline MOVED from deaths=21/monstersKilled=81 to deaths=20/monstersKilled=76, because four streams seeded 2..5 became one interleaved stream seeded 1. That is the new number to replay against. Mutation check: with the seed call removed, two runs diverge. Doc table row 0.5 is marked done. CAUTION: the shared checkout does not compile right now because of another session's uncommitted r33 work (GVars_Controller.pcPlayer is remo",
+   "tags": [
+    "gameplay"
+   ]
+  },
+  {
+   "ref": "r10",
+   "title": "Apply d2: Putting it in this board was the merge. Might be a missunderthanding",
+   "detail": "Simon settled doubt d2, and it needs writing.\n\nTHE DOUBT: The LaChasseGalerie Claude memory says this repo 'will be merged with others soon' (other jks/libGDX projects: shared GVars_* names, the parallax lib, missing assets). That changes what is worth doing here now.\nTHE QUESTION: A = the merge is far off; work this board normally  B = it is soon; hold renames, moves and refactors here until the plan exists  C = write the merge up as its own ticket now (tell me the other repos)\nHIS DECISION: Putting it in this board was the merge. Might be a missunderthanding\n\nWrite what the decision asks for, and check it where it lives. Closing this with `atelier done` marks d2 applied. If it turns out to need no change, say why in the note. If you cannot tell what it asks, `atelier ask` this task rather than guessing.\nNote (fedora1-lachassegalerie-1): Routed #coordinator: applying this touches no game code. Reading of the decision: the jks 'merge' the memory predicted was this project joining the Atelier board beside the other jks projects (Parallax etc.); there is no pending code merge into another repo. What to write: (1) the Claude memory ~/.claude/projects/-home-simon-Documents-GitHub-LaChasseGalerie/memory/project-merge-plan.md (+ its MEMORY.md line) says a code merge is coming. Rewrite it, or delete it. (2) The #assets context pack's last paragraph ('expect colliding asset paths as well as colliding class names') rests on that memory, so remove it. Also: the jks.tools2d.parallax col",
+   "tags": [
+    "coordinator"
+   ]
+  }
+ ]
+}
