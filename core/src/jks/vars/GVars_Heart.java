@@ -30,10 +30,11 @@ public class GVars_Heart
 	 */
 	public static boolean hosting;
 	/**
-	 * --lobby host:port : where the lobby service answers (phase 2.1). Nobody runs one for players yet (r45
-	 * deploys it) : until then this is a service on this machine, as `./gradlew :lobby:run` starts it.
+	 * --lobby host:port : where the lobby service answers (phase 2.1). By default VPS_1's, where r45 deployed
+	 * it beside the relay (Simon on r78 : A), so Online play works with no flag. Probes and tests pass a local
+	 * service (`./gradlew :lobby:run` is 127.0.0.1:7770) and never rely on this default.
 	 */
-	public static String lobbyService = "127.0.0.1:7770";
+	public static String lobbyService = "141.94.115.201:7770";
 	/**
 	 * A lobby this window opened to host from Online play (r43), handed to Main_Game when its host picks
 	 * Start : Main_Game builds its HostSession on the lobby's game view, keeps the lobby open through the

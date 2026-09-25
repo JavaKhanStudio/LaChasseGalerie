@@ -75,8 +75,8 @@ public class Lobby_Screen_Probe implements ApplicationListener
 	{
 		GVars_Heart.startAtMenu = true ;
 		jks.sounds.GVars_Audio.muted = true ;
-		if(arg.length > 2)
-			GVars_Heart.lobbyService = arg[2] ;
+		// A local service unless told otherwise : the game's default is VPS_1's (r78)
+		GVars_Heart.lobbyService = arg.length > 2 ? arg[2] : "127.0.0.1:7770" ;
 		Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration() ;
 		// -Dprobe.size=1920x1080 : the fullscreen layout, in a window of that size
 		String[] size = System.getProperty("probe.size", "1280x720").split("x") ;

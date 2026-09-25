@@ -119,8 +119,9 @@ service's address and a six-letter code. The service is its own deployable:
 ./gradlew :lobby:installDist           # lobby/build/install/lobby: two jars and a start script, for a VPS
 ```
 
-The lobby service and the relay (coturn) run on a VPS, `141.94.115.201` (r45): join through them with
-`--lobby 141.94.115.201:7770`. A pair whose punch fails goes through the relay, and the lobby row says
+The lobby service and the relay (coturn) run on a VPS, `141.94.115.201` (r45), and the game's
+Online play talks to `141.94.115.201:7770` by default (r78); `--lobby 127.0.0.1:7770` points it at a
+local service instead. A pair whose punch fails goes through the relay, and the lobby row says
 "relayed". `deploy/` puts them there and proves them; they need the internet, so they are not in `nettest`:
 
 ```sh

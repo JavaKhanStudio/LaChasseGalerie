@@ -409,7 +409,7 @@ owns NO world: buttons up at 60 Hz, draws 100 ms behind between two snapshots th
 Snapshot_Mirror. Both talk ONLY to Net_Transport. --host/--join start them by address; Online play
 starts them through the lobby (r43, below).
 THE LOBBY SCREEN EXISTS (r43, jks.vue.models.Vue_Lobby, Menu > Online play; service from --lobby
-host:port, default 127.0.0.1:7770; VPS_1's is 141.94.115.201:7770 since r45). It opens THE one Transport_Udp and its
+host:port, default VPS_1's 141.94.115.201:7770 since r78 - probes and tests pass a local --lobby 127.0.0.1:7770, never lean on the default). It opens THE one Transport_Udp and its
 Lobby_Client, and hands both on, never a second socket: the host's Start puts them in
 GVars_Heart.lobbyHost, and Main_Game builds the HostSession on lobby.game(), keeps the lobby listed
 through the runs (players = 1 + seats, takeJoiners() drained every step or it grows) and closes it

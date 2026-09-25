@@ -6,7 +6,8 @@ Everything one machine can prove is already green: `./gradlew netnat` and `./gra
 (host and joiner through VPS_1's lobby and relay, both rows RELAYED).
 
 The lobby service is on VPS_1 at `141.94.115.201:7770`, the relay at `141.94.115.201:3478`.
-The game's default is still `127.0.0.1:7770` (r78), so **every machine passes `--lobby`**.
+The game's default is VPS_1's since r78; passing `--lobby 141.94.115.201:7770` as below is harmless and
+makes a machine running an older build use it too.
 
 ## Machines
 
