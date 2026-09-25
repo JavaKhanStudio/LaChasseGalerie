@@ -58,6 +58,12 @@ import jks.vue.models.Vue_Menu;
  * answered and connecting (host_5_tab_connecting.png), then with its data channel open (host_6_tab_open.png),
  * and exits 0. -Dprobe.notabs=true beside it : the host has no WebRTC, as a dist built on another platform,
  * and writes host_5_no_tabs.png.
+ *
+ * -Dprobe.browser=true on the host ALONE (r82) : a real browser tab joins - tools/browser-gate/tabjoin.sh
+ * drives one in headless Chrome, which reads code.txt. Once the tab's row says its data channel is open the
+ * host writes it (host_5_browser_open.png), starts, logs every hero each second and writes host_4_run.png,
+ * and exits 0 when the tab writes <out>/tab_done, or after 60 s of run. -Dprobe.startAfter=<ms> : Start that
+ * long after the row opened (1 s by default).
  */
 public class Lobby_Screen_Probe implements ApplicationListener
 {
@@ -71,6 +77,8 @@ public class Lobby_Screen_Probe implements ApplicationListener
 	static final boolean unlisted = Boolean.getBoolean("probe.private") ;
 	static final String tabFront = System.getProperty("probe.tab") ;
 	static final boolean noTabs = Boolean.getBoolean("probe.notabs") ;
+	static final boolean browser = Boolean.getBoolean("probe.browser") ;
+	long browserOpenAt = -1 ;
 	/** The probe's tab : its answer arrived (it waits 1.5 s before taking it, so the connecting row is seen), its channel open. */
 	volatile boolean tabAnswered, tabOpen ;
 	volatile String tabFailure ;
@@ -115,7 +123,7 @@ public class Lobby_Screen_Probe implements ApplicationListener
 		}
 		try
 		{
-			if(System.currentTimeMillis() - started > 90_000)
+			if(System.currentTimeMillis() - started > (browser ? 180_000 : 90_000))
 				fail("deadline at step " + step + " on " + GVars_Heart.vue.getClass().getSimpleName()) ;
 			if(host)
 				host() ;
@@ -169,6 +177,11 @@ public class Lobby_Screen_Probe implements ApplicationListener
 					hostTab() ;
 					return ;
 				}
+				if(browser)
+				{
+					hostBrowser() ;
+					return ;
+				}
 				if(block)
 				{
 					for(Lobby_Ice.Link link : lobby().ice().links())
@@ -210,7 +223,8 @@ public class Lobby_Screen_Probe implements ApplicationListener
 					grab("host_4_run.png") ;
 
 				// Up until the joiner has drawn its run : leaving closes the server, and sends it to its menu
-				if(since() < 25_000) return ;
+				// A browser : until it says it is done, and past host_4_run.png
+				if(browser ? since() < 9_000 || since() < 60_000 && !Files.exists(Paths.get(out, "tab_done")) : since() < 25_000) return ;
 				log("run hosted, " + GVars_Heart.vue.getClass().getSimpleName()) ;
 				Gdx.app.exit() ;
 				next() ;
@@ -305,6 +319,28 @@ public class Lobby_Screen_Probe implements ApplicationListener
 				next() ;
 				return ;
 		}
+	}
+
+	/** Host step 3 with -Dprobe.browser : a real tab's row, once its channel is open for a second, then Start. */
+	void hostBrowser() throws Exception
+	{
+		java.util.List<Lobby_Client.Tab> rows = lobby().tabRows() ;
+		boolean open = !rows.isEmpty() && rows.get(rows.size() - 1).tab.open() ;
+		if(open && browserOpenAt < 0)
+		{
+			browserOpenAt = System.currentTimeMillis() ;
+			log("a browser's row : " + rows.get(rows.size() - 1).tab.peer() + " open") ;
+		}
+		// -Dprobe.startAfter=15000 : a host that talks a while before Start, longer than a peer's 10 s timeout
+		if(!open || System.currentTimeMillis() - browserOpenAt < Long.getLong("probe.startAfter", 1_000))
+			return ;
+		java.lang.reflect.Method line = Vue_Lobby.class.getDeclaredMethod("tabLine", Lobby_Client.Tab.class) ;
+		line.setAccessible(true) ;
+		log("the host's row for the tab says : " + line.invoke(null, rows.get(rows.size() - 1))) ;
+		grab("host_5_browser_open.png") ;
+		focus().pick(Menu_Picker.KEYBOARD) ; // Start : the first choice
+		step = 5 ;
+		stepStarted = System.currentTimeMillis() ;
 	}
 
 	/** Host step 3 with -Dprobe.tab : a tab joins from this JVM, and the host's row for it is written twice. */

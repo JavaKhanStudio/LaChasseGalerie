@@ -9,8 +9,8 @@
 
 	<!-- Transport_Udp is java.nio.channels.DatagramChannel, which no browser has. The rest of
 	     jks.net is plain Java and translates. The game still names Transport_Udp, so super/ holds a
-	     browser stand-in with the same signatures, whose open() refuses: a tab's own transport is
-	     the next phase (r82). jks.rtc is a separate module and never reaches this build. -->
+	     browser stand-in with the same signatures, whose open() refuses: a tab plays on
+	     jks.html.Transport_Channel instead (r82). jks.rtc is a separate module and never reaches this build. -->
 	<source path="">
 		<exclude name="net/Transport_Udp.java" />
 		<exclude name="super/**" />

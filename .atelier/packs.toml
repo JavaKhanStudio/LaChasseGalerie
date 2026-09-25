@@ -383,7 +383,20 @@ an unclosed Transport_Rtc keeps a JVM alive after its window is gone (Main_Game.
 for that). Next, in order: r81 DONE (the html module: core/src now
 COMPILES TO JAVASCRIPT, so jks.net/online/lobby code the game reaches must translate — no array clone(),
 no java.nio.channels/java.net/javax.crypto/SecureRandom; stand-ins live in html/gwt/jks/super/; check with
-`tools/browser-gate/gate.sh --draft`, docs/browser-target.md section 11), r80 DONE, r82 (the tab's transport and lobby), r83 (the gate).
+`tools/browser-gate/gate.sh --draft`, docs/browser-target.md section 11), r80 DONE, r82 DONE (below), r83 (the gate).
+A TAB PLAYS (r82). jks.lobby.Lobby_Tab is a tab's lobby (JDK-only, translates): Lobby_Codec over a
+WebSocket Net_Transport to the front, BROWSE/JOIN/OFFER/ANSWER, and a Lobby_Tab.Offerer (a Net_Transport
+that offer(relay)s: JOINED's relay is the call's TURN server) that the session then plays on. No HOST,
+no ICE of its own; a host that never answers is given up on after ANSWER_MS (that silence IS the
+refusal). html/src/jks/html: Transport_WebSocket and Transport_Channel (JSNI; callbacks fill JS inboxes,
+pump delivers; the offer is whole at iceGatheringState complete or GATHER_MS 5 s; calls "rtc/N", lost
+on close/fail or 10 s silence). HtmlLauncher sets GVars_Heart.tabLobby (?lobby=host:port, default VPS_1's
+front 141.94.115.201:7771) and Vue_Lobby branches on it: Open games and a code, NO Host a game (d7); the
+WS is closed once the session is IN and Vue_Client(null, channel, ...) plays. Gate:
+`tools/browser-gate/tabjoin.sh [--draft|--no-build]` — a local lobby, an offscreen Lobby_Screen_Probe host
+(-Dprobe.browser) and a headless Chrome tab that types the code; fails unless the host's row says the
+channel is open and the tab's hero walks right in the tab AND on the host. html/build/tabjoin/ holds its
+screenshots and logs.
 THE RELAY EXISTS AND IS DEPLOYED (r45, d6 -> relay, on Simon's word: "we already have a VPS we could
 use for testing"). VPS_1 = Fountain of Dreams' OVH box, 141.94.115.201, ubuntu with
 OnceUponATime/HQ/staging_deploy_key (deploy/vps.sh). There: coturn 4.7.0 (deploy/relay, UDP 3478,
@@ -548,7 +561,7 @@ com.github.crykn:kryonet on JitPack. Netty is overkill for the game socket, reas
 lobby service. weupnp for best-effort UPnP, never relied on. coturn is what a relay VPS runs.
 The Windows Defender prompt saying 'java.exe wants to accept connections' is a real reason people
 click No, and it is a #build problem (jpackage), not yours.
-Gates: `./gradlew nettest` IS YOURS — about 50 s, no window, 83 checks (11 of them the lobby's, 6 the tab signalling's: java.net.http's WebSocket as the tab against a real Transport_Ws, offers over a lossy wire, and a Fake_Tabs host proving Lobby_Client's rtc routing; 11 ICE's, 7 the relay's, 4 rtc's: two Transport_Rtc in one JVM, and a tab joining a Lobby_Client host through a local service, no internet) then netsession, netprocs, netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code) and nettab (r80: a host JVM plays a UDP client JVM and a Java TAB JVM, then again with its webrtc natives taken away), over
+Gates: `./gradlew nettest` IS YOURS — about 50 s, no window, 84 checks (`-Ponly=tab/` runs those whose name starts so; 11 of them the lobby's, 7 the tab signalling's: java.net.http's WebSocket as the tab against a real Transport_Ws, offers over a lossy wire, a Fake_Tabs host proving Lobby_Client's rtc routing, and Lobby_Tab listing, refused, joining, opening and giving up on a host with no WebRTC; 11 ICE's, 7 the relay's, 4 rtc's: two Transport_Rtc in one JVM, and a tab joining a Lobby_Client host through a local service, no internet) then netsession, netprocs, netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code) and nettab (r80: a host JVM plays a UDP client JVM and a Java TAB JVM, then again with its webrtc natives taken away), over
 jks.net and the mirror (codec round trips, every truncation and bit flip, checksummed lies, the
 size refusal, and): round trips over real UDP on loopback and over the in-memory wire, the payload cap,
 whole-or-nothing delivery, a host learning an unknown peer, a pump that never blocks, a peer

@@ -393,8 +393,8 @@ the network (`Main_Game`, `Vue_Lobby`, `Vue_Client`), so the rest of `jks.net`, 
 `html/gwt/jks/super/`, and `core` did not change for them:
 
 - **`jks.net.Transport_Udp`** is a `DatagramChannel`. The stand-in has its signatures and an `open()`
-  that throws: in a tab, hosting, joining and the online lobby fail until the tab's own transport
-  exists (r82). The `.gwt.xml` excludes the real one.
+  that throws. Since r82 a tab's Online play never reaches it (§12); only `--host`/`--join`, which a
+  page has no way to pass, would. The `.gwt.xml` excludes the real one.
 - **`java.security.SecureRandom`** (`ClientSession.newKey`, the rejoin key) is not emulated by GWT.
   The stand-in draws from the browser's `crypto.getRandomValues`, so the key is still unguessable.
 - **`javax.crypto.Mac`** (`Turn_Codec`'s HMAC) has no browser story either, and needs none: a tab never
@@ -416,9 +416,60 @@ browser key event, and fails unless a hero joined and the loop runs above 20 fps
 and `gate.json` (timings and the page's console). `npm ci` installs puppeteer-core into
 `tools/browser-gate/node_modules` on the first run; it downloads no browser.
 
-Still open, and not this module's: the tab's transport (r82), sound and gamepad parity, and
+Still open, and not this module's: sound and gamepad parity, and
 hosting the page. The non-power-of-two mipmap warnings of §10 are gone (r84): they were the HUD's
 score and death icons (`Utils_Interface.buildDrawingRegionTexture`), 617 px textures built with
 mipmaps that their Linear filter never sampled. The console of a gate run is now one line,
 `startPolling`.
+
+## 12. A tab joins a desktop host (r82, 2026-09-25)
+
+A person in a tab plays in a desktop host's game (d7), through Online play in the page.
+
+```sh
+tools/browser-gate/tabjoin.sh           # an optimized compile, then the gate (~50 s)
+tools/browser-gate/tabjoin.sh --draft   # a 10 s unoptimized compile
+tools/browser-gate/tabjoin.sh --no-build
+```
+
+| | |
+|---|---|
+| `core/src/jks/lobby/Lobby_Tab.java` | the tab's lobby: `Lobby_Codec` over a WebSocket `Net_Transport`, BROWSE, JOIN, OFFER, ANSWER. JDK-only, so it translates and nettest drives it |
+| `html/src/jks/html/Transport_WebSocket.java` | the page's `WebSocket` to the service's front (r79) as a `Net_Transport`: one peer, the service |
+| `html/src/jks/html/Transport_Channel.java` | the page's `RTCPeerConnection` + `RTCDataChannel` `{ordered:false, maxRetransmits:0}` as a `Lobby_Tab.Offerer`: the transport `ClientSession` plays on |
+| `HtmlLauncher` | sets `GVars_Heart.tabLobby`; `?lobby=host:port` is the front, by default VPS_1's `141.94.115.201:7771` |
+
+**The flow.** `Vue_Lobby` sees `GVars_Heart.tabLobby` and is a player's lobby: Open games and a code,
+no Host a game. JOIN over the WebSocket; JOINED carries the relay, which becomes the call's only ICE
+server (`turn:ip:port?transport=udp`, the service's 24 h REST credential). The offer is described
+**whole**, once `iceGatheringState` is `complete` (or after 5 s with what it has: a TURN server that
+does not answer holds Chrome's gathering for tens of seconds), and sent as one OFFER; the host's
+ANSWER comes back whole. Once the channel is open a `ClientSession` goes to its peer (`rtc/1`); its
+HELLOs wait at the host until Start, and the WELCOME moves the tab to `Vue_Client`, whose transport
+is the channel. The WebSocket is closed then: it only ever carried the signalling.
+
+**How it fails, in words on the screen.** A code nobody hosts is refused like a desktop's. A host
+with no WebRTC (its natives did not load, r80) never answers — silence is the refusal — so after
+`Lobby_Tab.ANSWER_MS` (10 s) the row says *cannot connect* and the reason under it. A channel that
+does not open in `OPEN_MS` or fails says so the same way.
+
+**JSNI, not JsInterop.** Both transports are a dozen lines of JavaScript each. The browser's
+callbacks only fill a JS inbox and flags; `pump` copies each message into a Java `byte[]` on the
+loop's thread, as `Net_Transport` promises. No elemental2 dependency.
+
+**The gate** runs a local lobby service (`lobby/build/install`, free UDP and TCP ports), the desktop
+host as `Lobby_Screen_Probe host -Dprobe.browser` under cage, and the tab in headless Chrome
+(`tabjoin.mjs`): Down and Enter on the menu, the code typed with real key events, Enter, then Space
+for a hero and Right held under a second. It fails unless the host's row says *browser : WebRTC data
+channel open*, the tab is IN with its own hero in the snapshots, and that hero walks right in the tab
+**and** in the host's log. Measured: IN about 2 s after the host's Start, ~20 snapshots a second, the
+hero x 12.9 → 19.3 in both. With no relay on loopback the call connects on host candidates; Chrome
+hides its own behind mDNS names, and it still connects, because the host's candidates are real
+addresses and the tab's check is learned peer-reflexive. `window.lcg.vue()` and `lcg.online()`
+(`"state player snapshots x"`) are what it reads.
+
+A tab that waits more than 10 s for Start is timed out and joins again with a new call (r86).
+
+What this does not prove: another network (r83's gate), TLS (a page served over https cannot open a
+`ws://` socket — the hosting task), gamepads in a tab.
 

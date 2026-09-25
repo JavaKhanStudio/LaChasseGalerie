@@ -29,6 +29,7 @@ import java.util.function.BooleanSupplier;
 
 import jks.lobby.Lobby_Client;
 import jks.lobby.Lobby_Service;
+import jks.lobby.Lobby_Tab;
 import jks.lobby.Transport_Ws;
 import jks.net.Lobby_Chunks;
 import jks.net.Lobby_Codec;
@@ -690,6 +691,221 @@ class Net_Tab_Checks
 			eq(1, live.front.connections(), "tabs connected");
 			tab.socket.sendClose(WebSocket.NORMAL_CLOSURE, "bye").join();
 			live.until(() -> live.front.connections() == 0, 3000, "a tab that closed is still connected");
+		}
+	}
+
+	/** java.net.http's WebSocket as a Net_Transport, as html's Transport_WebSocket is a browser's : one peer, the service. */
+	static final class Ws_Transport implements Net_Transport
+	{
+		final Tab tab;
+		final Net_Peer service = () -> "service";
+
+		Ws_Transport(Tab tab)
+		{
+			this.tab = tab;
+		}
+
+		@Override
+		public Net_Peer resolve(String address)
+		{
+			return service;
+		}
+
+		@Override
+		public void send(Net_Peer peer, ByteBuffer payload)
+		{
+			tab.socket.sendBinary(payload, true).join();
+		}
+
+		@Override
+		public int pump(Net_Listener listener)
+		{
+			int delivered = 0;
+			for (Object got; (got = tab.in.poll()) != null;)
+				if (got instanceof byte[])
+				{
+					listener.received(service, ByteBuffer.wrap((byte[]) got));
+					delivered++;
+				}
+				else
+					listener.lost(service);
+			return delivered;
+		}
+
+		@Override
+		public int localPort()
+		{
+			return 0;
+		}
+
+		@Override
+		public int dropped()
+		{
+			return 0;
+		}
+
+		@Override
+		public void close()
+		{
+			tab.socket.abort();
+		}
+	}
+
+	/** A tab's end of a call with no libwebrtc : described at once, open once answered with a description. */
+	static final class Fake_Offerer implements Lobby_Tab.Offerer
+	{
+		final List<Lobby_Message.Relay> relays = new ArrayList<Lobby_Message.Relay>();
+		int calls;
+
+		@Override
+		public Lobby_Tab.Call offer(Lobby_Message.Relay relay)
+		{
+			relays.add(relay);
+			String address = "rtc/" + ++calls;
+			return new Lobby_Tab.Call()
+			{
+				String answer;
+
+				@Override
+				public Net_Peer peer()
+				{
+					return () -> address;
+				}
+
+				@Override
+				public String sdp()
+				{
+					return Net_Tab_Checks.sdp("tab-" + address, 1100);
+				}
+
+				@Override
+				public String failure()
+				{
+					return answer != null && !answer.startsWith("v=0") ? "the answer : unparsable" : null;
+				}
+
+				@Override
+				public boolean open()
+				{
+					return answer != null && failure() == null;
+				}
+
+				@Override
+				public void answered(String sdp)
+				{
+					answer = sdp;
+				}
+			};
+		}
+
+		@Override
+		public Net_Peer resolve(String address)
+		{
+			return () -> address;
+		}
+
+		@Override
+		public void send(Net_Peer peer, ByteBuffer payload)
+		{
+		}
+
+		@Override
+		public int pump(Net_Listener listener)
+		{
+			return 0;
+		}
+
+		@Override
+		public int localPort()
+		{
+			return 0;
+		}
+
+		@Override
+		public int dropped()
+		{
+			return 0;
+		}
+
+		@Override
+		public void close()
+		{
+		}
+	}
+
+	/**
+	 * A browser tab's lobby (r82), the Lobby_Tab html's Vue_Lobby plays on, over a real WebSocket front : it
+	 * lists the host's lobby, is refused a code nobody hosts, joins, offers through the relay its JOINED
+	 * named, and its channel opens with the host's answer ; a host that cannot take tabs never answers, and
+	 * the tab gives up after ANSWER_MS and says so ; the service going is seen.
+	 */
+	static void tabLobbyJoinsAndOffers() throws Exception
+	{
+		try (Live live = new Live())
+		{
+			live.host.host(8);
+			live.until(() -> live.host.code() != null, 3000, "the host got no code");
+			String code = live.host.code();
+			Fake_Tabs tabs = new Fake_Tabs();
+			live.host.tabs(tabs);
+
+			long[] skew = { 0 };
+			Fake_Offerer offerer = new Fake_Offerer();
+			Lobby_Tab lobby = new Lobby_Tab(new Ws_Transport(live.tab()), "127.0.0.1:" + live.front.localPort(), offerer,
+					() -> System.nanoTime() / 1_000_000L + skew[0]);
+			lobby.browse();
+			live.until(() -> { lobby.pump(); return lobby.listing() != null; }, 3000, "the tab's lobby was never listed");
+			eq(Collections.singletonList(new Lobby_Message.Row(code, 0, 8)), lobby.listing().rows, "the tab's listing");
+
+			lobby.join("ZZZZZZ");
+			live.until(() -> { lobby.pump(); return lobby.state() == Lobby_Tab.State.FAILED; }, 3000, "a code nobody hosts was not refused");
+			eq(Lobby_Message.Refused.Reason.NO_SUCH_LOBBY, lobby.refused().reason, "the refusal");
+			eq(0, offerer.calls, "calls made for a refused code");
+
+			lobby.join(code);
+			eq(Lobby_Tab.State.JOINING, lobby.state(), "a new join clears the refusal");
+			is(lobby.refused() == null && lobby.failure() == null, "a new join still says the last one's no");
+			live.until(() -> { lobby.pump(); return lobby.state() == Lobby_Tab.State.OPEN; }, 3000, "the tab's channel never opened : " + lobby.state() + " " + lobby.failure());
+			eq(1, offerer.calls, "calls made");
+			is(offerer.relays.get(0) != null && offerer.relays.get(0).server.equals("203.0.113.1:3478"), "the call's TURN server is the relay JOINED named");
+			eq("rtc/1", lobby.peer().address(), "the peer the session plays on");
+			eq(1, tabs.calls.size(), "offers the host answered");
+			eq(sdp("tab-rtc/1", 1100), tabs.calls.get(0).offer, "the offer the host answered, whole");
+
+			// A host with no WebRTC : its lobby holds the offer and answers nothing
+			try (Live bare = new Live())
+			{
+				bare.host.host(8);
+				bare.until(() -> bare.host.code() != null, 3000, "the second host got no code");
+				Lobby_Tab unanswered = new Lobby_Tab(new Ws_Transport(bare.tab()), "127.0.0.1:" + bare.front.localPort(), new Fake_Offerer(),
+						() -> System.nanoTime() / 1_000_000L + skew[0]);
+				unanswered.join(bare.host.code());
+				List<Lobby_Client.Call> held = new ArrayList<Lobby_Client.Call>();
+				bare.until(() -> { unanswered.pump(); held.addAll(bare.host.takeOffers()); return !held.isEmpty(); }, 3000,
+						"the offer never reached the host with no WebRTC : " + unanswered.state() + " " + unanswered.failure());
+				for (int i = 0; i < 20; i++)
+				{
+					bare.pump();
+					unanswered.pump();
+				}
+				eq(Lobby_Tab.State.OFFERING, unanswered.state(), "a tab waiting on a host with no WebRTC");
+				skew[0] += Lobby_Tab.ANSWER_MS;
+				unanswered.pump();
+				eq(Lobby_Tab.State.FAILED, unanswered.state(), "a tab past ANSWER_MS");
+				is(unanswered.failure().contains("cannot take browser players"), "the failure says why : " + unanswered.failure());
+				unanswered.close();
+			}
+
+			// The service goes : the tab sees it
+			live.front.close();
+			long end = System.nanoTime() + 3_000_000_000L;
+			while (!lobby.serviceLost() && System.nanoTime() < end)
+			{
+				lobby.pump();
+				Thread.sleep(2);
+			}
+			is(lobby.serviceLost(), "a closed front was not seen by the tab");
+			lobby.close();
 		}
 	}
 

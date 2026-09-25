@@ -48,6 +48,12 @@ public class GVars_Heart
 	 * load), and the lobby hosts desktop players only : a tab's offer goes unanswered.
 	 */
 	public static java.util.function.Supplier<Net_Tabs> tabs;
+	/**
+	 * Online play in a browser tab (r82) : html's launcher sets it to open a WebSocket to the service's front
+	 * and an RTCDataChannel transport, which core cannot name. Set, and Vue_Lobby is a player's lobby only :
+	 * Open games and a code, no Host a game (d7). Null on a desktop.
+	 */
+	public static java.util.function.Supplier<jks.lobby.Lobby_Tab> tabLobby;
 
 	/** A hosted lobby and the one socket it and the game share. */
 	public static final class Lobby_Host

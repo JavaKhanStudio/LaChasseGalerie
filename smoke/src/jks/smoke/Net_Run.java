@@ -102,6 +102,7 @@ public class Net_Run
 		check("tab/browse-join-offer-and-answer-over-the-websocket-front", Net_Tab_Checks::tabSignalsOverTheWebSocketFront);
 		check("tab/the-front-refuses-what-is-not-a-tab", Net_Tab_Checks::frontRefusesWhatIsNotATab);
 		check("tab/a-host-answers-tabs-only-with-tabs-and-carries-their-peers", Net_Tab_Checks::hostAnswersTabsOnlyWithTabs);
+		check("tab/a-tab-lobby-lists-joins-offers-and-opens-or-says-why-not", Net_Tab_Checks::tabLobbyJoinsAndOffers);
 		check("ice/stun-codec-reads-the-rfc-5769-vectors", Net_Ice_Checks::codecReadsTheRfcVectors);
 		check("ice/stun-codec-refuses-and-never-mixes", Net_Ice_Checks::codecRefusesAndNeverMixes);
 		check("ice/address-text-is-the-transports", Net_Ice_Checks::addressTextIsTheTransports);
@@ -535,6 +536,9 @@ public class Net_Run
 
 	static void check(String name, Check check)
 	{
+		// -Dnet.only=tab/ : only the checks whose name starts so (./gradlew nettest -Ponly=tab/)
+		if (!name.startsWith(System.getProperty("net.only", "")))
+			return;
 		checks++;
 		try
 		{

@@ -154,6 +154,10 @@ public class Vue_Client extends AVue_Model
 		this.relay = relay ;
 	}
 
+	/** The session this view draws, or null once it closed : what the browser gate reads (html's HtmlLauncher, r82). */
+	public ClientSession session()
+	{return client ;}
+
 	/**
 	 * A Snapshot_Mirror.Listener that passes on to another, or to nobody until it is told who : a
 	 * ClientSession is built with its listener, and one built by the lobby screen outlives that screen.

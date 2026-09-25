@@ -36,6 +36,8 @@ tasks.register('nettest', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     // The rtc/* checks load libwebrtc's natives
     jvmArgs '--enable-native-access=ALL-UNNAMED'
+    // -Ponly=tab/ : only the checks whose name starts so (the process gates after it still run)
+    systemProperty 'net.only', providers.gradleProperty('only').orElse('').get()
     finalizedBy 'netsession', 'netending', 'netprocs', 'netlobby', 'nettab'
 }
 

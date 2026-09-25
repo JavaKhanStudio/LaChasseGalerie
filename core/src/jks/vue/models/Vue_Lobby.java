@@ -22,6 +22,7 @@ import jks.input.IKM_Menu_Keyboard;
 import jks.input.IKM_Menu_XBoxController;
 import jks.lobby.Lobby_Client;
 import jks.lobby.Lobby_Ice;
+import jks.lobby.Lobby_Tab;
 import jks.net.Lobby_Codec;
 import jks.net.Lobby_Message;
 import jks.net.Net_Transport;
@@ -49,6 +50,10 @@ import jks.vue.AVue_Model;
  * Every screen is a Menu_Focus ring (d8) : a pad reaches everything but typing a code, which is why the
  * open lobbies are listed as choices too. The keyboard types a code wherever the focus is.
  *
+ * IN A BROWSER TAB (r82, GVars_Heart.tabLobby set) the same screens with a {@link Lobby_Tab} instead of a
+ * Lobby_Client : Open games and a code, no Host a game (d7 : a tab is a player). The socket is then the
+ * tab's RTCDataChannel transport, and the session goes to the host once its channel is open.
+ *
  * ASCII ONLY in every string here : the skin's fonts carry 98 glyphs and drop the rest without a word.
  */
 public class Vue_Lobby extends AVue_Model
@@ -71,6 +76,8 @@ public class Vue_Lobby extends AVue_Model
 
 	private Net_Transport socket ;
 	private Lobby_Client lobby ;
+	/** In a browser tab, the lobby instead of {@link #lobby}, which is then null ; {@link #socket} is its offerer. */
+	private Lobby_Tab tab ;
 	/** Handed on to Main_Game or Vue_Client : this view no longer closes them. */
 	private boolean handedOver ;
 
@@ -119,10 +126,18 @@ public class Vue_Lobby extends AVue_Model
 		width = stage.getWidth() ;
 		height = stage.getHeight() ;
 
-		socket = Transport_Udp.open() ;
-		lobby = new Lobby_Client(socket, GVars_Heart.lobbyService, Vue_Lobby::now) ;
-		// Once, while the screen opens : it resolves two names, which may take as long as a lookup does
-		lobby.ice().probe(Lobby_Ice.STUN_SERVERS) ;
+		if(GVars_Heart.tabLobby != null)
+		{
+			tab = GVars_Heart.tabLobby.get() ;
+			socket = tab.offerer() ;
+		}
+		else
+		{
+			socket = Transport_Udp.open() ;
+			lobby = new Lobby_Client(socket, GVars_Heart.lobbyService, Vue_Lobby::now) ;
+			// Once, while the screen opens : it resolves two names, which may take as long as a lookup does
+			lobby.ice().probe(Lobby_Ice.STUN_SERVERS) ;
+		}
 
 		choose() ;
 	}
@@ -134,16 +149,21 @@ public class Vue_Lobby extends AVue_Model
 		mode = Mode.CHOOSE ;
 		Table table = start("Online play") ;
 
-		TextButton host = button("Host a game") ;
-		focus.add(host, picker -> hostGame()) ;
-		table.add(host).width(width * 0.34f).height(height * 0.09f).padBottom(height * 0.03f).row();
+		// A tab is a player (d7) : it cannot host
+		if(tab == null)
+		{
+			TextButton host = button("Host a game") ;
+			focus.add(host, picker -> hostGame()) ;
+			table.add(host).width(width * 0.34f).height(height * 0.09f).padBottom(height * 0.03f).row();
+		}
 
 		Label open = new Label("Open games", GVars_Interface.baseSkin, "default") ;
 		table.add(open).padBottom(height * 0.01f).row();
-		Lobby_Message.Listing listing = lobby.listing() ;
+		Lobby_Message.Listing listing = listing() ;
 		if(listing == null || listing.rows.isEmpty())
 		{
-			Label none = new Label(listing == null ? "asking the lobby service..." : "none yet - host one, or type a code", GVars_Interface.baseSkin, "default") ;
+			String empty = tab == null ? "none yet - host one, or type a code" : "none yet - type a code" ;
+			Label none = new Label(listing == null ? "asking the lobby service..." : empty, GVars_Interface.baseSkin, "default") ;
 			none.getColor().a = 0.75f ;
 			table.add(none).padBottom(height * 0.03f).row();
 		}
@@ -236,7 +256,10 @@ public class Vue_Lobby extends AVue_Model
 			status.setText("A code is " + Lobby_Codec.CODE_LENGTH + " letters and digits.") ;
 			return ;
 		}
-		lobby.join(normal) ;
+		if(tab != null)
+			tab.join(normal) ;
+		else
+			lobby.join(normal) ;
 		joiningCode = normal ;
 		mode = Mode.JOINING ;
 		Table table = start("Joining " + spaced(normal)) ;
@@ -255,13 +278,18 @@ public class Vue_Lobby extends AVue_Model
 
 	private void leaveJoin()
 	{
-		lobby.stopJoining() ;
 		if(client != null)
 			client.close() ;
 		client = null ;
+		joiningCode = null ;
+		if(tab != null)
+		{
+			tab.stopJoining() ;
+			return ;
+		}
+		lobby.stopJoining() ;
 		if(lobby.joined() != null)
 			lobby.ice().forget(lobby.joined().host.get(0)) ;
-		joiningCode = null ;
 	}
 
 	/** A new screen : the title, and the status and advice lines every screen has at the bottom. */
@@ -306,10 +334,13 @@ public class Vue_Lobby extends AVue_Model
 		if(focus.runPicked())
 			return ;
 
-		// A joiner's session pumps the shared socket, the lobby's packets with it ; before one, the lobby does
+		// A joiner's session pumps the shared socket, the lobby's packets with it ; before one, the lobby does.
+		// A tab's lobby is its own WebSocket, pumped either way
 		if(client != null)
 			client.tick(0) ;
-		else
+		if(tab != null)
+			tab.pump() ;
+		else if(client == null)
 			lobby.pump() ;
 
 		switch(mode)
@@ -317,18 +348,21 @@ public class Vue_Lobby extends AVue_Model
 			case CHOOSE :
 				if(now() - lastBrowse >= BROWSE_MS)
 				{
-					lobby.browse() ;
+					if(tab != null)
+						tab.browse() ;
+					else
+						lobby.browse() ;
 					lastBrowse = now() ;
 				}
 				// Rebuilt only when the list changed, or the focus would jump back to the top every refresh
-				if(lobby.listing() != null && !listingKey(lobby.listing()).equals(listed))
+				if(listing() != null && !listingKey(listing()).equals(listed))
 					choose() ;
 				break ;
 			case HOSTING :
 				updateHosting() ;
 				break ;
 			case JOINING :
-				if(updateJoining())
+				if(tab != null ? updateTabJoining() : updateJoining())
 					return ;
 				break ;
 		}
@@ -369,8 +403,8 @@ public class Vue_Lobby extends AVue_Model
 			lines.add(new String[] {"Player " + number++, routeLine(link), link == null ? null : link.advice()}) ;
 		}
 		// A tab has no Lobby_Ice link : its route is its own WebRTC connection's
-		for(Lobby_Client.Tab tab : lobby.tabRows())
-			lines.add(new String[] {"Player " + number++, tabLine(tab), tab.tab.failure() == null ? null : "The browser could not connect : " + tab.tab.failure()}) ;
+		for(Lobby_Client.Tab browser : lobby.tabRows())
+			lines.add(new String[] {"Player " + number++, tabLine(browser), browser.tab.failure() == null ? null : "The browser could not connect : " + browser.tab.failure()}) ;
 		showRows(lines) ;
 	}
 
@@ -406,6 +440,60 @@ public class Vue_Lobby extends AVue_Model
 				return false ;
 		}
 	}
+
+	/** {@link #updateJoining()} in a browser tab : the route is the tab's own WebRTC call to the host. */
+	private boolean updateTabJoining()
+	{
+		List<String[]> lines = new ArrayList<String[]>() ;
+		lines.add(new String[] {"Host", tabRoute(), tab.failure()}) ;
+		lines.add(new String[] {"You", "in a browser", null}) ;
+		showRows(lines) ;
+
+		if(client == null && tab.state() == Lobby_Tab.State.OPEN)
+			client = new ClientSession(socket, tab.peer().address(), Vue_Client.machineKey(), relay) ;
+		if(client == null)
+			return false ;
+
+		switch(client.state())
+		{
+			case IN :
+				// The WebSocket was only for signalling : the game plays on the channel alone
+				tab.close() ;
+				handedOver = true ;
+				GVars_Heart.changeVue(new Vue_Client(null, socket, client, relay)) ;
+				return true ;
+			case ENDED :
+			case LOST :
+				// The host went quiet, or said no : a new call, and a new session once it opens
+				client = null ;
+				tab.join(joiningCode) ;
+				return false ;
+			default :
+				return false ;
+		}
+	}
+
+	private String tabRoute()
+	{
+		switch(tab.state())
+		{
+			case JOINING :
+				return "asking the lobby service..." ;
+			case OFFERING :
+				return tab.call() != null && tab.call().sdp() == null ? "describing this browser..." : "waiting for the host to answer..." ;
+			case CONNECTING :
+				return "connecting over WebRTC..." ;
+			case OPEN :
+				return "WebRTC data channel open" ;
+			case FAILED :
+				return "cannot connect" ;
+			default :
+				return "" ;
+		}
+	}
+
+	private Lobby_Message.Listing listing()
+	{return tab != null ? tab.listing() : lobby.listing() ;}
 
 	/** Rebuilt when a line changes : two labels a player, and the fix under a pair that needs one. */
 	private void showRows(List<String[]> lines)
@@ -484,19 +572,19 @@ public class Vue_Lobby extends AVue_Model
 	private void showStatus()
 	{
 		String text = "" ;
-		if(lobby.serviceOutdated() >= 0)
+		if(tab != null ? tab.serviceOutdated() >= 0 : lobby.serviceOutdated() >= 0)
 			text = "This game is out of date : update it to play online." ;
-		else if(lobby.serviceLost())
-			text = "The lobby service at " + GVars_Heart.lobbyService + " does not answer." ;
-		else if(mode == Mode.JOINING && lobby.refused() != null && joiningCode != null)
-			text = refusal(lobby.refused()) ;
+		else if(tab != null ? tab.serviceLost() : lobby.serviceLost())
+			text = "The lobby service" + (tab == null ? " at " + GVars_Heart.lobbyService : "") + " does not answer." ;
+		else if(mode == Mode.JOINING && joiningCode != null && (tab != null ? tab.refused() : lobby.refused()) != null)
+			text = refusal(tab != null ? tab.refused() : lobby.refused()) ;
 		else if(mode == Mode.JOINING && client != null)
 			text = "Waiting for the host to start." ;
 		else if(mode == Mode.HOSTING && lobby.code() == null)
 			text = "Opening your game..." ;
 		status.setText(text) ;
 
-		String fix = lobby.ice().advice() ;
+		String fix = tab != null ? null : lobby.ice().advice() ;
 		advice.setText(fix == null ? "" : fix) ;
 	}
 
@@ -602,7 +690,10 @@ public class Vue_Lobby extends AVue_Model
 		// Back to the menu, or the window closing : the lobby this machine hosts is closed, and the socket
 		if(client != null)
 			client.close() ;
-		lobby.close() ;
+		if(tab != null)
+			tab.close() ;
+		else
+			lobby.close() ;
 		socket.close() ;
 	}
 }

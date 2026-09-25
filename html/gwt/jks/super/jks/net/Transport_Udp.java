@@ -8,8 +8,8 @@ import java.util.function.LongSupplier;
  * which is a DatagramChannel and cannot be translated (html/gwt/jks/GdxDefinition.gwt.xml).
  *
  * It keeps the signatures the game names, so core compiles to JavaScript unchanged, and it refuses
- * to open : a tab has no UDP socket. Its transport is an RTCDataChannel, the next phase (r82) ;
- * until then, hosting, joining and the online lobby fail with this message in a tab.
+ * to open : a tab has no UDP socket. Its transport is an RTCDataChannel (r82, jks.html.Transport_Channel),
+ * and its Online play never opens this ; only --host and --join, which a page cannot pass, would.
  */
 public class Transport_Udp implements Net_Transport
 {
