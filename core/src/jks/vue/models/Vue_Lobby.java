@@ -598,6 +598,8 @@ public class Vue_Lobby extends AVue_Model
 				return "That game runs another version of La chasse-galerie : you both need the same one." ;
 			case FULL :
 				return "That game is full." ;
+			case NO_TABS :
+				return "That host cannot take browser players : join it from the desktop game." ;
 			default :
 				return "The lobby service is full : try again in a minute." ;
 		}

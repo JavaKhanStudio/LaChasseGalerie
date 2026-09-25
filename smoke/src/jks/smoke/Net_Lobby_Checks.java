@@ -101,6 +101,12 @@ class Net_Lobby_Checks
 		is(!back.unlisted, "HOST listed by default");
 		host.unlisted = true;
 		is(((Lobby_Message.Host) roundTrip(host)).unlisted, "HOST unlisted");
+		is(!back.tabs, "HOST takes no tabs by default");
+		host.tabs = true;
+		Lobby_Message.Host tabs = (Lobby_Message.Host) roundTrip(host);
+		is(tabs.tabs && tabs.unlisted, "HOST takes tabs, and is still unlisted");
+		eq(Lobby_Message.Refused.Reason.NO_TABS,
+				((Lobby_Message.Refused) roundTrip(new Lobby_Message.Refused("ABC234", Lobby_Message.Refused.Reason.NO_TABS, 1))).reason, "REFUSED NO_TABS");
 
 		Lobby_Message.Host fresh = new Lobby_Message.Host();
 		fresh.seats = 8;

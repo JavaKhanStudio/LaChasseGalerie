@@ -56,8 +56,9 @@ import jks.net.Turn_Codec;
  * A HOST THAT TAKES TABS (r80) has a {@link Net_Tabs} plugged in with {@link #tabs(Net_Tabs)} : it then
  * answers each offer by itself, sends the answer once gathered, and {@link #game()} carries the tabs'
  * peers ("rtc/N") beside the socket's, pumped and held the same way, so HostSession sees a tab like any
- * joiner. With none plugged - no WebRTC on this machine - offers wait in {@link #takeOffers()}, at most
- * {@link #HELD_OFFERS} of them, and one nobody answers is a tab refused.
+ * joiner. Its HOST says whether one is plugged, and with none - no WebRTC on this machine - the service
+ * refuses a tab NO_TABS (r85) ; an offer that still arrives waits in {@link #takeOffers()}, at most
+ * {@link #HELD_OFFERS} of them.
  *
  * Addresses are the transport's text : hand {@link #joined()}'s to the same transport, and a joiner's
  * game to {@code ice().link(joined().host.get(0)).address()} once that row is usable (DIRECT or RELAYED).
@@ -75,7 +76,7 @@ public final class Lobby_Client implements AutoCloseable
 	public static final long RETRY_MS = 500;
 	/** Game packets held while nobody pumps the game view. Past it, the oldest go, like a full socket buffer. */
 	static final int HELD = 256;
-	/** Offers kept for {@link #takeOffers()} when nobody takes them : a host with no tabs refuses by never answering. */
+	/** Offers kept for {@link #takeOffers()} when nobody takes them. A host with no tabs is refused for them by the service (r85). */
 	public static final int HELD_OFFERS = 16;
 
 	private final Net_Transport shared;
@@ -140,6 +141,8 @@ public final class Lobby_Client implements AutoCloseable
 	}
 
 	private Net_Tabs tabs;
+	/** Offers are answered by hand, through {@link #takeOffers()} and {@link #answer} (r85). */
+	private boolean byHand;
 	private final List<Tab> answering = new ArrayList<Tab>();
 
 	private boolean browsing;
@@ -366,14 +369,31 @@ public final class Lobby_Client implements AutoCloseable
 	{
 		if (this.tabs != null && this.tabs != tabs)
 			this.tabs.close();
+		boolean changed = takesTabs() != (tabs != null || byHand);
 		this.tabs = tabs;
 		answering.clear();
+		// The service refuses a tab at once for a host that says it has none (r85) : tell it now
+		if (changed && hosting)
+			sendHost();
+	}
+
+	/**
+	 * Takes tabs by hand : this host's HOST says it takes them with no {@link Net_Tabs} plugged, and the offers
+	 * wait in {@link #takeOffers()} for whoever {@link #answer}s them. For a probe that plays the host's WebRTC itself.
+	 */
+	public void answerTabsByHand()
+	{
+		if (byHand)
+			return;
+		byHand = true;
+		if (hosting)
+			sendHost();
 	}
 
 	/** Whether this host takes tabs : false when none is plugged, as on a machine whose WebRTC did not load. */
 	public boolean takesTabs()
 	{
-		return tabs != null;
+		return tabs != null || byHand;
 	}
 
 	/** The tabs this host answered and has not lost yet, in the order they came : a lobby screen's rows. */
@@ -472,6 +492,7 @@ public final class Lobby_Client implements AutoCloseable
 		if (relay != null)
 			relay.close();
 		tabs(null);
+		byHand = false;
 	}
 
 	// ---------------------------------------------------------------- what is known
@@ -788,6 +809,7 @@ public final class Lobby_Client implements AutoCloseable
 		host.players = players;
 		host.seats = seats;
 		host.unlisted = unlisted;
+		host.tabs = takesTabs();
 		host.candidates.addAll(candidates);
 		send(host);
 		lastHost = clock.getAsLong();

@@ -12,6 +12,8 @@
 #   tools/browser-gate/tabjoin.sh --draft     a 10 s unoptimized GWT compile
 #   tools/browser-gate/tabjoin.sh --no-build  plays what is already built
 #   START_AFTER_MS=15000 tabjoin.sh ...        the host starts that long after the tab's row opened
+#   REFUSED=1 tabjoin.sh ...                   a host with no WebRTC (-Dprobe.notabs, r85) : the tab must be
+#                                              refused at once and stay on its lobby screen (tab_2_refused.png)
 #
 # Fails unless the tab plays IN, draws snapshots with its own hero in them, its hero walks right in the
 # tab AND on the host (host.log), and the host's row for it said its route. Everything lands in
@@ -51,17 +53,22 @@ trap 'kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null' EXIT
 "$(dirname "$(readlink -f "$(command -v java)")")/jwebserver" -b 127.0.0.1 -p "$web" -d "$war" >"$out/server.log" 2>&1 & pids+=($!)
 for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$web/index.html" && grep -q "WS $ws" "$out/lobby.log" && break; sleep 0.1; done
 
-(cd "$root/desktop/assets" && exec "$root/tools/offscreen.sh" java --enable-native-access=ALL-UNNAMED -Dprobe.browser=true -Dprobe.startAfter="${START_AFTER_MS:-1000}" \
+(cd "$root/desktop/assets" && exec "$root/tools/offscreen.sh" java --enable-native-access=ALL-UNNAMED -Dprobe.browser=true -Dprobe.startAfter="${START_AFTER_MS:-1000}" -Dprobe.notabs="${REFUSED:+true}" \
 	-cp "$jar:$out/probe" Lobby_Screen_Probe host "$out" "127.0.0.1:$udp") >"$out/host.log" 2>&1 & host=$!
 pids+=($host)
 
 status=0
-node "$here/tabjoin.mjs" "http://127.0.0.1:$web/index.html?mute&menu&lobby=127.0.0.1:$ws" "$out" || status=$?
+REFUSED="${REFUSED:-}" node "$here/tabjoin.mjs" "http://127.0.0.1:$web/index.html?mute&menu&lobby=127.0.0.1:$ws" "$out" || status=$?
 # The host exits by itself once the tab wrote tab_done
 for _ in $(seq 150); do kill -0 $host 2>/dev/null || break; sleep 0.1; done
 wait $host 2>/dev/null || status=1
 
-grep -E "browser's row|row for the tab|second [0-9]+ :|FAIL" "$out/host.log" | sed 's/^/host: /'
+grep -E "browser's row|row for the tab|second [0-9]+ :|no tabs :|FAIL" "$out/host.log" | sed 's/^/host: /'
+if [ -n "${REFUSED:-}" ]; then
+	grep -q "no tabs : true, browser rows 0, offers held 0" "$out/host.log" || { echo "tabjoin: FAILED — the host took the tab, or its offer"; status=1; }
+	[ $status = 0 ] && echo "tabjoin: ok, refused — $out" || echo "tabjoin: FAILED — see $out"
+	exit $status
+fi
 row=$(grep -o "row for the tab says : .*" "$out/host.log" || true)
 [ -n "$row" ] || { echo "tabjoin: FAILED — the host never showed the tab's row open"; status=1; }
 tab_player=$(python3 -c "import json; print(json.load(open('$out/tab.json')).get('player', 0))" 2>/dev/null || echo 0)

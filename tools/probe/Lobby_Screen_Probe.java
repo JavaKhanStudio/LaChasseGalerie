@@ -324,6 +324,17 @@ public class Lobby_Screen_Probe implements ApplicationListener
 	/** Host step 3 with -Dprobe.browser : a real tab's row, once its channel is open for a second, then Start. */
 	void hostBrowser() throws Exception
 	{
+		// With -Dprobe.notabs (r85) : the service refuses the tab NO_TABS ; this host only waits for it to say it saw that
+		if(noTabs)
+		{
+			if(!Files.exists(Paths.get(out, "tab_done")) && since() < 60_000)
+				return ;
+			grab("host_5_no_tabs.png") ;
+			log("no tabs : " + !lobby().takesTabs() + ", browser rows " + lobby().tabRows().size() + ", offers held " + lobby().takeOffers().size()) ;
+			Gdx.app.exit() ;
+			step = 99 ;
+			return ;
+		}
 		java.util.List<Lobby_Client.Tab> rows = lobby().tabRows() ;
 		boolean open = !rows.isEmpty() && rows.get(rows.size() - 1).tab.open() ;
 		if(open && browserOpenAt < 0)

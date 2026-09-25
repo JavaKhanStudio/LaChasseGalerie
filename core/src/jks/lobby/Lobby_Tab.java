@@ -170,7 +170,7 @@ public final class Lobby_Tab
 					since = now;
 				}
 				else if (offerSent && now - since >= ANSWER_MS)
-					fail("the host did not answer : it cannot take browser players");
+					fail("the host did not answer");
 				break;
 			case CONNECTING :
 				if (call.failure() != null)

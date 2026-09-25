@@ -198,7 +198,7 @@ public class Net_Procs
 		if (removed == 0)
 			throw new IllegalStateException("no webrtc-java natives jar on the classpath to take away : " + full);
 		int failures = tabRun(classpath, full, true) + tabRun(classpath, bare.toString(), false);
-		System.out.println(failures == 0 ? "PROCS ok : a host JVM played a UDP client JVM and a tab JVM through a lobby service ; without WebRTC natives it played the UDP client and left the tab unanswered"
+		System.out.println(failures == 0 ? "PROCS ok : a host JVM played a UDP client JVM and a tab JVM through a lobby service ; without WebRTC natives it played the UDP client and the tab was refused NO_TABS"
 				: "PROCS FAILED : " + failures + " problem(s)");
 		return failures == 0 ? 0 : 1;
 	}
@@ -388,8 +388,10 @@ public class Net_Procs
 						throw new IllegalStateException(seat.player + " played from " + seat.peer.address() + ", not from an address the service mirrored : " + mirrored);
 				if (tabSeats != Math.max(0, tabs))
 					throw new IllegalStateException(tabSeats + " tabs played, expected " + Math.max(0, tabs));
-				if (tabs == 0 && lobby.takeOffers().isEmpty() && lobby.offersRefused == 0)
-					throw new IllegalStateException("a host with no tabs never saw the tab's offer : nothing proves it was refused");
+				if (tabs == 0 && lobby.takesTabs())
+					throw new IllegalStateException("a host with no WebRTC told the service it takes tabs : the tab was not refused");
+				if (tabs == 0 && !lobby.takeOffers().isEmpty())
+					throw new IllegalStateException("a tab's offer reached a host with no WebRTC : the service should have refused it NO_TABS");
 				System.out.println("every UDP player came from an address the service mirrored : " + mirrored + (tabs >= 0 ? " ; tabs " + tabSeats : ""));
 				for (Lobby_Ice.Link row : lobby.ice().links())
 					System.out.println("lobby row " + row + (row.advice() == null ? "" : " : " + row.advice()));
@@ -448,8 +450,8 @@ public class Net_Procs
 	/**
 	 * A browser tab, played by this JVM (r80) : java.net.http's WebSocket on the service's front joins the
 	 * code and offers a Transport_Rtc's description ; with the host's answer the data channel opens and a
-	 * ClientSession plays on it, held to a client's account. Refused : the host has no WebRTC, and the tab
-	 * must get no answer in the time a host that has takes.
+	 * ClientSession plays on it, held to a client's account. Refused : the host has no WebRTC, and the tab's
+	 * JOIN must be REFUSED NO_TABS within a second (r85).
 	 */
 	static int tab(String ws, String code, String name, boolean refused)
 	{
@@ -460,7 +462,21 @@ public class Net_Procs
 			Lobby_Message.Join join = new Lobby_Message.Join();
 			join.code = code;
 			tab.send(join);
+			long asked = System.nanoTime();
 			Lobby_Message joined = next(tab, 10_000);
+			if (refused)
+			{
+				// r85 : the service says no at once, and why, rather than letting the tab wait for an answer
+				long waited = (System.nanoTime() - asked) / 1_000_000L;
+				if (!(joined instanceof Lobby_Message.Refused) || ((Lobby_Message.Refused) joined).reason != Lobby_Message.Refused.Reason.NO_TABS)
+					throw new IllegalStateException(name + " was not refused NO_TABS by a host with no WebRTC : " + joined);
+				if (waited > 1000)
+					throw new IllegalStateException(name + " was refused after " + waited + " ms, not within a second");
+				System.out.println(name + " : refused NO_TABS in " + waited + " ms, as due from a host with no WebRTC");
+				System.out.println(name + " ok");
+				tab.socket.abort();
+				return 0;
+			}
 			if (!(joined instanceof Lobby_Message.Joined))
 				throw new IllegalStateException(name + " was not joined : " + joined);
 			Transport_Rtc.Call call = transport.offer();
@@ -473,16 +489,7 @@ public class Net_Procs
 			}
 			tab.send(new Lobby_Message.Offer(code, call.sdp()));
 			System.out.println(name + " : joined " + code + " on the WebSocket front, offered " + call.sdp().length() + " B");
-			Lobby_Message answer = next(tab, refused ? 6_000 : 10_000);
-			if (refused)
-			{
-				if (answer != null)
-					throw new IllegalStateException(name + " was answered by a host with no WebRTC : " + answer);
-				System.out.println(name + " : no answer in 6 s, as due from a host with no WebRTC");
-				System.out.println(name + " ok");
-				tab.socket.abort();
-				return 0;
-			}
+			Lobby_Message answer = next(tab, 10_000);
 			if (!(answer instanceof Lobby_Message.Answer))
 				throw new IllegalStateException(name + " got no answer : " + answer);
 			call.answered(((Lobby_Message.Answer) answer).sdp);

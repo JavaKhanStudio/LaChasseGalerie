@@ -36,6 +36,7 @@ public class Net_Tab_Online
 		{
 			Lobby_Client host = new Lobby_Client(hostSocket, service, clock);
 			Runnable pump = host::pump;
+			host.answerTabsByHand();
 			host.host(4);
 			say(until(pump, () -> host.code() != null, 5_000), "the service at " + service + " opened a lobby : " + host.code()
 					+ (host.serviceOutdated() >= 0 ? " (the service speaks lobby version " + host.serviceOutdated() + ", this game " + Lobby_Codec.VERSION + ")" : ""));

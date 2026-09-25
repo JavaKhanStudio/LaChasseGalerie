@@ -45,7 +45,8 @@ import jks.net.Net_Transport;
  * description instead ; the service names the offer with a call, hands it to the host in OFFER_PARTs over
  * the host's own socket, puts the host's ANSWER_PARTs back together ({@link Lobby_Chunks}) and gives the
  * tab the ANSWER whole. A call the host does not answer within {@link #CALL_MS} is forgotten. Only a
- * tab offers, and only a host answers, and only the call it was given.
+ * tab offers, and only a host answers, and only the call it was given. A host says in its HOST whether it
+ * takes tabs (r85) ; a tab's JOIN or OFFER to one that does not is REFUSED NO_TABS, never left to time out.
  *
  * A lobby lives as long as its host keeps sending HOST ({@link Lobby_Client#REFRESH_MS}) : it is gone
  * {@link #REAP_MS} after the last one, and at once on CLOSE. The transport's own timeout is not asked :
@@ -76,6 +77,8 @@ public final class Lobby_Service
 		public int game, players, seats;
 		/** A private lobby (r76) : left out of every LISTING, joined by its code alone. */
 		public boolean unlisted;
+		/** The host answers a tab's offer (r85) : a tab that JOINs or OFFERs to one that does not is refused NO_TABS, at once. */
+		public boolean tabs;
 		/** The host's public address first, then what it said it can also be reached at. */
 		public final List<String> candidates = new ArrayList<String>();
 		long lastHeard;
@@ -310,6 +313,7 @@ public final class Lobby_Service
 		lobby.players = message.players;
 		lobby.seats = message.seats;
 		lobby.unlisted = message.unlisted;
+		lobby.tabs = message.tabs;
 		lobby.candidates.clear();
 		addCandidates(lobby.candidates, from.address(), message.candidates);
 		lobby.lastHeard = clock.getAsLong();
@@ -344,6 +348,9 @@ public final class Lobby_Service
 			no = Lobby_Message.Refused.Reason.VERSION;
 		else if (lobby.players >= lobby.seats)
 			no = Lobby_Message.Refused.Reason.FULL;
+		// Said at the JOIN, before the tab spends seconds gathering an offer nobody will answer
+		else if (isTab(from) && !lobby.tabs)
+			no = Lobby_Message.Refused.Reason.NO_TABS;
 		if (no == null)
 			return lobby;
 		refusals++;

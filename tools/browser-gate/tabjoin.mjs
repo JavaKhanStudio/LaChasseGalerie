@@ -4,7 +4,8 @@
 // the host's code typed into the lobby screen (from <outdir>/code.txt, which the host probe writes), Enter
 // to join. Then waits for the host to start, presses Space for a hero and holds Right, reading
 // window.lcg.online() ("state player snapshots x"). Writes tab_1_lobby.png, tab_2_joining.png,
-// tab_3_run.png and tab.json, then <outdir>/tab_done so the host probe stops.
+// tab_3_run.png and tab.json, then <outdir>/tab_done so the host probe stops. REFUSED=1 : tab_2_refused.png, and
+// the tab must still be on its lobby screen 4.5 s after Enter.
 import puppeteer from 'puppeteer-core';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
@@ -27,7 +28,7 @@ const online = async (page) => {
 	const [state, player, snapshots, x] = text.split(' ');
 	return { text, state, player: Number(player), snapshots: Number(snapshots), x: x === undefined || x === '-' ? null : Number(x) };
 };
-try {
+run: try {
 	const page = await browser.newPage();
 	page.on('console', (m) => report.console.push(m.type() + ': ' + m.text()));
 	page.on('pageerror', (e) => report.console.push('pageerror: ' + e.message));
@@ -53,6 +54,16 @@ try {
 	await page.keyboard.type(code.toLowerCase(), { delay: 40 });
 	await sleep(300);
 	await page.keyboard.press('Enter');
+	if (process.env.REFUSED) {
+		// r85 : a host with no WebRTC. The service says NO_TABS at the JOIN : the tab stays on its lobby screen and says why
+		await sleep(1500);
+		await page.screenshot({ path: `${out}/tab_2_refused.png` });
+		await sleep(3000);
+		report.vue = await page.evaluate(() => window.lcg.vue());
+		if (!report.vue.endsWith('Vue_Lobby')) fail(`a refused tab left its lobby screen for ${report.vue}`);
+		else say('refused, and still on its lobby screen');
+		break run;
+	}
 	await sleep(1500);
 	await page.screenshot({ path: `${out}/tab_2_joining.png` });
 

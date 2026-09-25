@@ -69,6 +69,8 @@ public abstract class Lobby_Message
 		public int players, seats;
 		/** True for a private lobby (r76) : BROWSE never lists it, and its code alone lets a friend JOIN. */
 		public boolean unlisted;
+		/** True when the host answers a browser tab's offer (r85) : it has WebRTC. The service refuses a tab NO_TABS otherwise. */
+		public boolean tabs;
 		/** Addresses the host can also be reached at, besides the one the service sees : its LAN, its IPv6. */
 		public final List<String> candidates = new ArrayList<String>();
 
@@ -285,7 +287,9 @@ public abstract class Lobby_Message
 			/** Every seat in that lobby is taken. */
 			FULL,
 			/** The service holds as many lobbies as it will : a HOST is refused, try later. */
-			SERVICE_FULL;
+			SERVICE_FULL,
+			/** To a tab (r85, version 5) : that host has no WebRTC, so it cannot take a browser player. */
+			NO_TABS;
 
 			static Reason of(int code)
 			{
@@ -332,7 +336,7 @@ public abstract class Lobby_Message
 	 * description is whole, never trickled ({@code jks.rtc.Transport_Rtc} sends one once ICE gathering is
 	 * complete), and at about 1 kB it is past one lobby packet : the service hands it to the host in
 	 * {@link Part}s and brings the host's {@link Answer} back. Refused like a JOIN : no such lobby, another
-	 * version, full.
+	 * version, full, or a host with no WebRTC (NO_TABS).
 	 */
 	public static final class Offer extends Lobby_Message
 	{

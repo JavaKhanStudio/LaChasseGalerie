@@ -375,9 +375,10 @@ jks.net.Net_Tabs is the seam (a Net_Transport whose peers are "rtc/N" and which 
 implements it), so jks.lobby stays JDK-only. Lobby_Client.tabs(Net_Tabs) plugs one in: it then answers each
 whole offer ITSELF, sends the ANSWER once gathered (once), lists them in tabRows() (Vue_Lobby's "browser : ..."
 rows - a tab has no Lobby_Ice link), and game() routes "rtc/" peers to it, pumped and HELD like the socket's,
-so HostSession sees a tab as any joiner. The client OWNS it: close() closes it. With none plugged (natives did
-not load) offers wait in takeOffers(), capped at HELD_OFFERS, and nothing answers them: that IS the refusal (no
-protocol message, no redeploy). Core reaches rtc through GVars_Heart.tabs, a Supplier Launcher_Game sets
+so HostSession sees a tab as any joiner. The client OWNS it: close() closes it. HOST carries takesTabs()
+(r85, lobby VERSION 5): true with a Net_Tabs plugged, or after answerTabsByHand() (probes that answer through
+takeOffers()/answer themselves - nettest, netwsonline); with neither (natives did not load) the service REFUSES a
+tab's JOIN and OFFER at once, reason NO_TABS, and the tab's screen says so (REFUSED=1 tabjoin.sh renders it). Core reaches rtc through GVars_Heart.tabs, a Supplier Launcher_Game sets
 (Transport_Rtc.open + STUN_SERVERS; the tab brings TURN from its JOINED). libwebrtc's threads are NOT daemon:
 an unclosed Transport_Rtc keeps a JVM alive after its window is gone (Main_Game.dispose disposes a Vue_Lobby
 for that). Next, in order: r81 DONE (the html module: core/src now
@@ -406,7 +407,7 @@ so turnserver.conf DENIES every loopback/private/carrier range and the box's own
 remove a denied-peer-ip line to make a test pass - test on a local coturn. The secret is made on the
 box, never leaves it (/opt/lachassegalerie/relay/.env, 0600), and the lobby mints TURN REST credentials
 from it (24 h, username = expiry:code) into HOSTED and JOINED: lobby protocol VERSION 2 added that relay
-block (VERSION 4 since r79: a game and VPS_1's service must match, so redeploy deploy/lobby with any bump). Game side: jks.net.Turn_Codec (TURN on STUN framing, long-term credential; checked against RFC
+block (VERSION 5 since r85: a game and VPS_1's service must match, so redeploy deploy/lobby with any bump). Game side: jks.net.Turn_Codec (TURN on STUN framing, long-term credential; checked against RFC
 5769's signed vector) and jks.net.Turn_Client (one allocation on the SHARED socket). Only the JOINER
 allocates, on JOINED; it offers the relayed ip:port in its next JOIN, permits the host's ip, and reaches
 the host as the peer "relay/<host ip:port>", which Lobby_Client's views resolve and send through the

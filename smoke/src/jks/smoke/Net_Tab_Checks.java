@@ -15,6 +15,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashSet;
@@ -224,6 +225,7 @@ class Net_Tab_Checks
 		Queue_Front front = new Queue_Front();
 		rig.service.front(front);
 		Lobby_Client host = rig.client("host");
+		host.answerTabsByHand();
 		host.host(8);
 		rig.until(() -> host.code() != null, 5000, "no code");
 		rig.wire.loss = 0.15f;
@@ -425,13 +427,33 @@ class Net_Tab_Checks
 		rig.until(() -> host.code() != null, 5000, "no code");
 
 		is(!host.takesTabs(), "a host takes tabs before any is plugged");
+		// r85 : the service refuses a tab at once, at its JOIN and at its OFFER, for a host that said it has no WebRTC
+		Lobby_Message.Join tabJoin = new Lobby_Message.Join();
+		tabJoin.code = host.code();
+		front.send(tabJoin);
+		front.send(new Lobby_Message.Offer(host.code(), sdp("refused", 1500)));
+		rig.step(250);
+		rig.step(250);
+		List<Lobby_Message.Refused.Reason> reasons = new ArrayList<Lobby_Message.Refused.Reason>();
+		for (Lobby_Message message : front.toTab)
+			if (message instanceof Lobby_Message.Refused)
+				reasons.add(((Lobby_Message.Refused) message).reason);
+		eq(Arrays.asList(Lobby_Message.Refused.Reason.NO_TABS, Lobby_Message.Refused.Reason.NO_TABS), reasons,
+				"what a tab is told within half a second by a host with no tabs");
+		eq(0, rig.service.offers, "offers the service passed to a host with no tabs");
+		is(host.takeOffers().isEmpty(), "an offer reached a host with no tabs");
+		front.toTab.clear();
+
+		// A host that answers by hand says it takes tabs ; its offers wait for takeOffers, at most HELD_OFFERS
+		host.answerTabsByHand();
+		rig.step(250);
 		for (int i = 0; i < Lobby_Client.HELD_OFFERS + 4; i++)
 		{
 			front.send(new Lobby_Message.Offer(host.code(), sdp("unheard" + i, 1500)));
 			rig.step(250);
 		}
 		rig.step(250);
-		eq(0, answers(front), "answers from a host with no tabs");
+		eq(0, answers(front), "answers from a host that answers by hand, before it does");
 		eq(4, host.offersRefused, "offers past HELD_OFFERS, dropped");
 		List<Lobby_Client.Call> kept = host.takeOffers();
 		eq(Lobby_Client.HELD_OFFERS, kept.size(), "offers kept for takeOffers");
@@ -632,6 +654,7 @@ class Net_Tab_Checks
 	{
 		try (Live live = new Live())
 		{
+			live.host.answerTabsByHand();
 			live.host.host(8);
 			live.until(() -> live.host.code() != null, 3000, "the host got no code");
 			String code = live.host.code();
@@ -836,8 +859,8 @@ class Net_Tab_Checks
 	/**
 	 * A browser tab's lobby (r82), the Lobby_Tab html's Vue_Lobby plays on, over a real WebSocket front : it
 	 * lists the host's lobby, is refused a code nobody hosts, joins, offers through the relay its JOINED
-	 * named, and its channel opens with the host's answer ; a host that cannot take tabs never answers, and
-	 * the tab gives up after ANSWER_MS and says so ; the service going is seen.
+	 * named, and its channel opens with the host's answer ; a host that cannot take tabs is refused NO_TABS at
+	 * once (r85), one that takes them but never answers is given up on after ANSWER_MS ; the service going is seen.
 	 */
 	static void tabLobbyJoinsAndOffers() throws Exception
 	{
@@ -872,27 +895,45 @@ class Net_Tab_Checks
 			eq(1, tabs.calls.size(), "offers the host answered");
 			eq(sdp("tab-rtc/1", 1100), tabs.calls.get(0).offer, "the offer the host answered, whole");
 
-			// A host with no WebRTC : its lobby holds the offer and answers nothing
+			// A host with no WebRTC (r85) : the tab is refused NO_TABS at its JOIN, within a second, and makes no call
 			try (Live bare = new Live())
 			{
 				bare.host.host(8);
 				bare.until(() -> bare.host.code() != null, 3000, "the second host got no code");
-				Lobby_Tab unanswered = new Lobby_Tab(new Ws_Transport(bare.tab()), "127.0.0.1:" + bare.front.localPort(), new Fake_Offerer(),
+				Fake_Offerer never = new Fake_Offerer();
+				Lobby_Tab refused = new Lobby_Tab(new Ws_Transport(bare.tab()), "127.0.0.1:" + bare.front.localPort(), never,
+						() -> System.nanoTime() / 1_000_000L);
+				refused.join(bare.host.code());
+				bare.until(() -> { refused.pump(); return refused.state() == Lobby_Tab.State.FAILED; }, 1000,
+						"a tab joining a host with no WebRTC was not refused within a second : " + refused.state());
+				eq(Lobby_Message.Refused.Reason.NO_TABS, refused.refused().reason, "the refusal");
+				is(refused.failure().contains("NO_TABS"), "the failure says why : " + refused.failure());
+				eq(0, never.calls, "calls made for a host with no WebRTC");
+				refused.close();
+			}
+
+			// A host that takes tabs by hand and never answers : the tab gives up after ANSWER_MS
+			try (Live silent = new Live())
+			{
+				silent.host.answerTabsByHand();
+				silent.host.host(8);
+				silent.until(() -> silent.host.code() != null, 3000, "the third host got no code");
+				Lobby_Tab unanswered = new Lobby_Tab(new Ws_Transport(silent.tab()), "127.0.0.1:" + silent.front.localPort(), new Fake_Offerer(),
 						() -> System.nanoTime() / 1_000_000L + skew[0]);
-				unanswered.join(bare.host.code());
+				unanswered.join(silent.host.code());
 				List<Lobby_Client.Call> held = new ArrayList<Lobby_Client.Call>();
-				bare.until(() -> { unanswered.pump(); held.addAll(bare.host.takeOffers()); return !held.isEmpty(); }, 3000,
-						"the offer never reached the host with no WebRTC : " + unanswered.state() + " " + unanswered.failure());
+				silent.until(() -> { unanswered.pump(); held.addAll(silent.host.takeOffers()); return !held.isEmpty(); }, 3000,
+						"the offer never reached the host : " + unanswered.state() + " " + unanswered.failure());
 				for (int i = 0; i < 20; i++)
 				{
-					bare.pump();
+					silent.pump();
 					unanswered.pump();
 				}
-				eq(Lobby_Tab.State.OFFERING, unanswered.state(), "a tab waiting on a host with no WebRTC");
+				eq(Lobby_Tab.State.OFFERING, unanswered.state(), "a tab waiting on a host that does not answer");
 				skew[0] += Lobby_Tab.ANSWER_MS;
 				unanswered.pump();
 				eq(Lobby_Tab.State.FAILED, unanswered.state(), "a tab past ANSWER_MS");
-				is(unanswered.failure().contains("cannot take browser players"), "the failure says why : " + unanswered.failure());
+				is(unanswered.failure().contains("did not answer"), "the failure says why : " + unanswered.failure());
 				unanswered.close();
 			}
 
