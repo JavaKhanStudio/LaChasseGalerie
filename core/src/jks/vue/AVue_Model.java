@@ -14,6 +14,9 @@ public abstract class AVue_Model
 	public abstract void update (float delta) ;
 	public abstract void render () ;
 	
+	/** The window changed size : a view with a Stage of its own updates its viewport here. */
+	public void resize (int width, int height) {}
+	
 	/** Called by GVars_Heart.changeVue before this view is replaced : let go of what it owns. */
 	public void dispose () {}
 	

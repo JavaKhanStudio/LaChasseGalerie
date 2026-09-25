@@ -109,15 +109,15 @@ public class Vue_Lobby extends AVue_Model
 		GVars_Parralax.init();
 		GVars_Parralax.setPages(Enum_ColdNight.COLD_NIGHT, Enum_ColdNight.COLD_WATER) ;
 
-		stage = new Stage() ;
+		stage = GVars_Interface.menuStage() ;
 		padListener = new IKM_Menu_XBoxController(focus) ;
 		// The Stage first for the pointer, then the code being typed, then the arrows and Enter
 		Gdx.input.setInputProcessor(new InputMultiplexer(stage, typing, new IKM_Menu_Keyboard(focus))) ;
 		Controllers.clearListeners();
 		Controllers.addListener(padListener) ;
 
-		width = Gdx.graphics.getWidth() ;
-		height = Gdx.graphics.getHeight() ;
+		width = stage.getWidth() ;
+		height = stage.getHeight() ;
 
 		socket = Transport_Udp.open() ;
 		lobby = new Lobby_Client(socket, GVars_Heart.lobbyService, Vue_Lobby::now) ;
@@ -546,6 +546,10 @@ public class Vue_Lobby extends AVue_Model
 	} ;
 
 	@Override
+	public void resize(int width, int height)
+	{stage.getViewport().update(width, height, true) ;}
+
+	@Override
 	public void render()
 	{
 		Gdx.gl.glClearColor(0, 0, 0, 1);
@@ -554,6 +558,7 @@ public class Vue_Lobby extends AVue_Model
 		GVars_Parralax.background.render();
 		GVars_Parralax.foreground.render();
 
+		stage.getViewport().apply();
 		stage.draw();
 	}
 

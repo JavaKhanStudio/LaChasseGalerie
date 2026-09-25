@@ -100,6 +100,13 @@ public class Vue_Game extends AVue_Model
     }
 
     @Override
+    public void resize(int width, int height)
+    {
+    	if(scoreScreen != null)
+    		scoreScreen.resize(width, height);
+    }
+    
+    @Override
     public void render() 
     {
     	// Black bars outside the world, then the world's view : everything below is drawn inside it

@@ -41,7 +41,9 @@ public class Score_Screen_Probe implements ApplicationListener
 		GVars_Heart.startAtMenu = false ;
 		jks.sounds.GVars_Audio.muted = true ;
 		Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration() ;
-		config.setWindowedMode(1280, 720) ;
+		// -Dprobe.size=1920x1080 : in gamescope's headless backend (see Lobby_Screen_Probe), not cage
+		String[] size = System.getProperty("probe.size", "1280x720").split("x") ;
+		config.setWindowedMode(Integer.parseInt(size[0]), Integer.parseInt(size[1])) ;
 		config.setTitle("score screen probe") ;
 		new Lwjgl3Application(new Score_Screen_Probe(arg.length > 0 ? arg[0] : "."), config) ;
 	}

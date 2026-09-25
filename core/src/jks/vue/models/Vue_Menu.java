@@ -51,7 +51,7 @@ public class Vue_Menu extends AVue_Model
 		GVars_Parralax.init();
 		GVars_Parralax.setPages(Enum_ColdNight.COLD_NIGHT, Enum_ColdNight.COLD_WATER) ;
 
-		stage = new Stage() ;
+		stage = GVars_Interface.menuStage() ;
 		focus = new Menu_Focus() ;
 
 		// The Stage first, so the pointer keeps its clicks ; the keys it does not want fall through
@@ -60,8 +60,8 @@ public class Vue_Menu extends AVue_Model
 		Controllers.clearListeners();
 		Controllers.addListener(padListener) ;
 
-		float width = Gdx.graphics.getWidth() ;
-		float height = Gdx.graphics.getHeight() ;
+		float width = stage.getWidth() ;
+		float height = stage.getHeight() ;
 
 		Table table = new Table() ;
 		table.setFillParent(true);
@@ -103,6 +103,10 @@ public class Vue_Menu extends AVue_Model
 	}
 
 	@Override
+	public void resize(int width, int height)
+	{stage.getViewport().update(width, height, true) ;}
+
+	@Override
 	public void render()
 	{
 		Gdx.gl.glClearColor(0, 0, 0, 1);
@@ -111,6 +115,7 @@ public class Vue_Menu extends AVue_Model
 		GVars_Parralax.background.render();
 		GVars_Parralax.foreground.render();
 
+		stage.getViewport().apply();
 		stage.draw();
 	}
 

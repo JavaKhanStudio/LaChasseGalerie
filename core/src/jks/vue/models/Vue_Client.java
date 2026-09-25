@@ -198,7 +198,7 @@ public class Vue_Client extends AVue_Model
 
 		status = new Label("", GVars_Interface.baseSkin) ;
 		status.setFontScale(2);
-		status.setPosition(Gdx.graphics.getWidth() * 0.03f, Gdx.graphics.getHeight() * 0.92f);
+		status.setPosition(GVars_Interface.mainInterface.getWidth() * 0.03f, GVars_Interface.mainInterface.getHeight() * 0.92f);
 		GVars_Interface.mainInterface.addActor(status);
 
 		Gdx.input.setInputProcessor(new InputMultiplexer(GVars_Interface.mainInterface, keyboard));
@@ -331,6 +331,13 @@ public class Vue_Client extends AVue_Model
 		GVars_AudioManager.PlayAmbiance(Enum_Ambiance.WATER) ;
 		shownStory = 0 ;
 		shownSky = 0 ;
+	}
+
+	@Override
+	public void resize(int width, int height)
+	{
+		if(scoreScreen != null)
+			scoreScreen.resize(width, height) ;
 	}
 
 	@Override

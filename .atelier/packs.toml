@@ -175,7 +175,7 @@ sets the "font" line height to 21 (the .fnt says 16, its descenders reach 19: wr
 overlapped, r75). Icons:
 ui/score.png, ui/death.png, tinted per player with the hero's colour in
 ScoreLabel.setColor.
-Every size is computed ONCE in GVars_Interface.init from Gdx.graphics: the table is 70% x
+Every size is computed ONCE in GVars_Interface.init from mainInterface's 1280x720 world (menuStage, r77), never Gdx.graphics: the table is 70% x
 12% of the window and ScoreLabel.buttonSize is a static Float set there. A ScoreLabel
 built before init unboxes a null Float and NPEs; nothing recomputes on another resolution.
 ScoreLabel's widgets override getPrefWidth/getPrefHeight in anonymous subclasses — that,
@@ -190,6 +190,9 @@ lose its e the same way. Either stay in ASCII or re-export the fonts.
 A SECOND VIEW EXISTS NOW (r18, Vue_Menu, behind --menu; and a third, r43's Vue_Lobby, the same way): it builds its OWN Stage, because
 GVars_Interface.init unconditionally puts the score table on the shared one. Widgets outside the
 game go through GVars_Interface.loadSkin(), which gives the skin without the HUD.
+That Stage comes from GVars_Interface.menuStage() (r77): a 1280x720 ExtendViewport, so text grows
+with the window like the buttons. Lay a menu out on stage.getWidth()/getHeight(), NEVER Gdx.graphics,
+apply its viewport before draw, and update it in the view's resize (AVue_Model.resize).
 ITS BUTTONS ARE NOT THE MOUSE'S ALONE (d8, r28): each one is a choice in a
 jks.vinterface.Menu_Focus ring, which the pointer, IKM_Menu_Keyboard (arrows, Space, Enter) and
 IKM_Menu_XBoxController (left stick, d-pad, A) all move and pick. Add a choice with

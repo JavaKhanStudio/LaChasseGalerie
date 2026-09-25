@@ -49,7 +49,7 @@ public class Score_Screen
 		}
 	}
 
-	private final Stage stage = new Stage() ;
+	private final Stage stage = GVars_Interface.menuStage() ;
 	/** The host's choices. Empty on a client. */
 	public final Menu_Focus focus = new Menu_Focus() ;
 	private final Table panel = new Table() ;
@@ -63,8 +63,8 @@ public class Score_Screen
 	 */
 	public Score_Screen(List<Row> rows, String waiting)
 	{
-		float width = Gdx.graphics.getWidth() ;
-		float height = Gdx.graphics.getHeight() ;
+		float width = stage.getWidth() ;
+		float height = stage.getHeight() ;
 
 		Table root = new Table() ;
 		root.setFillParent(true) ;
@@ -102,7 +102,7 @@ public class Score_Screen
 		TextButton button = new TextButton(text, GVars_Interface.baseSkin) ;
 		focus.add(button, onPick) ;
 		Table root = (Table) stage.getActors().first() ;
-		root.add(button).width(Gdx.graphics.getWidth() * 0.34f).height(Gdx.graphics.getHeight() * 0.11f).padBottom(Gdx.graphics.getHeight() * 0.03f).row() ;
+		root.add(button).width(stage.getWidth() * 0.34f).height(stage.getHeight() * 0.11f).padBottom(stage.getHeight() * 0.03f).row() ;
 	}
 
 	/**
@@ -120,6 +120,9 @@ public class Score_Screen
 	/** Changes the line under the table. */
 	public void say(String text)
 	{line.setText(text) ;}
+
+	public void resize(int width, int height)
+	{stage.getViewport().update(width, height, true) ;}
 
 	public void act(float delta)
 	{stage.act(delta) ;}

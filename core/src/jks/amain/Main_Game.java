@@ -104,6 +104,8 @@ public class Main_Game extends ApplicationAdapter
 		GVars_Camera.resize(width, height);
 		if(GVars_Interface.mainInterface != null)
 			GVars_Interface.mainInterface.getViewport().update(width, height, true);
+		if(GVars_Heart.vue != null)
+			GVars_Heart.vue.resize(width, height);
 	}
 	
     @Override
