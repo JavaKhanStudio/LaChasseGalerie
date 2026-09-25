@@ -1,0 +1,23 @@
+// A browser tab's transport, on the desktop side (r46, phase 2.6) : a WebRTC data channel behind
+// Net_Transport, through dev.onvoid.webrtc:webrtc-java (JNI, one native jar per platform, about 9 MB
+// packed). Its own module so the lobby service and the headless loop never load a WebRTC stack :
+// only desktop (the host a tab joins) and smoke (the gates) depend on it.
+
+apply plugin: 'java-library'
+
+sourceSets.main.java.srcDirs = ['src']
+
+def webrtcPlatform = {
+    def os = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+    def arch = System.getProperty('os.arch').toLowerCase(Locale.ROOT)
+    def cpu = arch in ['aarch64', 'arm64'] ? 'aarch64' : 'x86_64'
+    os.contains('win') ? "windows-$cpu" : os.contains('mac') ? "macos-$cpu" : "linux-$cpu"
+}()
+
+dependencies {
+    // jks.net only : what a transport implements. Not libGDX
+    implementation(project(':core')) { transitive = false }
+    api "dev.onvoid.webrtc:webrtc-java:$webrtcVersion"
+    // The natives of the machine that builds : a dist or a jpackage image is per platform already
+    runtimeOnly "dev.onvoid.webrtc:webrtc-java:$webrtcVersion:$webrtcPlatform"
+}

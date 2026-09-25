@@ -10,8 +10,8 @@ import java.util.List;
  * THIS INTERFACE IS THE POINT. docs/online-multiplayer.md phase 1 : everything above it - the
  * protocol, HostSession, ClientSession - talks to this and never to a DatagramChannel, because a
  * browser tab cannot open a UDP socket and d7 says a tab is a player. {@link Transport_Udp} is
- * behind it for desktop peers, {@link Net_Loopback} for tests, and a WebRTC data channel later
- * (r46) without a line of session code changing. Spreading socket calls across the session code
+ * behind it for desktop peers, {@link Net_Loopback} for tests, and a browser tab's WebRTC data channel
+ * (jks.rtc.Transport_Rtc in the rtc module, r46) without a line of session code changing. Spreading socket calls across the session code
  * is the one mistake here that costs a phase to undo.
  *
  * The contract, and the protocol above it must survive all of it :

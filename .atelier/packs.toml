@@ -334,6 +334,18 @@ description = "Lobbies, UDP, NAT traversal, snapshots — the online multiplayer
 color = "#ff8cc6"
 sort = 25
 context = """
+A TAB IS A PLAYER, AND THE HOST SPEAKS WEBRTC ITSELF (r46: Simon, 1:A). Phase 1 is done: the `rtc`
+module (jks.rtc.Transport_Rtc, dev.onvoid.webrtc:webrtc-java 0.18.0) is the desktop end of a tab's
+data channel, behind Net_Transport, peers named "rtc/N". Its own module so lobby and headless never load
+libwebrtc; it ships ONLY the build machine's natives (rtc/build.gradle). Channel {ordered:false,
+maxRetransmits:0}; descriptions WHOLE, never trickled (Call.sdp() is null until ICE gathering is
+COMPLETE: ~1 kB offer, more than a lobby packet, hence r79's chunks); libwebrtc opens its OWN sockets
+(the one-socket rule does not apply: the lobby only carries the two descriptions); callbacks only fill
+queues, pump delivers on the caller's thread; audio is HeadlessAudioDeviceModule, never a sound device.
+A description that does not parse THROWS a java.lang.Error out of libwebrtc: it came from a stranger,
+so it fails its call (caught), never the host. Next, in order: r79 (WS front + OFFER/ANSWER chunks, lobby
+v4), r80 (the host answers, rtc peers in game()), r81 (the html module; parallax 2.1.0 patched copy
+until parallax:r44 publishes 2.2.0, Simon's pick), r82 (the tab's transport and lobby), r83 (the gate).
 THE RELAY EXISTS AND IS DEPLOYED (r45, d6 -> relay, on Simon's word: "we already have a VPS we could
 use for testing"). VPS_1 = Fountain of Dreams' OVH box, 141.94.115.201, ubuntu with
 OnceUponATime/HQ/staging_deploy_key (deploy/vps.sh). There: coturn 4.7.0 (deploy/relay, UDP 3478,
@@ -498,7 +510,7 @@ com.github.crykn:kryonet on JitPack. Netty is overkill for the game socket, reas
 lobby service. weupnp for best-effort UPnP, never relied on. coturn is what a relay VPS runs.
 The Windows Defender prompt saying 'java.exe wants to accept connections' is a real reason people
 click No, and it is a #build problem (jpackage), not yours.
-Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 74 checks (11 of them the lobby's, 11 ICE's, 7 the relay's) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
+Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 76 checks (11 of them the lobby's, 11 ICE's, 7 the relay's, 3 rtc's: two Transport_Rtc in one JVM, no internet) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
 jks.net and the mirror (codec round trips, every truncation and bit flip, checksummed lies, the
 size refusal, and): round trips over real UDP on loopback and over the in-memory wire, the payload cap,
 whole-or-nothing delivery, a host learning an unknown peer, a pump that never blocks, a peer

@@ -114,6 +114,9 @@ public class Net_Run
 		check("relay/refused-credential-is-honest", Net_Relay_Checks::refusedCredentialIsHonest);
 		check("relay/relayed-size-close-and-silence", Net_Relay_Checks::relayedSizeCloseAndSilence);
 		check("relay/udp-takes-a-relayed-datagram", Net_Relay_Checks::udpTakesARelayedDatagram);
+		check("rtc/open-and-carry-both-ways", Net_Rtc_Checks::openAndCarryBothWays);
+		check("rtc/unreliable-unordered-and-capped", Net_Rtc_Checks::unreliableUnorderedAndCapped);
+		check("rtc/closed-silent-and-refused-are-lost-once", Net_Rtc_Checks::closedSilentAndRefusedAreLostOnce);
 
 		System.out.println(failed == 0 ? "NET ok, " + checks + " checks" : "NET FAILED " + failed + " of " + checks + " check(s)");
 		System.exit(failed == 0 ? 0 : 1);

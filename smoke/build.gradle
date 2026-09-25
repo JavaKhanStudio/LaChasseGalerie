@@ -7,6 +7,8 @@ sourceSets.main.java.srcDirs = ['src']
 dependencies {
     // The headless loop itself lives in :headless; this module is the scripted players and the checks
     implementation project(':headless')
+    // A browser tab's transport, desktop side (r46) : nettest's rtc/* checks
+    implementation project(':rtc')
 }
 
 tasks.register('smoke', JavaExec) {
@@ -32,6 +34,8 @@ tasks.register('nettest', JavaExec) {
     description = 'Checks the transport, codec, mirror and session rules, then plays host and clients in one JVM and across three.'
     mainClass = 'jks.smoke.Net_Run'
     classpath = sourceSets.main.runtimeClasspath
+    // The rtc/* checks load libwebrtc's natives
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
     finalizedBy 'netsession', 'netending', 'netprocs', 'netlobby'
 }
 
