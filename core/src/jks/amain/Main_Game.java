@@ -5,6 +5,8 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 
 import jks.camera.GVars_Camera;
+import jks.lobby.Lobby_Client;
+import jks.net.Net_Transport;
 import jks.net.Transport_Udp;
 import jks.online.Game_Simulation;
 import jks.online.HostSession;
@@ -40,7 +42,9 @@ public class Main_Game extends ApplicationAdapter
 	 * window still join through IKM_Game_*, on the same PlayerId numbering as the peers.
 	 */
 	private HostSession host ;
-	private Transport_Udp hostTransport ;
+	private Net_Transport hostTransport ;
+	/** The lobby it was opened from (Online play, r43), open as long as the server is : null for --host. */
+	private Lobby_Client hostLobby ;
 	private final Runnable step = () -> GVars_Heart.vue.update(FVars_Heart.step) ;
 
 	@Override
@@ -73,6 +77,12 @@ public class Main_Game extends ApplicationAdapter
 		
 		while(accumulator >= FVars_Heart.step)
 		{
+			// Start, picked in a lobby this window hosts (r43) : the session plays on the lobby's own socket
+			if(host == null && GVars_Heart.lobbyHost != null)
+				hostFromLobby() ;
+			if(hostLobby != null)
+				feedLobby() ;
+			
 			// Close the server, picked on the score screen (d14) : every peer is told while the run still
 			// exists, and the run then ends into the menu like a local one
 			if(host != null && !GVars_Heart.hosting)
@@ -104,10 +114,33 @@ public class Main_Game extends ApplicationAdapter
     		closeHost() ; 
     }
     
-    /** Tells every peer the run ended (HOST_ENDED) and lets go of the socket. */
+    private void hostFromLobby()
+    {
+    	hostLobby = GVars_Heart.lobbyHost.lobby ; 
+    	hostTransport = GVars_Heart.lobbyHost.socket ; 
+    	GVars_Heart.lobbyHost = null ; 
+    	host = new HostSession(hostLobby.game(), new Game_Simulation()) ; 
+    	Gdx.app.log("host", "hosting lobby " + hostLobby.code() + ", seen by the service at " + hostLobby.publicAddress());
+    }
+    
+    /**
+     * The lobby stays listed through the runs, with this window's player and its seats as its count, and
+     * the joiners it mirrors are dropped : the connectivity checks already started on them by themselves,
+     * and a latecomer's HELLO is the session's to answer.
+     */
+    private void feedLobby()
+    {
+    	hostLobby.players(1 + host.seats().size()) ; 
+    	hostLobby.takeJoiners() ; 
+    }
+    
+    /** Tells every peer the run ended (HOST_ENDED), closes the lobby if there is one, and lets go of the socket. */
     private void closeHost()
     {
     	host.close();
+    	if(hostLobby != null)
+    		hostLobby.close();
+    	hostLobby = null ; 
     	hostTransport.close();
     	host = null ; 
     	hostTransport = null ; 

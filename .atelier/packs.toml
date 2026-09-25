@@ -185,7 +185,7 @@ PhysicSpriteHeroes.drawHp, in the sprite batch (#gameplay).
 ASCII ONLY, AND IT FAILS SILENTLY: all three .fnt files carry 98 glyphs. No accented letter and
 no dash but '-'. An em dash drew as a BLANK in r18's first menu render; 'Créer une partie' would
 lose its e the same way. Either stay in ASCII or re-export the fonts.
-A SECOND VIEW EXISTS NOW (r18, Vue_Menu, behind --menu): it builds its OWN Stage, because
+A SECOND VIEW EXISTS NOW (r18, Vue_Menu, behind --menu; and a third, r43's Vue_Lobby, the same way): it builds its OWN Stage, because
 GVars_Interface.init unconditionally puts the score table on the shared one. Widgets outside the
 game go through GVars_Interface.loadSkin(), which gives the skin without the HUD.
 ITS BUTTONS ARE NOT THE MOUSE'S ALONE (d8, r28): each one is a choice in a
@@ -360,7 +360,18 @@ SESSIONS EXIST (d779fa5, phase 1.4): jks.online.HostSession owns the only world,
 Host_Simulation (Game_Simulation is the real game), and has no hero of its own - a zero-hero host is
 what the gates run; a local keyboard joins beside it via GVars_Controller.newPlayer. ClientSession
 owns NO world: buttons up at 60 Hz, draws 100 ms behind between two snapshots through a
-Snapshot_Mirror. Both talk ONLY to Net_Transport. No launcher or menu starts them yet (phase 1.5+).
+Snapshot_Mirror. Both talk ONLY to Net_Transport. --host/--join start them by address; Online play
+starts them through the lobby (r43, below).
+THE LOBBY SCREEN EXISTS (r43, jks.vue.models.Vue_Lobby, Menu > Online play; service from --lobby
+host:port, default 127.0.0.1:7770 until r45 deploys one). It opens THE one Transport_Udp and its
+Lobby_Client, and hands both on, never a second socket: the host's Start puts them in
+GVars_Heart.lobbyHost, and Main_Game builds the HostSession on lobby.game(), keeps the lobby listed
+through the runs (players = 1 + seats, takeJoiners() drained every step or it grows) and closes it
+with the server. A joiner makes its ClientSession as soon as its row is DIRECT; its HELLOs wait,
+held by the host's Lobby_Client, until Start; the WELCOME moves it to Vue_Client(lobby, socket,
+session, Relay) - the Relay is how a session built before its view hands its entities over. A host
+row goes after 5 s without a PEER copy: a joiner on its lobby screen repeats JOIN every 0.5 s.
+tools/probe/Lobby_Screen_Probe.java plays it through, host and joiner, in two offscreen windows.
 THE TRANSPORT SEAM (99f9ac6). core/src/jks/net is
 Net_Transport — the interface everything above it must talk to — with Transport_Udp behind it for
 desktop peers and Net_Loopback for tests, plus Net_Peer, Net_Listener and Net_PeerTable.

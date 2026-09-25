@@ -29,7 +29,7 @@ public class Menu_Focus
 {
 	/**
 	 * How far an unfocused choice fades. Barely : the focused one is told apart by its background,
-	 * and a choice dimmed any further reads as dead, which in this menu means Online play.
+	 * and a choice dimmed any further reads as dead.
 	 */
 	private static final float dimmed = 0.85f ;
 
@@ -83,6 +83,24 @@ public class Menu_Focus
 			focused = index ;
 
 		paint() ;
+	}
+
+	/** Forgets every choice : a screen that rebuilds its buttons (the lobby's, r43) starts a new ring. */
+	public void clear()
+	{
+		choices.clear() ;
+		picks.clear() ;
+		resting.clear() ;
+		highlighted.clear() ;
+		focused = -1 ;
+	}
+
+	/** Puts the focus on this choice, if it is one : a code typed in full moves it to Join. */
+	public void focus(TextButton button)
+	{
+		int index = choices.indexOf(button, true) ;
+		if(index >= 0)
+			focus(index) ;
 	}
 
 	/** @param direction -1 for the choice above, 1 for the one below. The ring wraps around. */

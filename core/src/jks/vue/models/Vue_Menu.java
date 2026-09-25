@@ -74,18 +74,10 @@ public class Vue_Menu extends AVue_Model
 		focus.add(local, picker -> GVars_Heart.changeVue(new Vue_Game(picker))) ;
 		table.add(local).width(width * 0.34f).height(height * 0.11f).padBottom(height * 0.03f).row();
 
-		// Nothing behind it yet : the plan is docs/online-multiplayer.md. It is not in the focus
-		// ring either — a choice nobody can take must not be one the arrows can land on.
+		// One player per machine, over the network (d5 -> A) : the lobby screen, r43
 		TextButton online = playButton("Online play") ;
-		online.setDisabled(true);
-		// Fainter than a choice merely not focused, or the arrows look like they skipped a live one
-		online.getColor().a = 0.6f ;
-		table.add(online).width(width * 0.34f).height(height * 0.11f).row();
-
-		// ASCII ONLY : the skin's bitmap fonts carry 98 glyphs, no accents and no dashes but '-'
-		Label soon = new Label("not yet - one player per machine, over the network", GVars_Interface.baseSkin, "default") ;
-		soon.getColor().a = 0.75f ;
-		table.add(soon).padTop(height * 0.01f).padBottom(height * 0.04f).row();
+		focus.add(online, picker -> GVars_Heart.changeVue(new Vue_Lobby())) ;
+		table.add(online).width(width * 0.34f).height(height * 0.11f).padBottom(height * 0.03f).row();
 
 		TextButton quit = playButton("Quit") ;
 		focus.add(quit, picker -> Gdx.app.exit()) ;

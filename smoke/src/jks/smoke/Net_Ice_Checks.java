@@ -393,6 +393,16 @@ class Net_Ice_Checks
 		carrier.until(() -> !shared.ice().probing(), 5_000, "the probe never ended");
 		is(shared.ice().carrierNat() && shared.ice().advice() != null && shared.ice().advice().contains("Wi-Fi"), "a 100.64/10 address is carrier NAT : " + shared.ice().advice());
 
+		// A lobby service on this machine or its LAN (r43's screen against a local service) sees a LAN address :
+		// it is not the router's mapping, and beside a STUN server's public one it read as HARD
+		Net_Transport end = new Net_Loopback(1).open("10.0.0.9:4000");
+		Lobby_Ice local = new Lobby_Ice(end, () -> 0L, new Random(1), () -> "127.0.0.1:4000");
+		eq(List.of(), local.mapped(), "a service seeing a loopback address is not a NAT sample");
+		Lobby_Ice lan = new Lobby_Ice(end, () -> 0L, new Random(1), () -> "192.168.1.9:4000");
+		eq(List.of(), lan.mapped(), "a service seeing a LAN address is not a NAT sample");
+		Lobby_Ice far = new Lobby_Ice(end, () -> 0L, new Random(1), () -> "203.0.113.9:4000");
+		eq(List.of("203.0.113.9:4000"), far.mapped(), "a service seeing a public address is one");
+
 		Rig unresolvable = new Rig(1);
 		Lobby_Client lookup = unresolvable.client(HOST_INSIDE, HOST_IP, Nat.Kind.FULL_CONE);
 		lookup.ice().probe(List.of("no port here"));

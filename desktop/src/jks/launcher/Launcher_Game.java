@@ -22,6 +22,7 @@ import jks.vars.GVars_Heart;
  *   --menu        open on the start menu instead of starting a run right away
  *   --host [port] host the run for clients on this UDP port (default 7777), and play in it too
  *   --join host:port  be a client of that host : draw its run, send it this machine's buttons
+ *   --lobby host:port the lobby service Online play talks to (default 127.0.0.1:7770, until r45 deploys one)
  */
 public class Launcher_Game 
 {
@@ -39,6 +40,13 @@ public class Launcher_Game
 		int host = args.indexOf("--host") ;
 		if(host >= 0)
 			GVars_Heart.hostPort = host + 1 < args.size() && args.get(host + 1).matches("\\d+") ? Integer.parseInt(args.get(host + 1)) : defaultPort ;
+		int lobby = args.indexOf("--lobby") ;
+		if(lobby >= 0)
+		{
+			if(lobby + 1 >= args.size())
+				throw new IllegalArgumentException("--lobby needs the service's address, as host:port") ;
+			GVars_Heart.lobbyService = args.get(lobby + 1) ;
+		}
 		int join = args.indexOf("--join") ;
 		if(join >= 0)
 		{

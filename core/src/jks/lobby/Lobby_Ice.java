@@ -173,8 +173,10 @@ public final class Lobby_Ice
 		for (Probe probe : probes.values())
 			if (probe.mapped != null)
 				mapped.add(probe.mapped);
+		// A service on this machine or its LAN sees a LAN address, not the router's mapping : set beside a
+		// STUN server's public sample it would read as a different port every time, HARD (r43, a local service)
 		String service = self.get();
-		if (service != null)
+		if (service != null && rank(service) != RANK_LAN)
 			mapped.add(service);
 		return mapped;
 	}

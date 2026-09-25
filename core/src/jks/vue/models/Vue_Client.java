@@ -32,9 +32,11 @@ import jks.draw.Draw_Monster;
 import jks.draw.Draw_Potion;
 import jks.input.Player_Inputs;
 import jks.input.Utils_Controller;
+import jks.lobby.Lobby_Client;
 import jks.net.Net_Input;
 import jks.net.Net_Message;
 import jks.net.Net_Snapshot;
+import jks.net.Net_Transport;
 import jks.net.Transport_Udp;
 import jks.online.ClientSession;
 import jks.online.Snapshot_Mirror;
@@ -73,8 +75,13 @@ import jks.vue.AVue_Model;
 public class Vue_Client extends AVue_Model
 {
 	private final String hostAddress ;
-	private Transport_Udp transport ;
+	/** The socket, this view's to close : its own for --join, the lobby's for Online play (r43). */
+	private Net_Transport transport ;
 	private ClientSession client ;
+	/** The lobby this client was found through, kept open for its keepalive : null for --join. */
+	private Lobby_Client lobby ;
+	/** Where a session made before this view hears its entities : pointed at this view once it is up. */
+	private Relay relay ;
 
 	/** The buttons of this machine's one player, whatever device pressed them. No hero behind it. */
 	private final Player_Inputs buttons = new Player_Inputs(null) ;
@@ -133,6 +140,47 @@ public class Vue_Client extends AVue_Model
 	public Vue_Client(String hostAddress)
 	{this.hostAddress = hostAddress ;}
 
+	/**
+	 * A session the lobby screen already made and the host already WELCOMEd (r43), on the lobby's socket.
+	 * The session made its entities before this view could draw them, so they go to a Relay, and this
+	 * view takes the Relay over, with whatever is already in the mirror.
+	 */
+	public Vue_Client(Lobby_Client lobby, Net_Transport socket, ClientSession client, Relay relay)
+	{
+		this.hostAddress = "the host" ;
+		this.lobby = lobby ;
+		this.transport = socket ;
+		this.client = client ;
+		this.relay = relay ;
+	}
+
+	/**
+	 * A Snapshot_Mirror.Listener that passes on to another, or to nobody until it is told who : a
+	 * ClientSession is built with its listener, and one built by the lobby screen outlives that screen.
+	 */
+	public static final class Relay implements Snapshot_Mirror.Listener
+	{
+		private Snapshot_Mirror.Listener to = new Snapshot_Mirror.Listener() {} ;
+
+		@Override public void created(Net_Snapshot.Hero hero) {to.created(hero) ;}
+		@Override public void destroyed(Net_Snapshot.Hero hero) {to.destroyed(hero) ;}
+		@Override public void created(Net_Snapshot.Monster monster) {to.created(monster) ;}
+		@Override public void destroyed(Net_Snapshot.Monster monster) {to.destroyed(monster) ;}
+		@Override public void created(Net_Snapshot.Potion potion) {to.created(potion) ;}
+		@Override public void destroyed(Net_Snapshot.Potion potion) {to.destroyed(potion) ;}
+
+		void to(Snapshot_Mirror.Listener listener, Snapshot_Mirror view)
+		{
+			to = listener ;
+			for(Net_Snapshot.Hero hero : view.heroes())
+				listener.created(hero) ;
+			for(Net_Snapshot.Monster monster : view.monsters())
+				listener.created(monster) ;
+			for(Net_Snapshot.Potion potion : view.potions())
+				listener.created(potion) ;
+		}
+	}
+
 	@Override
 	public void init()
 	{
@@ -158,8 +206,13 @@ public class Vue_Client extends AVue_Model
 		Controllers.addListener(pads) ;
 		GVars_AudioManager.PlayAmbiance(Enum_Ambiance.WATER);
 
-		transport = Transport_Udp.open() ;
-		client = new ClientSession(transport, hostAddress, machineKey(), entities) ;
+		if(client == null)
+		{
+			transport = Transport_Udp.open() ;
+			client = new ClientSession(transport, hostAddress, machineKey(), entities) ;
+		}
+		else
+			relay.to(entities, client.view()) ;
 		Gdx.app.addLifecycleListener(leaveOnExit);
 	}
 
@@ -353,6 +406,8 @@ public class Vue_Client extends AVue_Model
 		if(client == null)
 			return ;
 		client.close() ;
+		if(lobby != null)
+			lobby.close() ;
 		transport.close() ;
 		client = null ;
 	}
