@@ -81,6 +81,7 @@ public final class Lobby_Client implements AutoCloseable
 	private boolean hosting;
 	private String code;
 	private int players, seats;
+	private boolean unlisted;
 	private final List<List<String>> joiners = new ArrayList<List<String>>();
 
 	private boolean browsing;
@@ -275,6 +276,21 @@ public final class Lobby_Client implements AutoCloseable
 		this.players = players;
 		if (hosting)
 			sendHost();
+	}
+
+	/** A private lobby (r76) : Open games never lists it, and its code alone lets a friend in. Sent at once when it changes. */
+	public void unlisted(boolean unlisted)
+	{
+		if (unlisted == this.unlisted)
+			return;
+		this.unlisted = unlisted;
+		if (hosting)
+			sendHost();
+	}
+
+	public boolean unlisted()
+	{
+		return unlisted;
 	}
 
 	/** Asks for the open lobbies of this game's version, until a {@link #listing()} comes. */
@@ -560,6 +576,7 @@ public final class Lobby_Client implements AutoCloseable
 		host.code = code;
 		host.players = players;
 		host.seats = seats;
+		host.unlisted = unlisted;
 		host.candidates.addAll(candidates);
 		send(host);
 		lastHost = clock.getAsLong();

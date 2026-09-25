@@ -198,6 +198,16 @@ public class Vue_Lobby extends AVue_Model
 		}) ;
 		table.add(go).width(width * 0.34f).height(height * 0.09f).padBottom(height * 0.02f).row();
 
+		// Public by default, so a pad can join from Open games without typing (r76, Simon's pick). After
+		// Start, so Start stays the first choice
+		TextButton listed = button(listedText()) ;
+		focus.add(listed, picker ->
+		{
+			lobby.unlisted(!lobby.unlisted()) ;
+			listed.setText(listedText()) ;
+		}) ;
+		table.add(listed).width(width * 0.34f).height(height * 0.08f).padBottom(height * 0.02f).row();
+
 		back(table, picker ->
 		{
 			lobby.close() ;
@@ -208,6 +218,11 @@ public class Vue_Lobby extends AVue_Model
 			choose() ;
 		}) ;
 		finish(table) ;
+	}
+
+	private String listedText()
+	{
+		return lobby.unlisted() ? "Private : code only" : "Public : in Open games" ;
 	}
 
 	private void joinGame(String code)

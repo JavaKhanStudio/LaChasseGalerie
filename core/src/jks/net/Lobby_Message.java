@@ -65,6 +65,8 @@ public abstract class Lobby_Message
 		/** The code this host was given, or null for a new lobby. */
 		public String code;
 		public int players, seats;
+		/** True for a private lobby (r76) : BROWSE never lists it, and its code alone lets a friend JOIN. */
+		public boolean unlisted;
 		/** Addresses the host can also be reached at, besides the one the service sees : its LAN, its IPv6. */
 		public final List<String> candidates = new ArrayList<String>();
 

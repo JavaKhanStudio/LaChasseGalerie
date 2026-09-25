@@ -19,7 +19,7 @@ import java.util.List;
  * Bodies :
  * <pre>
  *   OUTDATED   (empty)                                          frozen : the header's version is the service's
- *   HOST       game u8 | code c6 | players u8 | seats u8 | candidates
+ *   HOST       game u8 | code c6 | players u8 | seats u8 | unlisted u8 | candidates
  *   HOSTED     code c6 | you addr | relay
  *   CLOSE      code c6
  *   BROWSE     game u8
@@ -35,6 +35,7 @@ import java.util.List;
  *   addr         length u8 (1-64) | printable ASCII
  *   candidates   count u8 (0-5) | count x addr
  *   relay        0 u8 when the service has none, or 1 u8 | server addr | username addr | password addr   (r45, version 2)
+ *   unlisted     0 u8 for a lobby BROWSE lists, 1 u8 for one joinable by its code only   (r76, version 3)
  * </pre>
  * OUTDATED with no body is the one layout no version may change : a service that is newer than a
  * game still has a way to say so. {@link #decode} hands one of another version back instead of refusing it.
@@ -46,7 +47,7 @@ import java.util.List;
 public final class Lobby_Codec
 {
 	/** Bump on ANY change to a layout above, except OUTDATED's, which never changes. */
-	public static final int VERSION = 2;
+	public static final int VERSION = 3;
 	public static final int MAGIC = 'L';
 
 	/** No 0/O, no 1/I : a code is read aloud and typed by a person. 32 letters, six of them : 2^30 codes. */
@@ -104,7 +105,7 @@ public final class Lobby_Codec
 		switch (message.type())
 		{
 			case HOST:
-				body = 1 + CODE_LENGTH + 2 + candidatesSize(((Lobby_Message.Host) message).candidates);
+				body = 1 + CODE_LENGTH + 3 + candidatesSize(((Lobby_Message.Host) message).candidates);
 				break;
 			case HOSTED:
 				body = CODE_LENGTH + addressSize(((Lobby_Message.Hosted) message).you) + relaySize(((Lobby_Message.Hosted) message).relay);
@@ -171,6 +172,7 @@ public final class Lobby_Codec
 					throw new IllegalArgumentException(host.players + " players of " + host.seats + " seats");
 				out.put(Net_Codec.u8(host.players, "players"));
 				out.put(Net_Codec.u8(host.seats, "seats"));
+				out.put((byte) (host.unlisted ? 1 : 0));
 				putCandidates(out, host.candidates);
 				break;
 			case HOSTED:
@@ -296,6 +298,10 @@ public final class Lobby_Codec
 				host.seats = in.get() & 0xFF;
 				if (host.seats < 1 || host.players > host.seats)
 					throw bad(version, host.players + " players of " + host.seats + " seats");
+				int unlisted = in.get() & 0xFF;
+				if (unlisted > 1)
+					throw bad(version, "unlisted " + unlisted);
+				host.unlisted = unlisted == 1;
 				getCandidates(in, version, host.candidates);
 				return host;
 			case HOSTED:

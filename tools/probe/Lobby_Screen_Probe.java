@@ -49,6 +49,9 @@ import jks.vue.models.Vue_Menu;
  * -Dprobe.block=true on BOTH (r75) : the joiner's socket drops every packet to and from anyone but the
  * lobby service and the STUN servers, as two symmetric NATs would, so each side's row goes to cannot
  * connect and draws its fix. Each writes that screen (host_cannot.png, join_cannot.png) and exits 0.
+ *
+ * -Dprobe.private=true on the host (r76) : it makes its lobby private before host_2_open.png, so the
+ * joiner's join_1_listed.png shows Open games without it, and the joiner still gets in by the code.
  */
 public class Lobby_Screen_Probe implements ApplicationListener
 {
@@ -59,6 +62,7 @@ public class Lobby_Screen_Probe implements ApplicationListener
 	int frame, step ;
 	final long started = System.currentTimeMillis() ;
 	static final boolean block = Boolean.getBoolean("probe.block") ;
+	static final boolean unlisted = Boolean.getBoolean("probe.private") ;
 	long stepStarted = started ;
 
 	Lobby_Screen_Probe(boolean host, String out)
@@ -134,6 +138,17 @@ public class Lobby_Screen_Probe implements ApplicationListener
 				next() ;
 				return ;
 			case 3 :
+				// The toggle is the choice after Start ; the focus goes back to Start for step 4
+				if(unlisted && at(300))
+				{
+					focus().move(1) ;
+					focus().pick(Menu_Picker.KEYBOARD) ;
+				}
+				if(unlisted && at(600))
+				{
+					focus().move(-1) ;
+					log("private : " + lobby().unlisted()) ;
+				}
 				if(at(1_000))
 					grab("host_2_open.png") ;
 				if(block)

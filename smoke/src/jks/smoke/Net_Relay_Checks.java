@@ -329,7 +329,7 @@ class Net_Relay_Checks
 		eq(relay, ((Lobby_Message.Joined) Lobby_Codec.decode(Lobby_Codec.encode(joined))).relay, "a JOINED's relay round trip");
 		Lobby_Message.Hosted hosted = new Lobby_Message.Hosted("ABCDEF", "203.0.113.1:2");
 		is(((Lobby_Message.Hosted) Lobby_Codec.decode(Lobby_Codec.encode(hosted))).relay == null, "a HOSTED with no relay round trip");
-		eq(2, Lobby_Codec.VERSION, "the relay block is lobby version 2");
+		is(Lobby_Codec.VERSION >= 2, "the relay block came with lobby version 2, and every version since carries it");
 
 		Net_Ice_Checks.Rig none = new Net_Ice_Checks.Rig(1);
 		Lobby_Client alone = none.client(Net_Ice_Checks.HOST_INSIDE, Net_Ice_Checks.HOST_IP, Nat.Kind.FULL_CONE);

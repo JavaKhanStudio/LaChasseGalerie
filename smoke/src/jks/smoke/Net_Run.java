@@ -89,6 +89,7 @@ public class Net_Run
 		check("lobby/codec-refuses-and-never-mixes-with-game-packets", Net_Lobby_Checks::codecRefuses);
 		check("lobby/another-lobby-version-is-told-which", Net_Lobby_Checks::outdatedIsAnswered);
 		check("lobby/host-list-join-and-mirror", Net_Lobby_Checks::hostListJoinMirror);
+		check("lobby/private-is-unlisted-but-joinable-by-code", Net_Lobby_Checks::privateByCode);
 		check("lobby/version-full-and-missing-are-refused", Net_Lobby_Checks::versionFullAndMissing);
 		check("lobby/reap-close-and-the-old-code-back", Net_Lobby_Checks::reapCloseAndOldCode);
 		check("lobby/idle-two-minutes-over-loss", Net_Lobby_Checks::idleTwoMinutes);

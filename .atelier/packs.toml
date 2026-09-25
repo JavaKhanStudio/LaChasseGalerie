@@ -343,7 +343,7 @@ so turnserver.conf DENIES every loopback/private/carrier range and the box's own
 remove a denied-peer-ip line to make a test pass - test on a local coturn. The secret is made on the
 box, never leaves it (/opt/lachassegalerie/relay/.env, 0600), and the lobby mints TURN REST credentials
 from it (24 h, username = expiry:code) into HOSTED and JOINED: lobby protocol VERSION 2 added that relay
-block. Game side: jks.net.Turn_Codec (TURN on STUN framing, long-term credential; checked against RFC
+block (VERSION 3 since r76: a game and VPS_1's service must match, so redeploy deploy/lobby with any bump). Game side: jks.net.Turn_Codec (TURN on STUN framing, long-term credential; checked against RFC
 5769's signed vector) and jks.net.Turn_Client (one allocation on the SHARED socket). Only the JOINER
 allocates, on JOINED; it offers the relayed ip:port in its next JOIN, permits the host's ip, and reaches
 the host as the peer "relay/<host ip:port>", which Lobby_Client's views resolve and send through the
@@ -379,7 +379,8 @@ THE LOBBY SERVICE EXISTS (r41, phase 2.1): jks.net.Lobby_Codec/Lobby_Message are
 protocol ('L' | version | type | body | CRC-32; the 'L' is how one socket tells lobby packets from
 game packets, and Net_Codec refuses a lobby packet as NOT_OURS, so a session never answers the
 service with a LEAVE). jks.lobby.Lobby_Service holds lobbies and nothing else: HOST (opens/refreshes,
-asks for its old code back), BROWSE (same game version only), JOIN (answers JOINED with the host's
+asks for its old code back; its unlisted flag, lobby VERSION 3 / r76, is a private lobby: public by default, a
+Private toggle after Start on the host screen), BROWSE (same game version only, never an unlisted one), JOIN (answers JOINED with the host's
 addresses and MIRRORS the joiner's to the host as PEER), PING/PONG (the address the service saw),
 CLOSE. Reap = 20 s after the last HOST; it deliberately ignores the transport's lost(). 20 answers per
 address per second (forged sources). jks.lobby.Lobby_Client IS BUILT ON THE GAME'S TRANSPORT and gives
@@ -497,7 +498,7 @@ com.github.crykn:kryonet on JitPack. Netty is overkill for the game socket, reas
 lobby service. weupnp for best-effort UPnP, never relied on. coturn is what a relay VPS runs.
 The Windows Defender prompt saying 'java.exe wants to accept connections' is a real reason people
 click No, and it is a #build problem (jpackage), not yours.
-Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 72 checks (10 of them the lobby's, 11 ICE's, 7 the relay's) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
+Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 74 checks (11 of them the lobby's, 11 ICE's, 7 the relay's) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
 jks.net and the mirror (codec round trips, every truncation and bit flip, checksummed lies, the
 size refusal, and): round trips over real UDP on loopback and over the in-memory wire, the payload cap,
 whole-or-nothing delivery, a host learning an unknown peer, a pump that never blocks, a peer

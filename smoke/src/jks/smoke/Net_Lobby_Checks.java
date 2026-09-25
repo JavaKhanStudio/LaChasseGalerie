@@ -98,6 +98,9 @@ class Net_Lobby_Checks
 		eq(3, back.players, "HOST players");
 		eq(8, back.seats, "HOST seats");
 		eq(host.candidates, back.candidates, "HOST candidates");
+		is(!back.unlisted, "HOST listed by default");
+		host.unlisted = true;
+		is(((Lobby_Message.Host) roundTrip(host)).unlisted, "HOST unlisted");
 
 		Lobby_Message.Host fresh = new Lobby_Message.Host();
 		fresh.seats = 8;
@@ -245,6 +248,34 @@ class Net_Lobby_Checks
 		eq(0, host.takeJoiners().size(), "a joiner that stopped asking stops the mirror");
 
 		eq(0, host.rejected + joiner.rejected + browser.rejected, "nothing the service sent was refused");
+	}
+
+	/** A private lobby (r76) is absent from every LISTING, joinable by its code, and back in the list when made public. */
+	static void privateByCode() throws Exception
+	{
+		Rig rig = new Rig(7);
+		Lobby_Client open = rig.client("open"), hidden = rig.client("hidden"), browser = rig.client("browser"), friend = rig.client("friend");
+		open.host(8);
+		hidden.unlisted(true);
+		hidden.host(8);
+		rig.until(() -> open.code() != null && hidden.code() != null, 2000, "no codes");
+
+		browser.browse();
+		rig.until(() -> browser.listing() != null, 2000, "no listing came");
+		eq(1, browser.listing().total, "only the public lobby is counted");
+		eq(open.code(), browser.listing().rows.get(0).code, "and listed");
+
+		friend.join(hidden.code());
+		rig.until(() -> friend.joined() != null, 2000, "a private lobby's code did not let its friend in");
+		is(!hidden.takeJoiners().isEmpty(), "and its host was told");
+
+		// Made public while open : the next HOST carries it at once, no refresh to wait for
+		hidden.unlisted(false);
+		rig.step(50);
+		browser.browse();
+		rig.until(() -> browser.listing() != null, 2000, "no second listing");
+		eq(2, browser.listing().total, "made public, it is listed");
+		eq(0, open.rejected + hidden.rejected + browser.rejected + friend.rejected, "nothing the service sent was refused");
 	}
 
 	/** Only a lobby of the same game protocol is listed or joined ; a full one and a missing one say so. */

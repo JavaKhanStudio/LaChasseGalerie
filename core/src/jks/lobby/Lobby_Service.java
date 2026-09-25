@@ -62,6 +62,8 @@ public final class Lobby_Service
 		public final String code;
 		public final Net_Peer host;
 		public int game, players, seats;
+		/** A private lobby (r76) : left out of every LISTING, joined by its code alone. */
+		public boolean unlisted;
 		/** The host's public address first, then what it said it can also be reached at. */
 		public final List<String> candidates = new ArrayList<String>();
 		long lastHeard;
@@ -247,6 +249,7 @@ public final class Lobby_Service
 		lobby.game = message.game;
 		lobby.players = message.players;
 		lobby.seats = message.seats;
+		lobby.unlisted = message.unlisted;
 		lobby.candidates.clear();
 		addCandidates(lobby.candidates, from.address(), message.candidates);
 		lobby.lastHeard = clock.getAsLong();
@@ -260,7 +263,7 @@ public final class Lobby_Service
 		for (int i = newestFirst.size() - 1; i >= 0; i--)
 		{
 			Lobby lobby = newestFirst.get(i);
-			if (lobby.game != message.game)
+			if (lobby.game != message.game || lobby.unlisted)
 				continue;
 			listing.total++;
 			if (listing.rows.size() < Lobby_Codec.MAX_ROWS)
