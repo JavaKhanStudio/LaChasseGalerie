@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # build.sh — compile this game to JavaScript with libGDX's own GWT backend and serve it.
 #
+# SUPERSEDED by the html module (r81, docs/browser-target.md section 11): ./gradlew :html:war.
+#
 # This is the r20 spike, kept whole so the answer can be re-checked rather than believed. It is
 # NOT part of the build: nothing here is in settings.gradle, and ./gradlew never runs it. It
 # writes everything into a work directory outside the repo (default /tmp/browser-spike).

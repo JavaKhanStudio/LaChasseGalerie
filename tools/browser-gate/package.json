@@ -1,0 +1,9 @@
+{
+  "name": "lachassegalerie-browser-gate",
+  "private": true,
+  "description": "Plays the html module's page in headless Chrome and fails unless a key press joins a player (gate.sh).",
+  "type": "module",
+  "dependencies": {
+    "puppeteer-core": "25.12.0"
+  }
+}

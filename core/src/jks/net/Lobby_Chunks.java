@@ -1,6 +1,7 @@
 package jks.net;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -99,7 +100,8 @@ public final class Lobby_Chunks
 		}
 		if (call.parts[part.part] != null)
 			return null;
-		call.parts[part.part] = part.bytes.clone();
+		// Arrays.copyOf, not clone() : GWT cannot clone an array, and the browser build compiles this (html/)
+		call.parts[part.part] = Arrays.copyOf(part.bytes, part.bytes.length);
 		if (++call.arrived < call.parts.length)
 			return null;
 

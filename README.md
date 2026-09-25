@@ -75,6 +75,21 @@ A `--host` run ends on the same score screen, for the host and every client. The
 stays connected and presses to join again) or **Close the server** (clients see "the host closed the server" and
 go back to their menu).
 
+## Browser build
+
+```sh
+./gradlew :html:war            # the game compiled to JavaScript (GWT): html/build/war, about 30 s (-Pdraft: 12 s)
+./gradlew :html:serve          # serves it on http://localhost:8099/index.html (-Pport=)
+tools/browser-gate/gate.sh     # plays it in headless Chrome and fails unless a key press joins a player
+```
+
+The page takes `?mute`, `?debug` and `?menu` where the launcher takes `--mute`, `--debug` and `--menu`.
+A tab plays locally only for now: it has no UDP socket, so hosting, joining and the online lobby refuse
+until its WebRTC transport lands. The gate needs node and Chrome (`CHROME=` to point at another one);
+its screenshots land in `html/build/gate/`. `./gradlew build` does not run the GWT compile. Anything under
+`core/src` the game reaches must now translate to JavaScript: `gate.sh --draft` is the check. See
+`docs/browser-target.md` section 11.
+
 ## Smoke run
 
 ```sh

@@ -242,7 +242,8 @@ question in §6 decides whether it is worth paying.
 
 - Whether `gdx-box2d-teavm:1.0.0-b6` (2023) still works with `backend-teavm:1.4.0` (2025). Only a
   spike answers it.
-- Whether `org.docstr.gwt:2.2.9` is happy with Gradle 9.7 and the configuration cache.
+- ~~Whether `org.docstr.gwt:2.2.9` is happy with Gradle 9.7 and the configuration cache.~~ **Answered
+  in §11: it is, and the html module does not use it anyway.**
 - ~~Whether GWT actually refuses the parallax sources over the annotations, or merely over the missing
   `.gwt.xml`.~~ **Answered in §10: neither, exactly.** The missing `.gwt.xml` turned out not to be a
   blocker at all when the library's sources sit in the game's own translatable path, the annotations
@@ -335,8 +336,86 @@ board, not here.
 - **Gamepads.** `gdx-controllers-gwt` loads and its polling starts (`startPolling` in the console),
   but the browser Gamepad API cannot see a pad until someone presses a button on a real one, and
   there was none to press here.
-- **The Gradle plugin route.** The spike calls the GWT compiler directly, so §9's question about
-  `org.docstr.gwt:2.2.9` under Gradle 9 with the configuration cache is still open. It matters for
-  a real `html` module and not at all for the answer to "can it be done".
+- ~~**The Gradle plugin route.**~~ Answered in §11.
 - **TeaVM.** Not tried. It is no longer on the critical path: the first-party route works.
 - **Mobile browsers**, and what 32 MB feels like on a phone.
+
+---
+
+## 11. The html module (r81, 2026-09-25)
+
+The spike became a real module: `html/` in `settings.gradle`. `tools/browser-spike/` stays as the
+record of §10; nothing uses it.
+
+```sh
+./gradlew :html:war            # html/build/war, a static site: optimized, ~31 s, 3.1 MB of JavaScript
+./gradlew :html:war -Pdraft    # unoptimized, ~12 s, for trying something
+./gradlew :html:serve          # serves it on http://localhost:8099/index.html (-Pport=), with the JDK's jwebserver
+tools/browser-gate/gate.sh     # the gate: builds it, plays it in headless Chrome, fails unless a key joins a player
+```
+
+`./gradlew build` only javac's the launcher (about two seconds); the GWT compile runs when asked.
+`gwtCompile` is UP-TO-DATE when nothing it reads changed, and runs again when an asset does.
+
+### How it is laid out
+
+| | |
+|---|---|
+| `html/src/jks/html/HtmlLauncher.java` | the entry point, as in the spike, plus `window.lcg.frames()` / `lcg.heroes()` for the gate |
+| `html/gwt/jks/GdxDefinition.gwt.xml` | the module: `source path=""` over every `jks` root on the compiler's classpath |
+| `html/gwt/jks/super/` | GWT **super-source**: the browser's own copy of classes the JDK version of cannot translate |
+| `html/parallax-2.1.0-patched/` | the patched library, **carried until parallax:r44 publishes 2.2.0** (its README says how to remove it) |
+| `html/webapp/index.html` | the page |
+| `tools/browser-gate/` | `gate.sh` and its puppeteer-core driver `gate.mjs` |
+
+The compiler's classpath is `core/src`, `html/src`, `html/gwt` and the patched parallax, then the
+**sources** jars of every library: GWT reads Java source, never classes. It runs **in `html/`**,
+because the asset generator resolves `gdx.assetpath` and `gdx.assetoutputpath` against the working
+directory, and with the persistent unit cache off, because a cached generator does not copy the
+assets again (§10). The task fails if the war has no `assets/assets.txt`.
+
+### §9's question: the plugin works, and is not used
+
+`org.docstr.gwt:2.2.9` under Gradle 9.7.1 with `configuration-cache=true`: it configures, compiles,
+stores a configuration-cache entry and reuses it, with no problems reported. It is still not what the
+module uses, because it hands every extra GWT source directory to **javac** as well (its
+`extraSourceDirs`), and GWT source is not all javac source by design: super-source declares
+`java.security` and `javax.crypto` classes, which javac refuses ("package exists in another module"),
+and a second `jks.net.Transport_Udp`. Putting the directories on the task's classpath by hand works
+— at which point the plugin is a `JavaExec` with defaults. So the module is a plain `JavaExec` of
+`com.google.gwt.dev.Compiler`: no third-party plugin to keep in step with Gradle.
+
+### What core needed that the spike did not
+
+The spike excluded all of `jks.net`. That no longer compiles: since the spike the game itself names
+the network (`Main_Game`, `Vue_Lobby`, `Vue_Client`), so the rest of `jks.net`, `jks.online` and
+`jks.lobby` now translates, and only three things cannot. Each has a super-source stand-in in
+`html/gwt/jks/super/`, and `core` did not change for them:
+
+- **`jks.net.Transport_Udp`** is a `DatagramChannel`. The stand-in has its signatures and an `open()`
+  that throws: in a tab, hosting, joining and the online lobby fail until the tab's own transport
+  exists (r82). The `.gwt.xml` excludes the real one.
+- **`java.security.SecureRandom`** (`ClientSession.newKey`, the rejoin key) is not emulated by GWT.
+  The stand-in draws from the browser's `crypto.getRandomValues`, so the key is still unguessable.
+- **`javax.crypto.Mac`** (`Turn_Codec`'s HMAC) has no browser story either, and needs none: a tab never
+  speaks TURN itself, its `RTCPeerConnection` does. The stand-in refuses, loudly.
+
+`jks.rtc` is its own module and never reaches this build.
+
+**From now on, code under `core/src` that the game reaches must translate.** `javac` will not tell
+you; `tools/browser-gate/gate.sh --draft` will, in about 25 s. The first catch was r79's
+`byte[].clone()` in `Lobby_Chunks` (GWT has no array `clone()`; `Arrays.copyOf` translates).
+
+### The gate
+
+`gate.sh` builds the war, serves it on a free port with `jwebserver`, and runs `gate.mjs`: headless
+Chrome (the system one, through puppeteer-core — never `--screenshot`, §10) with SwiftShader for
+WebGL. It waits for the game to render, checks there is no hero, presses **ArrowRight** as a real
+browser key event, and fails unless a hero joined and the loop runs above 20 fps. Measured: running
+2.4 s after navigation, hero 0 → 1, **60 fps**. `html/build/gate/` gets `before.png`, `joined.png`
+and `gate.json` (timings and the page's console). `npm ci` installs puppeteer-core into
+`tools/browser-gate/node_modules` on the first run; it downloads no browser.
+
+Still open, and not this module's: the tab's transport (r82), sound and gamepad parity, the
+non-power-of-two mipmap warnings (§10), and hosting the page.
+

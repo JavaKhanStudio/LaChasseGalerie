@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The browser build of the game (html/build.gradle). Its classpath is core/src, html/src, this
+     directory and html/parallax-2.1.0-patched: every one of them is rooted at the jks package, so
+     source path="" takes the game, the launcher and the patched parallax library at once. -->
+<module rename-to="html">
+	<inherits name="com.badlogic.gdx.backends.gdx_backends_gwt" />
+	<inherits name="com.badlogic.gdx.physics.box2d.box2d-gwt" />
+	<inherits name="com.badlogic.gdx.controllers.controllers-gwt" />
+
+	<!-- Transport_Udp is java.nio.channels.DatagramChannel, which no browser has. The rest of
+	     jks.net is plain Java and translates. The game still names Transport_Udp, so super/ holds a
+	     browser stand-in with the same signatures, whose open() refuses: a tab's own transport is
+	     the next phase (r82). jks.rtc is a separate module and never reaches this build. -->
+	<source path="">
+		<exclude name="net/Transport_Udp.java" />
+		<exclude name="super/**" />
+	</source>
+	<super-source path="super" />
+
+	<entry-point class="jks.html.HtmlLauncher" />
+	<!-- Both relative to the directory the compiler runs in, which html/build.gradle sets to html/ :
+	     the asset generator resolves them against the working directory, not against -war. -->
+	<set-configuration-property name="gdx.assetpath" value="../desktop/assets" />
+	<set-configuration-property name="gdx.assetoutputpath" value="build/gwt/war/" />
+	<set-configuration-property name="xsiframe.failIfScriptTag" value="FALSE" />
+	<!-- One permutation for now: "safari" is the WebKit/Blink one, Chrome, Edge and Safari alike -->
+	<set-property name="user.agent" value="safari" />
+</module>

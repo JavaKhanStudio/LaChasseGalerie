@@ -1,0 +1,92 @@
+// The browser build (r81): the game compiled to JavaScript by libGDX's own GWT backend, the route
+// the r20 spike proved (docs/browser-target.md section 10). `build` only javac's the launcher; the
+// GWT compile takes half a minute and 2 GB, so it runs only when asked:
+//   ./gradlew :html:war          html/build/war, a static site (-Pdraft: a 10 s unoptimized compile)
+//   ./gradlew :html:serve        serves it on http://localhost:8099/index.html (-Pport=)
+//   tools/browser-gate/gate.sh   plays it in headless Chrome and fails unless a player joins
+//
+// GWT eats Java SOURCE, not classes: the compiler's classpath is core/src, html/src, gwt/ (the
+// module descriptor and the browser's Transport_Udp) and parallax-2.1.0-patched/, plus the sources
+// jars of every library. It is a JavaExec of com.google.gwt.dev.Compiler and not the
+// org.docstr.gwt plugin: see docs/browser-target.md section 11 for why.
+
+sourceSets.main.java.srcDirs = ['src']
+
+configurations {
+    gwt
+}
+
+dependencies {
+    // The launcher is javac'd by `build` too, so a change that breaks it is seen without a GWT compile
+    compileOnly project(':core')
+    compileOnly "com.badlogicgames.gdx:gdx-backend-gwt:$gdxVersion"
+    compileOnly "org.gwtproject:gwt-user:$gwtVersion"
+
+    gwt "org.gwtproject:gwt-user:$gwtVersion"
+    gwt "org.gwtproject:gwt-dev:$gwtVersion"
+    for (lib in ["com.badlogicgames.gdx:gdx:$gdxVersion",
+                 "com.badlogicgames.gdx:gdx-backend-gwt:$gdxVersion",
+                 "com.badlogicgames.gdx:gdx-box2d:$gdxVersion",
+                 "com.badlogicgames.gdx:gdx-box2d-gwt:$gdxVersion",
+                 "com.badlogicgames.gdx-controllers:gdx-controllers-core:$gdxControllersVersion",
+                 "com.badlogicgames.gdx-controllers:gdx-controllers-gwt:$gdxControllersVersion"]) {
+        gwt lib
+        gwt "$lib:sources"
+    }
+    // NOT parallax-background: its 2.1.0 cannot be translated, and the patched copy in
+    // parallax-2.1.0-patched/ stands in for it. Delete both when parallax:r44 publishes 2.2.0.
+}
+
+def draft = providers.gradleProperty('draft').isPresent()
+def gwtWar = layout.buildDirectory.dir('gwt/war')
+def gwtWork = layout.buildDirectory.dir('gwt/work')
+
+tasks.register('gwtCompile', JavaExec) {
+    group = 'build'
+    description = 'Compiles the game to JavaScript (GWT). -Pdraft for a fast unoptimized compile.'
+    mainClass = 'com.google.gwt.dev.Compiler'
+    classpath = files('../core/src', 'src', 'gwt', 'parallax-2.1.0-patched') + configurations.gwt
+    // gdx.assetpath and gdx.assetoutputpath in the .gwt.xml are relative to THIS directory
+    workingDir = projectDir
+    maxHeapSize = '3g'
+    // The 32 MB asset copy is a GWT generator, and a generator does not run again while its output
+    // is in the persistent unit cache: a second compile would make a page with no assets (section 10)
+    systemProperty 'gwt.persistentunitcache', 'false'
+    args '-war', gwtWar.get().asFile.path, '-workDir', gwtWork.get().asFile.path, '-logLevel', 'WARN'
+    args(draft ? ['-draftCompile', '-style', 'PRETTY'] : ['-optimize', '9'])
+    args 'jks.GdxDefinition'
+
+    inputs.files(classpath).withPropertyName('sources')
+    inputs.dir('../desktop/assets').withPropertyName('assets')
+    inputs.property('draft', draft)
+    outputs.dir(gwtWar)
+
+    def war = gwtWar.get().asFile
+    doFirst { war.deleteDir() }
+    doLast {
+        if (!new File(war, 'assets/assets.txt').exists())
+            throw new GradleException("the asset generator did not run: $war has no assets and the page would hang on the preloader")
+    }
+}
+
+tasks.register('war', Sync) {
+    group = 'build'
+    description = 'The browser build as a static site in html/build/war.'
+    from tasks.named('gwtCompile')
+    from 'webapp'
+    // symbol maps and compile reports: not for the page
+    exclude 'WEB-INF/**'
+    into layout.buildDirectory.dir('war')
+}
+
+def port = providers.gradleProperty('port').orElse('8099')
+def javaHome = providers.systemProperty('java.home')
+
+// jwebserver is in every JDK since 18: nothing to install
+tasks.register('serve', Exec) {
+    group = 'application'
+    description = 'Serves html/build/war on http://localhost:8099/index.html (-Pport=).'
+    dependsOn tasks.named('war')
+    executable = "${javaHome.get()}/bin/jwebserver"
+    args '-b', '127.0.0.1', '-p', port.get(), '-d', layout.buildDirectory.dir('war').get().asFile.path
+}

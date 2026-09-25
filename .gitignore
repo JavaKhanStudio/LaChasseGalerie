@@ -35,3 +35,6 @@ Thumbs.db
 .claude/skills/run-offscreen
 # LWJGL unpacks its natives where a probe runs (desktop/assets)
 .lwjgl/
+
+## The browser gate: npm installs puppeteer-core here (tools/browser-gate/gate.sh)
+node_modules/

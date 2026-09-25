@@ -279,14 +279,23 @@ color = "#f2d45c"
 sort = 70
 context = """
 gradle.properties holds every version: gdxVersion, gdxControllersVersion, lwjglVersion,
-parallaxVersion. FOUR modules (settings.gradle): core (java-library, sources in src/), headless
-(Headless_Runner: stub GL, mock graphics, muted audio, one fixed 1/60 tick, exit 0/1 — what a
-screenless host runs; not in core so the game never depends on a backend, d7dfc70), desktop
-(application, `run`, `dist`), smoke — which carries FOUR tasks: `smoke`, `nettest`, `netcensus`
-and `netmirror`.
+parallaxVersion, webrtcVersion, gwtVersion. SEVEN modules (settings.gradle): core (java-library,
+sources in src/), headless (Headless_Runner: stub GL, mock graphics, muted audio, one fixed 1/60
+tick, exit 0/1 — what a screenless host runs; not in core so the game never depends on a backend,
+d7dfc70), desktop (application, `run`, `dist`, `jpackage`), smoke (the gates: `smoke`, `nettest`,
+`netcensus`, `netmirror` and the other net* tasks), lobby (the lobby service, core's classes
+without libGDX), rtc (WebRTC, desktop only) and html (the browser build, r81).
+THE HTML MODULE COMPILES core/src TO JAVASCRIPT (GWT, docs/browser-target.md section 11): anything
+under core/src the game reaches must translate, and javac will not tell you — no array clone(), no
+java.nio.channels, java.net, javax.crypto, SecureRandom, threads, String.format. What cannot
+translate gets a super-source stand-in in html/gwt/jks/super/ (Transport_Udp, SecureRandom,
+javax.crypto.Mac are there). `./gradlew :html:war` (~31 s, -Pdraft ~12 s) is NOT in `build`;
+`tools/browser-gate/gate.sh --draft` builds, plays it in headless Chrome and fails unless a key
+joins a hero — run it after touching core. html/parallax-2.1.0-patched/ is a patched copy of the
+library, carried until parallax:r44 publishes 2.2.0 (its README says how to remove it).
 Smoke_Run is now a Headless_Runner.Session: scripted players, invariants, seed, report.
-SMOKE SEED 1 IS deaths=20, monstersKilled=76 since fe08efc (one RNG stream replaced four); the old
-21/81 in any handover is stale. A change that claims to leave the game alone must reproduce 20/76.
+SMOKE SEED 1 IS deaths=19, monstersKilled=77 (measured at 1da9695 on 2026-09-25; it was 20/76
+after fe08efc, 21/81 before). A change that claims to leave the game alone must reproduce 19/77.
 The root build.gradle sets Java `release = 17` for every subproject. There is no CI: the gates
 below are all there is.
 `./gradlew smoke` IS A REAL TEST and `build` only compiles it (Simon's choice on r4): it plays
@@ -323,7 +332,8 @@ configuration time is cached; `./gradlew --no-configuration-cache` when a change
 directory.
 README.md documents the requirements, run commands, launcher options, the smoke run and dist:
 change any of them and fix it in the SAME commit.
-Gates: `./gradlew build`, `./gradlew smoke`, `./gradlew nettest`, `./gradlew netmirror`, `./gradlew :desktop:run
+Gates: `./gradlew build`, `./gradlew smoke`, `./gradlew nettest`, `./gradlew netmirror`,
+`tools/browser-gate/gate.sh --draft`, `./gradlew :desktop:run
 --args="--debug --mute"`, and
 `./gradlew dist && (cd /tmp && java -jar <root>/desktop/build/libs/LaChasseGalerie-1.0.jar)`.
 """
@@ -351,8 +361,10 @@ adds it; a ws/ peer BROWSEs and JOINs (JOINED carries the relay = the tab's TURN
 mirrored and cannot HOST. OFFER (tab) -> the service names a call u16 and sends OFFER_PARTs to the host over
 UDP -> Lobby_Client.takeOffers() -> answer(call, sdp) sends ANSWER_PARTs -> the tab gets ANSWER whole. Parts
 are <= CHUNK_BYTES 1024 (fits MAX_RELAYED), MAX_PARTS 8, MAX_SDP 8 kB, SDP text is printable ASCII+tab/CR/LF;
-jks.net.Lobby_Chunks puts them back whole or never (5 s, keyed on sender+call). Next, in order: r80 (the host answers, rtc peers in game()), r81 (the html module; parallax 2.1.0 patched copy
-until parallax:r44 publishes 2.2.0, Simon's pick), r82 (the tab's transport and lobby), r83 (the gate).
+jks.net.Lobby_Chunks puts them back whole or never (5 s, keyed on sender+call). Next, in order: r80 (the host answers, rtc peers in game()), r81 DONE (the html module: core/src now
+COMPILES TO JAVASCRIPT, so jks.net/online/lobby code the game reaches must translate — no array clone(),
+no java.nio.channels/java.net/javax.crypto/SecureRandom; stand-ins live in html/gwt/jks/super/; check with
+`tools/browser-gate/gate.sh --draft`, docs/browser-target.md section 11), r82 (the tab's transport and lobby), r83 (the gate).
 THE RELAY EXISTS AND IS DEPLOYED (r45, d6 -> relay, on Simon's word: "we already have a VPS we could
 use for testing"). VPS_1 = Fountain of Dreams' OVH box, 141.94.115.201, ubuntu with
 OnceUponATime/HQ/staging_deploy_key (deploy/vps.sh). There: coturn 4.7.0 (deploy/relay, UDP 3478,
