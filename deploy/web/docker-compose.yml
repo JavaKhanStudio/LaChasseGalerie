@@ -1,0 +1,19 @@
+# The browser page on VPS_1 (r83), beside the lobby and the relay: deploy.sh
+# copies html/build/war (an optimized GWT compile) to /opt/lachassegalerie/web/site
+# and runs this there. Plain http on TCP 8080, by the box's ip (Simon, r83 1:A):
+# no domain, so no TLS, so the page stays http and may open the lobby's ws://
+# front on 7771 (an https page could only open wss://). RTCDataChannel works on
+# an insecure origin. Static files, read-only; nothing else of the box is served.
+services:
+  web:
+    image: docker.io/library/nginx:1.27-alpine
+    container_name: lachassegalerie-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./site:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}

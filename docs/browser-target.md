@@ -473,3 +473,9 @@ A tab that waits more than 10 s for Start is timed out and joins again with a ne
 What this does not prove: another network (r83's gate), TLS (a page served over https cannot open a
 `ws://` socket — the hosting task), gamepads in a tab.
 
+**Served (r83).** The page is on VPS_1 at `http://141.94.115.201:8080/` (`deploy/web/deploy.sh`,
+nginx, plain http by ip: no domain, so no TLS, so the page may open the front's `ws://`).
+`ONLINE=1 tabjoin.sh --no-build` plays that page against a host here through VPS_1's lobby;
+`RELAY=1` beside it adds `?relay`, which makes the tab's call relay-only (`iceTransportPolicy:
+'relay'`), so coturn is proven without a phone. The other-network gate is `docs/online-gate.md`.
+

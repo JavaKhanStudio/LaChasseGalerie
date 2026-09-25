@@ -400,7 +400,12 @@ WS is closed once the session is IN and Vue_Client(null, channel, ...) plays. Ga
 `tools/browser-gate/tabjoin.sh [--draft|--no-build]` — a local lobby, an offscreen Lobby_Screen_Probe host
 (-Dprobe.browser) and a headless Chrome tab that types the code; fails unless the host's row says the
 channel is open and the tab's hero walks right in the tab AND on the host. html/build/tabjoin/ holds its
-screenshots and logs.
+screenshots and logs. THE PAGE IS SERVED (r83, Simon 1:A): http://141.94.115.201:8080/ is nginx on VPS_1
+(deploy/web/deploy.sh copies html/build/war; plain http by ip, no domain, so no TLS: an https page could
+only open wss://). A page speaks its checkout's lobby VERSION: redeploy deploy/web WITH deploy/lobby.
+?relay makes the tab's calls relay-only (iceTransportPolicy relay, a gate knob). ONLINE=1 [RELAY=1]
+tabjoin.sh plays that page against a host here through VPS_1's lobby (and coturn); the gate on another
+network is docs/online-gate.md's "A tab" section, a human's to run.
 THE RELAY EXISTS AND IS DEPLOYED (r45, d6 -> relay, on Simon's word: "we already have a VPS we could
 use for testing"). VPS_1 = Fountain of Dreams' OVH box, 141.94.115.201, ubuntu with
 OnceUponATime/HQ/staging_deploy_key (deploy/vps.sh). There: coturn 4.7.0 (deploy/relay, UDP 3478,

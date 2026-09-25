@@ -44,6 +44,16 @@ public final class Transport_Channel implements Lobby_Tab.Offerer
 	/** Net_PeerTable's and Transport_Rtc's : a peer silent this long is lost. */
 	public static final long TIMEOUT_MS = 10_000 ;
 	private int made, dropped ;
+	/** ?relay on the page (r83) : the call gathers ONLY the relay's candidates (iceTransportPolicy relay), so a tab
+	 * on a network that could connect directly still proves the TURN path a phone on mobile data needs. A gate's
+	 * knob, as Lobby_Ice.relayOnly is the desktop's : never the game's default. */
+	private final boolean relayOnly ;
+
+	public Transport_Channel()
+	{this(false) ;}
+
+	public Transport_Channel(boolean relayOnly)
+	{this.relayOnly = relayOnly ;}
 
 	private static long now()
 	{return System.currentTimeMillis() ;}
@@ -88,8 +98,8 @@ public final class Transport_Channel implements Lobby_Tab.Offerer
 		String name = Net_Tabs.PREFIX + ++made ;
 		Net_Peer peer = peer(name) ;
 		JavaScriptObject end = relay == null
-				? call(LABEL, null, null, null, GATHER_MS)
-				: call(LABEL, "turn:" + relay.server + "?transport=udp", relay.username, relay.password, GATHER_MS) ;
+				? call(LABEL, null, null, null, GATHER_MS, false)
+				: call(LABEL, "turn:" + relay.server + "?transport=udp", relay.username, relay.password, GATHER_MS, relayOnly) ;
 		Call call = new Call(peer, end) ;
 		calls.put(name, call) ;
 		return call ;
@@ -190,14 +200,14 @@ public final class Transport_Channel implements Lobby_Tab.Offerer
 	 * after gatherMs), end.failure when anything refuses, end.open while the channel is open, end.closed
 	 * once it closed after opening or the connection failed.
 	 */
-	private static native JavaScriptObject call(String label, String turn, String username, String password, int gatherMs)
+	private static native JavaScriptObject call(String label, String turn, String username, String password, int gatherMs, boolean relayOnly)
 	/*-{
 		var end = {inbox: [], sdp: null, failure: null, open: false, closed: false};
 		try {
 			var servers = [];
 			if (turn != null)
 				servers.push({urls: turn, username: username, credential: password});
-			var pc = new RTCPeerConnection({iceServers: servers});
+			var pc = new RTCPeerConnection(relayOnly ? {iceServers: servers, iceTransportPolicy: 'relay'} : {iceServers: servers});
 			end.pc = pc;
 			var channel = pc.createDataChannel(label, {ordered: false, maxRetransmits: 0});
 			channel.binaryType = 'arraybuffer';

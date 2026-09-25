@@ -63,7 +63,8 @@ import jks.vue.models.Vue_Menu;
  * drives one in headless Chrome, which reads code.txt. Once the tab's row says its data channel is open the
  * host writes it (host_5_browser_open.png), starts, logs every hero each second and writes host_4_run.png,
  * and exits 0 when the tab writes <out>/tab_done, or after 60 s of run. -Dprobe.startAfter=<ms> : Start that
- * long after the row opened (1 s by default).
+ * long after the row opened (1 s by default). -Dprobe.stun=true : its WebRTC gathers through Launcher_Game's STUN
+ * servers, as the game does, so a tab on VPS_1's relay can reach it (tabjoin.sh ONLINE=1, r83).
  */
 public class Lobby_Screen_Probe implements ApplicationListener
 {
@@ -96,8 +97,10 @@ public class Lobby_Screen_Probe implements ApplicationListener
 		jks.sounds.GVars_Audio.muted = true ;
 		// A local service unless told otherwise : the game's default is VPS_1's (r78)
 		GVars_Heart.lobbyService = arg.length > 2 ? arg[2] : "127.0.0.1:7770" ;
-		// As Launcher_Game does, without STUN : the probe stays on this machine. notabs : as if the natives did not load
-		GVars_Heart.tabs = () -> noTabs ? null : jks.rtc.Transport_Rtc.open(java.util.Collections.emptyList()) ;
+		// As Launcher_Game does, without STUN : the probe stays on this machine. notabs : as if the natives did not load.
+		// probe.stun (r83, a tab through VPS_1) : with Launcher_Game's STUN, or a relay-only tab has nothing public to reach
+		java.util.List<String> stun = Boolean.getBoolean("probe.stun") ? jks.lobby.Lobby_Ice.STUN_SERVERS : java.util.Collections.<String>emptyList() ;
+		GVars_Heart.tabs = () -> noTabs ? null : jks.rtc.Transport_Rtc.open(jks.rtc.Transport_Rtc.stun(stun)) ;
 		Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration() ;
 		// -Dprobe.size=1920x1080 : the fullscreen layout, in a window of that size
 		String[] size = System.getProperty("probe.size", "1280x720").split("x") ;
