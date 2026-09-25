@@ -17,7 +17,9 @@ run changes that init did not undo is reset where the run STARTS (GVars_Story.in
 clock, timers and music cue; camera river speed back to 7.5; Index_Sprite hands every colour back;
 setPages rewinds the river's static Enum_ColdNight pages). ADD A STATIC THAT A RUN MUTATES AND YOU
 OWE IT A RESET THERE — smoke plays the seed twice in one JVM and fails if run 2 differs.
-Nothing in the game yet ASKS to go back to the menu; a run never ends (the doubt on r34).
+A run lasts its song (d12): GVars_Story.runOver() 5 s after the landing, and Vue_Game then stops
+its world under Score_Screen until a pick (d14 hosted, d15 local): New run, or Menu / Close the
+server. A pick is the only thing that tears the run down; hosted, it runs inside HostSession.tick.
 Monsters and potions scale with GVars_Game.heroes.size(): with nobody joined nothing
 spawns.
 core/src/jks/vars/GVars_Game.java (lists, spawning, addPlayer),

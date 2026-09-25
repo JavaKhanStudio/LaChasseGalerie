@@ -19,11 +19,11 @@ import jks.input.IKM_Menu_Keyboard;
 import jks.input.IKM_Menu_XBoxController;
 
 /**
- * The end of a hosted run (d14) : the song is over, and the host and every client see the same final
- * score table over the river, while the host waits for its player to start a new run or close the
- * server.
+ * The end of a run : the song is over, and the final score table shows over the river until this
+ * window's player picks what comes next. A local run offers a new run or the menu (d15) ; a hosted
+ * one a new run or closing the server, and every client sees the same table (d14).
  *
- * The host's window gets the choices, driven like the start menu (d8) : pointer, arrows and pads all
+ * The deciding window gets the choices, driven like the start menu (d8) : pointer, arrows and pads all
  * move one {@link Menu_Focus}, and a pick runs on the view's next update. A client gets no choice, only
  * a line saying what it waits for : the decision is the host's.
  *

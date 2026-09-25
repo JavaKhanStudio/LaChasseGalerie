@@ -86,7 +86,7 @@ public class GVars_Story
 	static float timming_timeUntil_Descent = timming_timeUntil_Landing - timming_descentLength ; 
 	/** When the nose comes back up, so the canoe touches the water level. */
 	static float timming_timeUntil_Level = timming_timeUntil_Landing - 2f ; 
-	/** On the river after the landing, before the run gives the window back to the start menu. */
+	/** On the river after the landing, before the run shows its score screen (d14, d15). */
 	static float timming_afterLanding = 5f ; 
 	
 	/** skyScrolled when the descent began : what it brings back down to 0. -1 until then. */
@@ -96,7 +96,7 @@ public class GVars_Story
 	public static boolean hasLanded()
 	{return timming_currentStoryTime >= timming_timeUntil_Landing ;}
 	
-	/** Landed, and the players had a moment on the river : the run is over and goes back to the menu. */
+	/** Landed, and the players had a moment on the river : the run is over and shows its score screen. */
 	public static boolean runOver()
 	{return timming_currentStoryTime >= timming_timeUntil_Landing + timming_afterLanding ;}
 	

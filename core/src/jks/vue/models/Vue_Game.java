@@ -58,8 +58,10 @@ public class Vue_Game extends AVue_Model
     /** The hand that started this run, from the menu. Never null : POINTER when nobody's did. */
     private final Menu_Picker starter ;
     
-    /** A hosted run whose song is over : the final scores, and what this window's player picks next (d14). Null until then. */
+    /** A run whose song is over : the final scores, and what this window's player picks next (d14, d15). Null until then. */
     private Score_Screen scoreScreen ;
+    /** The score screen was opened by a host, so it offers Close the server rather than Menu. */
+    private boolean hostedEnding ;
     
     /** A run nobody in particular asked for : --menu off, or a mouse click. Everyone joins by hand. */
     public Vue_Game()
@@ -161,13 +163,10 @@ public class Vue_Game extends AVue_Model
 	public void update(float delta) 
 	{
 		// The song is over and the canoe is back on the river (d12). Before anything of this run is
-		// touched, since changeVue disposes it. A host keeps its run on the score screen, for its peers (d14)
+		// touched, since a pick disposes it : the run stays on the score screen until one (d14, d15)
 		if(GVars_Story.runOver())
 		{
-			if(GVars_Heart.hosting)
-				waitForTheNextRun(delta) ; 
-			else
-				GVars_Heart.changeVue(new Vue_Menu());
+			waitForTheNextRun(delta) ; 
 			return ; 
 		}
 		
@@ -191,22 +190,31 @@ public class Vue_Game extends AVue_Model
 	}
 	
 	/**
-	 * The song of a hosted run is over (d14). The world stops : nobody moves, spawns or scores any more,
+	 * The song is over (d14 hosted, d15 local). The world stops : nobody moves, spawns or scores any more,
 	 * and a JOIN gets no hero (Game_Simulation.spawn). The river flows on under the final scores until
 	 * this window's player picks :
 	 * <ul>
-	 * <li>New run : a fresh Vue_Game, under the same HostSession. The seats stay, with their PlayerIds
-	 *     (GVars_Controller numbers on), and every client sees the run number change and starts over. The
-	 *     hand that picked is in it, as from the start menu (d9) ; everyone else presses to join.</li>
-	 * <li>Close the server : GVars_Heart.hosting goes false. Main_Game then closes the session while this
-	 *     world still exists - every client gets HOST_ENDED - and the next update goes to the menu, as a
-	 *     local run does.</li>
+	 * <li>New run : a fresh Vue_Game. The hand that picked is in it, as from the start menu (d9) ;
+	 *     everyone else presses to join. Hosted, it runs under the same HostSession : the seats stay,
+	 *     with their PlayerIds (GVars_Controller numbers on), and every client sees the run number
+	 *     change and starts over.</li>
+	 * <li>Menu, on a local run : back to the start menu.</li>
+	 * <li>Close the server, on a hosted one : GVars_Heart.hosting goes false. Main_Game then closes the
+	 *     session while this world still exists - every client gets HOST_ENDED - and the next update
+	 *     goes to the menu.</li>
 	 * </ul>
-	 * Called inside HostSession.tick, which reads the world after it : a pick never tears the run down
-	 * without putting another in its place.
+	 * Hosted, this is called inside HostSession.tick, which reads the world after it : a pick never
+	 * tears the run down without putting another in its place.
 	 */
 	void waitForTheNextRun(float delta)
 	{
+		// The server is closed (Main_Game told every peer) : this run ends into the menu
+		if(scoreScreen != null && hostedEnding && !GVars_Heart.hosting)
+		{
+			GVars_Heart.changeVue(new Vue_Menu());
+			return ; 
+		}
+		
 		if(scoreScreen == null)
 			openScoreScreen() ; 
 		
@@ -225,13 +233,17 @@ public class Vue_Game extends AVue_Model
 		for(Map.Entry<PlayerId, ScoreLabel> entry : GVars_Game.playerRegister.entrySet())
 			rows.add(new Score_Screen.Row(entry.getKey().number(), entry.getValue().scoreNumber, entry.getValue().deathNumber, entry.getValue().score.getColor())) ; 
 		
+		hostedEnding = GVars_Heart.hosting ; 
 		scoreScreen = new Score_Screen(rows, null) ; 
 		scoreScreen.choice("New run", picker -> GVars_Heart.changeVue(new Vue_Game(picker))) ; 
-		scoreScreen.choice("Close the server", picker -> 
-		{
-			scoreScreen.say("Closing the server...") ; 
-			GVars_Heart.hosting = false ; 
-		}) ; 
+		if(hostedEnding)
+			scoreScreen.choice("Close the server", picker -> 
+			{
+				scoreScreen.say("Closing the server...") ; 
+				GVars_Heart.hosting = false ; 
+			}) ; 
+		else
+			scoreScreen.choice("Menu", picker -> GVars_Heart.changeVue(new Vue_Menu())) ; 
 		scoreScreen.listen() ; 
 	}
 	

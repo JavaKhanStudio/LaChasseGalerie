@@ -68,18 +68,19 @@ Each hero has four hearts. Hitting a monster with your axe scores a point; a pot
 at full health. Falling into the river or losing every heart costs a death and halves your score.
 
 A run lasts as long as its song. Near the song's end nothing new spawns, the canoe comes back down into the
-river, and five seconds after it lands the game goes back to the start menu.
+river, and five seconds after it lands the run ends on a score screen: the final table, best score first.
+Pick **New run** (whoever picked is in it, everyone else presses to join again) or **Menu**.
 
-A `--host` run ends on a score screen instead, for the host and every client: the final table, best score first.
-The host picks **New run** (everyone stays connected and presses to join again) or **Close the server** (clients
-see "the host closed the server" and go back to their menu).
+A `--host` run ends on the same score screen, for the host and every client. The host picks **New run** (everyone
+stays connected and presses to join again) or **Close the server** (clients see "the host closed the server" and
+go back to their menu).
 
 ## Smoke run
 
 ```sh
 ./gradlew smoke                          # a minute of game time, headless, in a few seconds
 ./gradlew smoke -Pseed=42 -Pseconds=120  # another run, or a longer one
-./gradlew smoke -Pseconds=360           # through the landing and back to the menu
+./gradlew smoke -Pseconds=360           # through the landing, the score screen, and back to the menu
 ```
 
 There are no unit tests. `smoke` runs the real game loop with no window and no sound, and a stubbed GL.

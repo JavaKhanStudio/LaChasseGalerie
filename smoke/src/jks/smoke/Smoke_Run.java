@@ -15,6 +15,7 @@ import com.badlogic.gdx.utils.Array;
 import jks.camera.GVars_Camera;
 import jks.headless.Headless_Runner;
 import jks.input.GVars_Controller;
+import jks.input.Menu_Picker;
 import jks.input.Player_Inputs;
 import jks.personnage.PhysicSpriteEnnemy;
 import jks.personnage.PhysicSpriteHeroes;
@@ -27,6 +28,7 @@ import jks.vars.GVars_Heart;
 import jks.story.GVars_Story;
 import jks.vars.GVars_Random;
 import jks.vinterface.GVars_Interface;
+import jks.vue.models.Vue_Game;
 import jks.vue.models.Vue_Menu;
 
 /**
@@ -146,13 +148,25 @@ public class Smoke_Run implements Headless_Runner.Session
 
 			if (GVars_Story.runOver())
 			{
-				// The song is over (d12): this step hands the window back to the menu, and the run is gone
+				// The song is over (d12): the run stops on its score screen (d15) and waits there for a
+				// pick, then Menu hands the window back to the menu and the run is gone
 				checkLanded();
 				report("t=" + frame / 60 + "s ended:");
 				checkItProvedSomething();
+				Vue_Game ended = (Vue_Game) GVars_Heart.vue;
+				runner.step();
+				float storyAtEnd = GVars_Story.storyTime();
+				for (int i = 0; i < 120; i++)
+					runner.step();
+				if (GVars_Heart.vue != ended || ended.scoreChoices() == null)
+					throw new IllegalStateException("the run is over but its score screen did not wait for a pick");
+				if (GVars_Story.storyTime() != storyAtEnd)
+					throw new IllegalStateException("the story went on under the score screen");
+				ended.scoreChoices().move(1);
+				ended.scoreChoices().pick(Menu_Picker.POINTER);
 				runner.step();
 				if (!(GVars_Heart.vue instanceof Vue_Menu))
-					throw new IllegalStateException("the run is over but did not go back to the menu");
+					throw new IllegalStateException("Menu was picked on the score screen but did not go back to the menu");
 				checkTornDown();
 				return;
 			}
