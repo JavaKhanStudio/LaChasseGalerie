@@ -416,6 +416,9 @@ browser key event, and fails unless a hero joined and the loop runs above 20 fps
 and `gate.json` (timings and the page's console). `npm ci` installs puppeteer-core into
 `tools/browser-gate/node_modules` on the first run; it downloads no browser.
 
-Still open, and not this module's: the tab's transport (r82), sound and gamepad parity, the
-non-power-of-two mipmap warnings (§10), and hosting the page.
+Still open, and not this module's: the tab's transport (r82), sound and gamepad parity, and
+hosting the page. The non-power-of-two mipmap warnings of §10 are gone (r84): they were the HUD's
+score and death icons (`Utils_Interface.buildDrawingRegionTexture`), 617 px textures built with
+mipmaps that their Linear filter never sampled. The console of a gate run is now one line,
+`startPolling`.
 
