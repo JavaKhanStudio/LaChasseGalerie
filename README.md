@@ -162,9 +162,10 @@ normally `jlink` a small runtime itself, but it cannot on Fedora — the distro 
 modified"*. Build one elsewhere and pass `-Pruntime=<dir>` for a smaller image.
 
 The icon is `desktop/packaging/icon.png` (512×512) and `icon.ico` (Windows, 16 to 256 px): the
-double axe on the night sky, made from the game's own art — `tools/double_axe.png` over a night
-sky — which is what Simon picked on d11 because it is the one that still reads at 32 px. The same
-picture is the window and taskbar icon, from `desktop/assets/ui/icon_*.png`. **macOS needs an
+canoe crossing the full moon above the pines, which Simon picked on r71 for the game and its board.
+It is drawn once, in `icon.svg` at the repo root (the board shows that file itself), and
+`python3 tools/logo_icons.py` makes every raster from it: these two, the window and taskbar icon in
+`desktop/assets/ui/icon_*.png`, and `ui/logo.png` above the title on the start menu. **macOS needs an
 `icon.icns`** and there is none; nothing here can make a real one. On a Mac:
 
 ```sh

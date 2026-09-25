@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- The game's logo and its board's (r71, option A): the canoe crossing the full moon, above the pines.
+       Every raster of it is made from this file: python3 tools/logo_icons.py -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#121631"/><stop offset="1" stop-color="#2b4a8c"/>
+    </linearGradient>
+    <clipPath id="tile"><rect width="128" height="128" rx="26"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="128" height="128" fill="url(#sky)"/>
+    <g fill="#e8f4ff"><circle cx="20" cy="22" r="1.6"/><circle cx="104" cy="16" r="1.3"/><circle cx="112" cy="46" r="1.1"/><circle cx="14" cy="58" r="1.1"/></g>
+    <circle cx="66" cy="54" r="36" fill="#f4ead0"/>
+    <circle cx="66" cy="54" r="36" fill="none" stroke="#8a5fd0" stroke-opacity=".35" stroke-width="4"/>
+    <!-- pines, as the parallax draws them -->
+    <g fill="#0d1026">
+      <path d="M-4 128V112C20 104 44 106 64 110C88 114 108 106 132 110V128z"/>
+      <path d="M20.0 62.0L22.9 70.9L22.1 71.9L28.2 81.8L23.3 79.8L20.0 82.8L16.7 79.8L11.8 81.8L17.9 71.9L17.1 70.9zM20.0 74.5L24.2 83.1L23.0 84.1L32.0 93.7L24.8 91.7L20.0 94.7L15.2 91.7L8.0 93.7L17.0 84.1L15.8 83.1zM20.0 87.0L25.2 95.5L23.8 96.5L35.0 106.0L26.0 104.0L20.0 107.0L14.0 104.0L5.0 106.0L16.2 96.5L14.8 95.5zM18.5 105.0h3V114h-3zM36.0 82.0L37.9 87.7L37.4 88.3L41.5 94.7L38.2 92.7L36.0 95.7L33.8 92.7L30.5 94.7L34.6 88.3L34.1 87.7zM36.0 90.0L38.8 95.5L38.0 96.1L44.0 102.3L39.2 100.3L36.0 103.3L32.8 100.3L28.0 102.3L34.0 96.1L33.2 95.5zM36.0 98.0L39.5 103.5L38.5 104.1L46.0 110.2L40.0 108.2L36.0 111.2L32.0 108.2L26.0 110.2L33.5 104.1L32.5 103.5zM34.5 109.5h3V116h-3zM106.0 72.0L108.3 79.1L107.7 79.9L112.6 87.8L108.6 85.8L106.0 88.8L103.4 85.8L99.4 87.8L104.3 79.9L103.7 79.1zM106.0 82.0L109.4 88.9L108.4 89.7L115.6 97.3L109.8 95.3L106.0 98.3L102.2 95.3L96.4 97.3L103.6 89.7L102.6 88.9zM106.0 92.0L110.2 98.8L109.0 99.6L118.0 107.2L110.8 105.2L106.0 108.2L101.2 105.2L94.0 107.2L103.0 99.6L101.8 98.8zM104.5 106.4h3V114h-3zM122.0 88.0L123.5 92.6L123.1 93.1L126.4 98.3L123.8 96.3L122.0 99.3L120.2 96.3L117.6 98.3L120.9 93.1L120.5 92.6zM122.0 94.5L124.2 99.0L123.6 99.5L128.4 104.5L124.6 102.5L122.0 105.5L119.4 102.5L115.6 104.5L120.4 99.5L119.8 99.0zM122.0 101.0L124.8 105.4L124.0 105.9L130.0 110.9L125.2 108.9L122.0 111.9L118.8 108.9L114.0 110.9L120.0 105.9L119.2 105.4zM120.5 110.4h3V116h-3z"/>
+    </g>
+    <!-- canoe with four paddlers, tilted climbing right -->
+    <g transform="translate(64 62) rotate(-14)" fill="#0d1026">
+      <g stroke="#0d1026" stroke-width="2.4" stroke-linecap="round">
+        <line x1="-25" y1="-14" x2="-38" y2="26"/><line x1="-8" y1="-14" x2="-21" y2="26"/>
+        <line x1="9" y1="-14" x2="-4" y2="26"/><line x1="26" y1="-14" x2="13" y2="26"/>
+      </g>
+      <circle cx="-26" cy="-11" r="3.6"/><circle cx="-9" cy="-11" r="3.6"/>
+      <circle cx="8" cy="-11" r="3.6"/><circle cx="25" cy="-11" r="3.6"/>
+      <rect x="-30" y="-8" width="8" height="10" rx="2"/><rect x="-13" y="-8" width="8" height="10" rx="2"/>
+      <rect x="4" y="-8" width="8" height="10" rx="2"/><rect x="21" y="-8" width="8" height="10" rx="2"/>
+      <path d="M-54 -14C-44 0 44 0 54 -14C48 26 -48 26 -54 -14z"/>
+    </g>
+  </g>
+</svg>

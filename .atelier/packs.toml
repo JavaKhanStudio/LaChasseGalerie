@@ -259,6 +259,9 @@ back to the first animation and prints "Impossible de trouver l'animation", and
 SpriteModel.draw swallows any exception with another French println. Watch stdout.
 The .atlas files are TexturePacker output and the source images are not in the repo: there
 is no packer step here, so an edited sprite sheet means re-packing it elsewhere.
+The logo is the opposite: ui/icon_*.png, ui/logo.png (start menu) and desktop/packaging/
+icon.png/.ico are all made from icon.svg at the repo root by tools/logo_icons.py (r71).
+Edit the SVG and re-run it, never the PNGs; the board shows icon.svg itself.
 Textures are created with `new Texture(...)` and never disposed. One made per join must be a
 shared static (Weapon_AXE.axeTexture, PhysicSpriteHeroes.heartTexture), or every join leaks.
 Referenced nowhere (Java, skin JSON or atlases): tools/Sirop.png, stars/Stars-Big_*,

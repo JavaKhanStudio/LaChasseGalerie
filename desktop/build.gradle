@@ -92,7 +92,7 @@ tasks.register('jpackage', Exec) {
     def os = osName.get().toLowerCase(Locale.ROOT)
     def mac = os.contains('mac')
     def windows = os.contains('windows')
-    // The axe on the night sky (d11 -> B). icon.png and icon.ico are in packaging/; there is no
+    // The canoe across the moon (r71), made from icon.svg by tools/logo_icons.py. icon.png and icon.ico are in packaging/; there is no
     // icon.icns, so a macOS build has no icon until someone runs iconutil on a Mac (README).
     def icon = file(windows ? 'packaging/icon.ico' : mac ? 'packaging/icon.icns' : 'packaging/icon.png')
 

@@ -4,7 +4,10 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.controllers.Controllers;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
@@ -19,7 +22,7 @@ import jks.vinterface.Menu_Focus;
 import jks.vue.AVue_Model;
 
 /**
- * The start menu, as a sketch (r18) : the night river, the title, and the ways out of it.
+ * The start menu, as a sketch (r18) : the night river, the logo and the title, and the ways out of it.
  *
  * It is a view like any other — GVars_Heart.changeVue(new Vue_Game()) is what "Local play" does —
  * and it owns ITS OWN Stage. The game's Stage (GVars_Interface.mainInterface) already carries the
@@ -39,6 +42,8 @@ public class Vue_Menu extends AVue_Model
 	Stage stage ;
 	Menu_Focus focus ;
 	IKM_Menu_XBoxController padListener ;
+	/** The game's logo (r71), made from icon.svg by tools/logo_icons.py. Each menu loads its own and disposes it. */
+	Texture logo ;
 
 	/** Slow enough to read a menu over : the river runs at 7.5 once the game starts. */
 	private static final float menuScrollSpeed = 2f ;
@@ -66,8 +71,13 @@ public class Vue_Menu extends AVue_Model
 		Table table = new Table() ;
 		table.setFillParent(true);
 
+		// The logo above the title, at 256 px drawn a little smaller, so the three choices keep their room
+		logo = new Texture(Gdx.files.internal("ui/logo.png")) ;
+		logo.setFilter(TextureFilter.Linear, TextureFilter.Linear) ;
+		table.add(new Image(logo)).size(height * 0.26f).padBottom(height * 0.02f).row();
+
 		Label title = new Label("La chasse-galerie", GVars_Interface.baseSkin, "title") ;
-		table.add(title).padBottom(height * 0.08f).row();
+		table.add(title).padBottom(height * 0.06f).row();
 
 		// The hand that picks the run is already in it (d9) : it is handed to the run it opens
 		TextButton local = playButton("Local play") ;
@@ -124,5 +134,6 @@ public class Vue_Menu extends AVue_Model
 	{
 		Controllers.removeListener(padListener);
 		stage.dispose();
+		logo.dispose();
 	}
 }

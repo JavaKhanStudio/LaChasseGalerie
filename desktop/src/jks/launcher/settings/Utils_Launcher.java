@@ -26,7 +26,7 @@ public class Utils_Launcher
 	public static void basicConfig(Lwjgl3ApplicationConfiguration config)
 	{
 		config.setTitle("La chasse galerie");
-		// The axe on the night sky (d11 -> B): the taskbar and the window carry it, and
+		// The canoe across the moon (r71), made from icon.svg by tools/logo_icons.py: the taskbar and the window carry it, and
 		// desktop/packaging/ carries the same picture for the packaged launcher. GLFW picks the
 		// size it wants; internal resolves from desktop/assets, in a run and inside the dist jar.
 		config.setWindowIcon(FileType.Internal, "ui/icon_128.png", "ui/icon_64.png", "ui/icon_32.png", "ui/icon_16.png");
