@@ -19,6 +19,7 @@ import jks.net.Net_Peer;
 import jks.net.Net_Rejected;
 import jks.net.Net_Transport;
 import jks.net.Stun_Codec;
+import jks.net.Turn_Client;
 
 /**
  * Which way two players can reach each other, found out while they are still in the lobby (phase 2.2,
@@ -44,8 +45,12 @@ import jks.net.Stun_Codec;
  *     went from Wi-Fi to mobile shows as RECONNECTING, not as a row that pretends.</li>
  * </ul>
  *
- * THERE IS NO RELAY YET : r45 decides and deploys it. {@link Route#RELAYED} is its slot ; until then a
- * pair no check gets through is CANNOT_CONNECT, and both sides being symmetric is exactly that case.
+ * THE RELAY (r45) is the last candidate, never the first choice. The joiner allocates on it
+ * ({@link jks.net.Turn_Client}, owned by {@link Lobby_Client}) and its checks to {@code "relay/<host>"} go
+ * through it ; the host sees the relayed address as one more to check, on the relay's ip ({@link #relayAt}).
+ * Both rank it below everything, and an answer through it alone is only taken after {@link #RELAY_AFTER_MS},
+ * so the punch has had its chance : then the row says RELAYED. Without a relay, a pair no check gets
+ * through is CANNOT_CONNECT, and both sides being symmetric is exactly that case.
  *
  * The joiner nominates (it is the side that opens the game connection) : {@link Link#address()} on the
  * joiner is where its ClientSession should send. The host's row only needs the route.
@@ -71,6 +76,8 @@ public final class Lobby_Ice
 	public static final long GIVE_UP_MS = 4_000;
 	/** After a first answer, better addresses get this long to answer too : IPv6 or LAN beats a punched public one. */
 	public static final long SETTLE_MS = 300;
+	/** An answer through the relay and none other is taken only this long after the checks began : the port search had a second. */
+	public static final long RELAY_AFTER_MS = 2_000;
 	/** A working route is checked this often, every round once an answer is late ; it doubles as the NAT keepalive while nobody plays. */
 	public static final long CONSENT_MS = 1_000;
 	/** A working route with no answer for this long is RECONNECTING. */
@@ -100,7 +107,7 @@ public final class Lobby_Ice
 		CHECKING,
 		/** A check was answered : the game can go straight there. */
 		DIRECT,
-		/** Through the relay. Nothing is, until r45 deploys one. */
+		/** Through the relay : nothing direct answered in {@link #RELAY_AFTER_MS}, the relay did. */
 		RELAYED,
 		/** Nothing got through in {@link #GIVE_UP_MS}. Checks go on slowly, and a later answer makes it DIRECT. */
 		CANNOT_CONNECT,
@@ -123,8 +130,16 @@ public final class Lobby_Ice
 	private final Set<String> probed = new HashSet<String>();
 	/** Addresses the game itself sent to : their silence IS the game's. */
 	private final Set<String> played = new HashSet<String>();
+	/** The relays' ips, "a.b.c.d:0" : an address on one of them is a relayed address, however it was offered. */
+	private final Set<String> relays = new HashSet<String>();
 
 	public int rejected, answered, checksSent, searchesSent;
+	/**
+	 * Checks go through the relay and nowhere else : how one machine proves the relayed path over the real
+	 * internet (`./gradlew netonline`), where its two ends would otherwise find each other on the LAN. Never
+	 * set in the game.
+	 */
+	public boolean relayOnly;
 
 	public Lobby_Ice(Net_Transport shared, LongSupplier clock, Random random, Supplier<String> self)
 	{
@@ -242,6 +257,14 @@ public final class Lobby_Ice
 		return count;
 	}
 
+	/** The relay at this ip:port : an address on its ip is ranked RELAYED, the last resort. */
+	public void relayAt(String server)
+	{
+		byte[] ip = Stun_Codec.ipOf(server);
+		if (ip != null)
+			relays.add(Stun_Codec.textOf(ip, 0));
+	}
+
 	// ---------------------------------------------------------------- pairs
 
 	/**
@@ -262,7 +285,8 @@ public final class Lobby_Ice
 			links.put(key, link);
 		}
 		for (String address : candidates)
-			link.offer(address, rank(address));
+			if (!relayOnly || relayed(address))
+				link.offer(address, rankOf(address));
 		return link;
 	}
 
@@ -295,7 +319,7 @@ public final class Lobby_Ice
 			Link link = it.next();
 			if (victim == null)
 				victim = link.key;
-			if (link.route != Route.DIRECT)
+			if (link.route != Route.DIRECT && link.route != Route.RELAYED)
 			{
 				victim = link.key;
 				break;
@@ -342,14 +366,16 @@ public final class Lobby_Ice
 		if (!binding.success)
 		{
 			// Only a player's check is answered : a request with no name is a stranger using us as a free STUN server.
-			// And only from an ip:port : a name on the in-memory wire has no bytes to answer with
-			if (binding.username == null || Stun_Codec.ipOf(from.address()) == null)
+			// And only from an ip:port : a name on the in-memory wire has no bytes to answer with. Through the
+			// relay, the ip:port is the one behind it, and the answer goes back the way the check came
+			String seen = Turn_Client.isRelayed(from.address()) ? from.address().substring(Turn_Client.PREFIX.length()) : from.address();
+			if (binding.username == null || Stun_Codec.ipOf(seen) == null)
 				return;
-			send(from, Stun_Codec.encode(binding.answer(from.address())));
+			send(from, Stun_Codec.encode(binding.answer(seen)));
 			answered++;
 			Link link = links.get(binding.username);
 			// Their real mapping may be one nobody offered (symmetric, or a LAN we did not know) : check it now
-			if (link != null && link.offer(from.address(), RANK_REFLEXIVE))
+			if (link != null && (!relayOnly || relayed(from.address())) && link.offer(from.address(), reflexive(from.address())))
 				sendCheck(link, from.address(), now, false);
 			return;
 		}
@@ -367,7 +393,7 @@ public final class Lobby_Ice
 			return;
 		if (from.address().equals(question.address))
 			link.answered(question.address, now);
-		else if (link.offer(from.address(), RANK_REFLEXIVE))
+		else if (link.offer(from.address(), reflexive(from.address())))
 			sendCheck(link, from.address(), now, false); // answered from another mapping : that one is the route to try
 	}
 
@@ -406,6 +432,7 @@ public final class Lobby_Ice
 		switch (link.route)
 		{
 			case DIRECT:
+			case RELAYED:
 				if (now - link.lastAnswer >= STALE_MS)
 				{
 					link.restart(Route.RECONNECTING, now);
@@ -418,13 +445,12 @@ public final class Lobby_Ice
 					sendCheck(link, link.address, now, false);
 				}
 				return;
-			case RELAYED:
-				return;
 			default:
 				break;
 		}
 
-		if (link.firstAnswer != Long.MIN_VALUE && (now - link.firstAnswer >= SETTLE_MS || link.bestAnswered() == link.bestOffered()))
+		if (link.firstAnswer != Long.MIN_VALUE && (now - link.firstAnswer >= SETTLE_MS || link.bestAnswered() == link.bestOffered())
+				&& link.mayNominate(now))
 		{
 			link.nominate(now);
 			return;
@@ -537,7 +563,27 @@ public final class Lobby_Ice
 
 	// ---------------------------------------------------------------- ranks
 
-	static final int RANK_IPV6 = 3, RANK_LAN = 2, RANK_PUBLIC = 1, RANK_REFLEXIVE = 0;
+	static final int RANK_IPV6 = 3, RANK_LAN = 2, RANK_PUBLIC = 1, RANK_REFLEXIVE = 0, RANK_RELAYED = -1;
+
+	/** {@link #rank}, but an address through a relay, or on one, last of all. */
+	int rankOf(String address)
+	{
+		return relayed(address) ? RANK_RELAYED : rank(address);
+	}
+
+	/** An address nobody offered : the other end's real mapping, or its relayed one. */
+	int reflexive(String address)
+	{
+		return relayed(address) ? RANK_RELAYED : RANK_REFLEXIVE;
+	}
+
+	boolean relayed(String address)
+	{
+		if (Turn_Client.isRelayed(address))
+			return true;
+		byte[] ip = Stun_Codec.ipOf(address);
+		return ip != null && relays.contains(Stun_Codec.textOf(ip, 0));
+	}
 
 	/** IPv6 (global) before a LAN or loopback IPv4, before a public IPv4 ; a mapping nobody offered last. */
 	static int rank(String address)
@@ -578,7 +624,7 @@ public final class Lobby_Ice
 			return route;
 		}
 
-		/** Where the game should send to reach the other end : set once DIRECT, kept while RECONNECTING, null before. */
+		/** Where the game should send to reach the other end : set once DIRECT or RELAYED, kept while RECONNECTING, null before. */
 		public String address()
 		{
 			return address;
@@ -593,10 +639,16 @@ public final class Lobby_Ice
 			return addresses;
 		}
 
-		/** How long the last check took to settle, from the start of checking to DIRECT ; -1 while not DIRECT. */
+		/** How long the last check took to settle, from the start of checking to DIRECT or RELAYED ; -1 before. */
 		public long settledMs()
 		{
-			return route == Route.DIRECT ? becameDirect - started : -1;
+			return route == Route.DIRECT || route == Route.RELAYED ? becameDirect - started : -1;
+		}
+
+		/** True once the game may use this pair : DIRECT, or RELAYED. */
+		public boolean usable()
+		{
+			return route == Route.DIRECT || route == Route.RELAYED;
 		}
 
 		/** What a person can do about this pair, or null when nothing is wrong. Names a fix, never a NAT type. */
@@ -634,10 +686,19 @@ public final class Lobby_Ice
 				if (candidate.address.equals(address))
 					candidate.answered = true;
 			lastAnswer = now;
-			if (route != Route.DIRECT && firstAnswer == Long.MIN_VALUE)
+			// A pair in use keeps its route : the session was built on that address
+			if (usable())
+				return;
+			if (firstAnswer == Long.MIN_VALUE)
 				firstAnswer = now;
-			if (route != Route.DIRECT && bestAnswered() == bestOffered())
+			if (bestAnswered() == bestOffered() && mayNominate(now))
 				nominate(now);
+		}
+
+		/** Anything but the relay may be taken at once ; the relay alone, once the punch had {@link #RELAY_AFTER_MS}. */
+		boolean mayNominate(long now)
+		{
+			return bestAnswered() > RANK_RELAYED || now - started >= RELAY_AFTER_MS;
 		}
 
 		int bestOffered()
@@ -663,7 +724,7 @@ public final class Lobby_Ice
 				if (candidate.answered)
 				{
 					address = candidate.address;
-					route = Route.DIRECT;
+					route = candidate.rank == RANK_RELAYED ? Route.RELAYED : Route.DIRECT;
 					becameDirect = now;
 					lastRound = now;
 					return;

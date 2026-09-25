@@ -10,6 +10,10 @@ import jks.net.Transport_Udp;
  * thing in this project that binds a fixed port, because players must know where to find it
  * (Transport_Udp : "only a dedicated server passes a fixed port").
  *
+ * The relay (r45) : with LOBBY_RELAY=ip:port and LOBBY_RELAY_SECRET in its environment, every HOSTED
+ * and JOINED names that relay with a credential minted from the secret (coturn's static-auth-secret).
+ * From the environment, not the command line, so the secret is not in `ps` for every user of the box.
+ *
  * It prints a line per lobby opened, closed and joined, and a count every minute. It runs until killed.
  */
 public class Lobby_Main
@@ -44,6 +48,14 @@ public class Lobby_Main
 					log("JOINING " + lobby.code + " from " + joiner.address());
 				}
 			};
+			String relay = System.getenv("LOBBY_RELAY"), secret = System.getenv("LOBBY_RELAY_SECRET");
+			if (relay != null && !relay.isEmpty() && secret != null && !secret.isEmpty())
+			{
+				service.relay(relay, secret);
+				log("RELAY " + relay);
+			}
+			else
+				log("RELAY none : a pair no check gets through cannot play");
 			log("PORT " + transport.localPort());
 
 			long nextCount = System.currentTimeMillis() + 60_000;

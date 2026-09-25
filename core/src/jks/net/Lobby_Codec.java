@@ -20,12 +20,12 @@ import java.util.List;
  * <pre>
  *   OUTDATED   (empty)                                          frozen : the header's version is the service's
  *   HOST       game u8 | code c6 | players u8 | seats u8 | candidates
- *   HOSTED     code c6 | you addr
+ *   HOSTED     code c6 | you addr | relay
  *   CLOSE      code c6
  *   BROWSE     game u8
  *   LISTING    game u8 | total u16 | rows u8 | rows x (code c6 | players u8 | seats u8)
  *   JOIN       game u8 | code c6 | candidates
- *   JOINED     code c6 | you addr | host candidates
+ *   JOINED     code c6 | you addr | host candidates | relay
  *   PEER       code c6 | joiner candidates
  *   REFUSED    code c6 | reason u8 | game u8
  *   PING       (empty)
@@ -34,6 +34,7 @@ import java.util.List;
  *   code c6      six characters of {@link #CODE_ALPHABET}, or six zero bytes for none (HOST, REFUSED)
  *   addr         length u8 (1-64) | printable ASCII
  *   candidates   count u8 (0-5) | count x addr
+ *   relay        0 u8 when the service has none, or 1 u8 | server addr | username addr | password addr   (r45, version 2)
  * </pre>
  * OUTDATED with no body is the one layout no version may change : a service that is newer than a
  * game still has a way to say so. {@link #decode} hands one of another version back instead of refusing it.
@@ -45,7 +46,7 @@ import java.util.List;
 public final class Lobby_Codec
 {
 	/** Bump on ANY change to a layout above, except OUTDATED's, which never changes. */
-	public static final int VERSION = 1;
+	public static final int VERSION = 2;
 	public static final int MAGIC = 'L';
 
 	/** No 0/O, no 1/I : a code is read aloud and typed by a person. 32 letters, six of them : 2^30 codes. */
@@ -106,7 +107,7 @@ public final class Lobby_Codec
 				body = 1 + CODE_LENGTH + 2 + candidatesSize(((Lobby_Message.Host) message).candidates);
 				break;
 			case HOSTED:
-				body = CODE_LENGTH + addressSize(((Lobby_Message.Hosted) message).you);
+				body = CODE_LENGTH + addressSize(((Lobby_Message.Hosted) message).you) + relaySize(((Lobby_Message.Hosted) message).relay);
 				break;
 			case CLOSE:
 				body = CODE_LENGTH;
@@ -122,7 +123,7 @@ public final class Lobby_Codec
 				break;
 			case JOINED:
 				Lobby_Message.Joined joined = (Lobby_Message.Joined) message;
-				body = CODE_LENGTH + addressSize(joined.you) + candidatesSize(joined.host);
+				body = CODE_LENGTH + addressSize(joined.you) + candidatesSize(joined.host) + relaySize(joined.relay);
 				break;
 			case PEER:
 				body = CODE_LENGTH + candidatesSize(((Lobby_Message.Peer) message).joiner);
@@ -175,6 +176,7 @@ public final class Lobby_Codec
 			case HOSTED:
 				putCode(out, ((Lobby_Message.Hosted) message).code, false);
 				putAddress(out, ((Lobby_Message.Hosted) message).you);
+				putRelay(out, ((Lobby_Message.Hosted) message).relay);
 				break;
 			case CLOSE:
 				putCode(out, ((Lobby_Message.Close) message).code, false);
@@ -209,6 +211,7 @@ public final class Lobby_Codec
 				putCode(out, joined.code, false);
 				putAddress(out, joined.you);
 				putCandidates(out, joined.host);
+				putRelay(out, joined.relay);
 				break;
 			case PEER:
 				putCode(out, ((Lobby_Message.Peer) message).code, false);
@@ -296,7 +299,9 @@ public final class Lobby_Codec
 				getCandidates(in, version, host.candidates);
 				return host;
 			case HOSTED:
-				return new Lobby_Message.Hosted(getCode(in, version, false), getAddress(in, version));
+				Lobby_Message.Hosted hosted = new Lobby_Message.Hosted(getCode(in, version, false), getAddress(in, version));
+				hosted.relay = getRelay(in, version);
+				return hosted;
 			case CLOSE:
 				return new Lobby_Message.Close(getCode(in, version, false));
 			case BROWSE:
@@ -331,6 +336,7 @@ public final class Lobby_Codec
 				joined.code = getCode(in, version, false);
 				joined.you = getAddress(in, version);
 				getCandidates(in, version, joined.host);
+				joined.relay = getRelay(in, version);
 				return joined;
 			case PEER:
 				Lobby_Message.Peer peer = new Lobby_Message.Peer();
@@ -451,6 +457,29 @@ public final class Lobby_Codec
 			throw bad(version, count + " candidates");
 		for (int i = 0; i < count; i++)
 			into.add(getAddress(in, version));
+	}
+
+	static int relaySize(Lobby_Message.Relay relay)
+	{
+		return 1 + (relay == null ? 0 : addressSize(relay.server) + addressSize(relay.username) + addressSize(relay.password));
+	}
+
+	static void putRelay(ByteBuffer out, Lobby_Message.Relay relay)
+	{
+		out.put((byte) (relay == null ? 0 : 1));
+		if (relay == null)
+			return;
+		putAddress(out, relay.server);
+		putAddress(out, relay.username);
+		putAddress(out, relay.password);
+	}
+
+	static Lobby_Message.Relay getRelay(ByteBuffer in, int version) throws Net_Rejected
+	{
+		int present = in.get() & 0xFF;
+		if (present > 1)
+			throw bad(version, "a relay flag of " + present);
+		return present == 0 ? null : new Lobby_Message.Relay(getAddress(in, version), getAddress(in, version), getAddress(in, version));
 	}
 
 	static Net_Rejected bad(int version, String detail)

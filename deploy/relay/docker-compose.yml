@@ -1,0 +1,27 @@
+# The relay on VPS_1 (r45): deploy.sh copies this directory to
+# /opt/lachassegalerie/relay and runs `docker compose up -d` there.
+# Host networking, because a relay allocates from a port RANGE and docker's
+# per-port proxy would need 240 of them. ${TURN_SECRET} and ${RELAY_PUBLIC_IP}
+# come from the .env beside it on the box, which deploy.sh writes once (0600)
+# and never overwrites: the lobby service mints credentials from that secret.
+services:
+  relay:
+    image: docker.io/coturn/coturn:4.7.0
+    container_name: lachassegalerie-relay
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command:
+      - -c
+      - /etc/coturn/turnserver.conf
+      - --log-file=stdout
+      - --static-auth-secret=${TURN_SECRET}
+      - --denied-peer-ip=${RELAY_PUBLIC_IP}
+      # Only the public address: the box also has docker bridges, and a relayed
+      # address on 172.17.0.1 would be handed to players who cannot reach it.
+      - --listening-ip=${RELAY_PUBLIC_IP}
+      - --relay-ip=${RELAY_PUBLIC_IP}
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}

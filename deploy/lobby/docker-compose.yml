@@ -1,0 +1,27 @@
+# The lobby service on VPS_1 (r45), beside the relay: deploy.sh copies the
+# lobby's installDist (two jars and a start script) to
+# /opt/lachassegalerie/lobby/app and runs this there. UDP 7770, host network:
+# the address a player's packet comes from IS the service's answer (free STUN),
+# and docker's userland proxy would rewrite it.
+#
+# It names the relay in every HOSTED and JOINED, minting credentials from the
+# relay's own secret: `docker compose --env-file ../relay/.env` is how
+# ${TURN_SECRET} and ${RELAY_PUBLIC_IP} get here, and the secret stays in that
+# one 0600 file.
+services:
+  lobby:
+    image: docker.io/library/eclipse-temurin:21-jre
+    container_name: lachassegalerie-lobby
+    network_mode: host
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./app:/app:ro
+    environment:
+      LOBBY_RELAY: ${RELAY_PUBLIC_IP}:3478
+      LOBBY_RELAY_SECRET: ${TURN_SECRET}
+      JAVA_OPTS: -Xmx64m
+    command: ["bin/lobby", "7770"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}

@@ -75,12 +75,50 @@ public abstract class Lobby_Message
 		}
 	}
 
+	/**
+	 * The game's relay (r45), when the service has one : where it is, and a credential for it that runs
+	 * out by itself (TURN REST : the username is its expiry, the password the service's signature of it).
+	 * The relay's secret stays with the service ; a credential that leaks is good for a day.
+	 */
+	public static final class Relay
+	{
+		/** The relay's ip:port. */
+		public String server;
+		public String username, password;
+
+		public Relay()
+		{
+		}
+
+		public Relay(String server, String username, String password)
+		{
+			this.server = server;
+			this.username = username;
+			this.password = password;
+		}
+
+		@Override
+		public boolean equals(Object other)
+		{
+			return other instanceof Relay && ((Relay) other).server.equals(server) && ((Relay) other).username.equals(username)
+					&& ((Relay) other).password.equals(password);
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return Objects.hash(server, username, password);
+		}
+	}
+
 	/** Service to host : your lobby is open under this code, and this is where your packets come from. */
 	public static final class Hosted extends Lobby_Message
 	{
 		public String code;
 		/** The host's own public address, as the service saw it : free STUN. */
 		public String you;
+		/** The relay a joiner may come through, or null : the host ranks an address on it as RELAYED. */
+		public Relay relay;
 
 		public Hosted()
 		{
@@ -204,6 +242,8 @@ public abstract class Lobby_Message
 		/** The joiner's own public address, as the service saw it. */
 		public String you;
 		public final List<String> host = new ArrayList<String>();
+		/** The relay to allocate on when no check gets through, or null when the service has none. */
+		public Relay relay;
 
 		@Override
 		public Type type()

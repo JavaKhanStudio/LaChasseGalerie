@@ -106,6 +106,13 @@ public class Net_Run
 		check("ice/punches-race-over-a-bad-wire", Net_Ice_Checks::punchesRaceOverABadWire);
 		check("ice/reconnecting-is-said", Net_Ice_Checks::reconnectingIsSaid);
 		check("ice/strangers-get-no-answer", Net_Ice_Checks::strangersGetNoAnswer);
+		check("relay/turn-codec-reads-the-rfc-5769-signed-vector", Net_Relay_Checks::codecReadsTheRfcSignedVector);
+		check("relay/turn-codec-round-trips-and-refuses", Net_Relay_Checks::codecRoundTripsAndRefuses);
+		check("relay/lobby-names-the-relay-with-a-minted-credential", Net_Relay_Checks::lobbyNamesTheRelay);
+		check("relay/every-router-with-a-relay", Net_Relay_Checks::everyRouterWithARelay);
+		check("relay/refused-credential-is-honest", Net_Relay_Checks::refusedCredentialIsHonest);
+		check("relay/relayed-size-close-and-silence", Net_Relay_Checks::relayedSizeCloseAndSilence);
+		check("relay/udp-takes-a-relayed-datagram", Net_Relay_Checks::udpTakesARelayedDatagram);
 
 		System.out.println(failed == 0 ? "NET ok, " + checks + " checks" : "NET FAILED " + failed + " of " + checks + " check(s)");
 		System.exit(failed == 0 ? 0 : 1);

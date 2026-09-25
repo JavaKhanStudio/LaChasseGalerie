@@ -53,6 +53,8 @@ class Net_Ice_Checks
 		final List<Lobby_Client> clients = new ArrayList<Lobby_Client>();
 		final List<List<String>> games = new ArrayList<List<String>>();
 		final List<List<String>> lost = new ArrayList<List<String>>();
+		/** Anything else on the wire that answers when pumped : a relay (r45). */
+		final List<Runnable> servers = new ArrayList<Runnable>();
 
 		Rig(long seed)
 		{
@@ -95,6 +97,8 @@ class Net_Ice_Checks
 				service.pump();
 				for (Net_Transport reflector : reflectors)
 					reflect(reflector);
+				for (Runnable server : servers)
+					server.run();
 			}
 			for (int i = 0; i < clients.size(); i++)
 				pumpGame(i);

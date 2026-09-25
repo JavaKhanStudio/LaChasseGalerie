@@ -331,6 +331,29 @@ description = "Lobbies, UDP, NAT traversal, snapshots — the online multiplayer
 color = "#ff8cc6"
 sort = 25
 context = """
+THE RELAY EXISTS AND IS DEPLOYED (r45, d6 -> relay, on Simon's word: "we already have a VPS we could
+use for testing"). VPS_1 = Fountain of Dreams' OVH box, 141.94.115.201, ubuntu with
+OnceUponATime/HQ/staging_deploy_key (deploy/vps.sh). There: coturn 4.7.0 (deploy/relay, UDP 3478,
+relays 49160-49400) and the lobby service (deploy/lobby, UDP 7770), one container each in
+/opt/lachassegalerie. FoD's Postgres and dispatcher listen on the box's loopback and docker networks,
+so turnserver.conf DENIES every loopback/private/carrier range and the box's own ip as a peer: never
+remove a denied-peer-ip line to make a test pass - test on a local coturn. The secret is made on the
+box, never leaves it (/opt/lachassegalerie/relay/.env, 0600), and the lobby mints TURN REST credentials
+from it (24 h, username = expiry:code) into HOSTED and JOINED: lobby protocol VERSION 2 added that relay
+block. Game side: jks.net.Turn_Codec (TURN on STUN framing, long-term credential; checked against RFC
+5769's signed vector) and jks.net.Turn_Client (one allocation on the SHARED socket). Only the JOINER
+allocates, on JOINED; it offers the relayed ip:port in its next JOIN, permits the host's ip, and reaches
+the host as the peer "relay/<host ip:port>", which Lobby_Client's views resolve and send through the
+relay. SEND/DATA INDICATIONS, NEVER ChannelData: its first byte 0x40-0x4F collides with the lobby's 'L'.
+So a relayed payload is at most Turn_Codec.MAX_RELAYED (1149 B), and Transport_Udp RECEIVES a
+STUN-framed datagram up to MAX_RELAYED_DATAGRAM (a relayed 1200 B payload) - the one exception to the
+cap, which no game or lobby codec reads. Lobby_Ice ranks a relayed address last (RANK_RELAYED, by the
+"relay/" prefix or the relay's ip, relayAt) and takes it only after RELAY_AFTER_MS = 2 s: symmetric x
+symmetric is RELAYED at 2000 ms, every other pair stays DIRECT as fast as before. Link.usable() is
+DIRECT or RELAYED, and a usable row keeps its route. Gates: nettest's relay/* checks (a Fake_Relay on the
+in-memory wire), `deploy/relay/check.sh` (what the real relay refuses), `deploy/relay/netrelay.sh` (two
+sockets here through it, 1200 B both ways), `./gradlew netonline` (host and joiner through VPS_1's lobby
+AND relay, both rows RELAYED; Lobby_Ice.relayOnly is that probe's knob, never the game's).
 ICE EXISTS, NOT ICE4J (r42, phase 2.2): ice4j binds its own socket per harvester and cannot share the
 game's one socket, and no other Java library could, so jks.net.Stun_Codec (RFC 5389 Binding request/
 success, pure; 0x00/0x01 + magic cookie, refused by the game and lobby codecs as NOT_OURS) and
@@ -340,15 +363,15 @@ carrierNat(), advice() naming a fix - never a NAT type); checks start BY THEMSEL
 JOINED (joiner), keyed by the other end's service-seen address, which each check carries as USERNAME;
 IPv6 > LAN > public, peer-reflexive, a paced port search after 1 s, 300 ms settle, CANNOT_CONNECT at 4 s.
 The JOINER nominates: its ClientSession goes to ice().link(joined().host.get(0)).address() once
-route() is DIRECT. RELAYED is a slot until r45. A DIRECT route is re-checked every second and goes
+the row is usable() - DIRECT or RELAYED (r45, above). A DIRECT route is re-checked every second and goes
 RECONNECTING after 3.5 s of silence. Net_Transport.localAddresses() is where candidates come from
 (never call NetworkInterface outside jks.net); Transport_Udp strips the %scope. Lobby_Client's game()
 view marks every address the game sends to, and only addresses NOT so marked have their timeout
 swallowed - keep that, or a session never hears its host go quiet. Net_Loopback models routers
 (nat(ip, kind), reset() = network change, ipv6(end, addr, firewalled), ipv6LatencyMs): test punching
 there. ./gradlew netnat probes the real STUN servers from this machine (needs the internet, not in
-nettest). The real-internet gate (two households + a hotspot) has NOT been run: it needs a deployed
-lobby service.
+nettest). The real-internet gate (two households + a hotspot, r74) has NOT been run; its lobby
+service is now deployed (141.94.115.201:7770, --lobby).
 THE LOBBY SERVICE EXISTS (r41, phase 2.1): jks.net.Lobby_Codec/Lobby_Message are its pure wire
 protocol ('L' | version | type | body | CRC-32; the 'L' is how one socket tells lobby packets from
 game packets, and Net_Codec refuses a lobby packet as NOT_OURS, so a session never answers the
@@ -370,7 +393,7 @@ owns NO world: buttons up at 60 Hz, draws 100 ms behind between two snapshots th
 Snapshot_Mirror. Both talk ONLY to Net_Transport. --host/--join start them by address; Online play
 starts them through the lobby (r43, below).
 THE LOBBY SCREEN EXISTS (r43, jks.vue.models.Vue_Lobby, Menu > Online play; service from --lobby
-host:port, default 127.0.0.1:7770 until r45 deploys one). It opens THE one Transport_Udp and its
+host:port, default 127.0.0.1:7770; VPS_1's is 141.94.115.201:7770 since r45). It opens THE one Transport_Udp and its
 Lobby_Client, and hands both on, never a second socket: the host's Start puts them in
 GVars_Heart.lobbyHost, and Main_Game builds the HostSession on lobby.game(), keeps the lobby listed
 through the runs (players = 1 + seats, takeJoiners() drained every step or it grows) and closes it
@@ -421,7 +444,7 @@ migration — if the host quits, the run ends and everyone returns to the lobby.
 d5 -> A IS BINDING ON IDENTITY: online is ONE PLAYER PER MACHINE, and local co-op stays
 offline-only. A PlayerId is a peer id, not a peer id plus a device slot. Do not size lobbies,
 snapshots or the join flow for 'this machine brings its keyboard and four pads'.
-d6 HAS NO LETTER, BUT IT HAS NUMBERS (r25, doc section 9 — read it before re-opening this).
+d6 -> RELAY (r45, deployed: the first paragraph). Its numbers (r25, doc section 9) still hold.
 Punching fails for about ONE PAIR IN TEN (Tailscale's fleet: direct connection over 90% of the
 time). Detection is cheap and EARLY: two STUN binding requests from the SAME socket, compare the
 mapped port, RFC 5780 — measured at 67 ms here — then a real ICE check WHEN A PLAYER JOINS THE
@@ -471,7 +494,7 @@ com.github.crykn:kryonet on JitPack. Netty is overkill for the game socket, reas
 lobby service. weupnp for best-effort UPnP, never relied on. coturn is what a relay VPS runs.
 The Windows Defender prompt saying 'java.exe wants to accept connections' is a real reason people
 click No, and it is a #build problem (jpackage), not yours.
-Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 65 checks (10 of them the lobby's, 11 ICE's) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
+Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 72 checks (10 of them the lobby's, 11 ICE's, 7 the relay's) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
 jks.net and the mirror (codec round trips, every truncation and bit flip, checksummed lies, the
 size refusal, and): round trips over real UDP on loopback and over the in-memory wire, the payload cap,
 whole-or-nothing delivery, a host learning an unknown peer, a pump that never blocks, a peer

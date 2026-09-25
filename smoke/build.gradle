@@ -70,6 +70,25 @@ tasks.register('netnat', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
 }
 
+// ./gradlew netrelay : the relay client through a REAL relay, two sockets on this machine (r45). Needs the
+// internet and RELAY, RELAY_USER, RELAY_PASS in the environment : deploy/relay/netrelay.sh mints them on VPS_1.
+tasks.register('netrelay', JavaExec) {
+    group = 'verification'
+    description = 'Allocates on a real TURN relay and sends the biggest packets both ways through it.'
+    mainClass = 'jks.smoke.Net_Relay'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
+// ./gradlew netonline -Plobby=ip:port : the online path through the REAL lobby service and relay (r45), a host
+// and a joiner held to the relay on this machine. Needs the internet; the default is VPS_1's service.
+tasks.register('netonline', JavaExec) {
+    group = 'verification'
+    description = 'Hosts and joins through a real lobby service, the joiner through its relay, and sends game packets both ways.'
+    mainClass = 'jks.smoke.Net_Online'
+    classpath = sourceSets.main.runtimeClasspath
+    args providers.gradleProperty('lobby').orElse('141.94.115.201:7770').get()
+}
+
 // ./gradlew netsession : phase 1.4's in-process gate. The real game headless behind a HostSession with
 // no hero of its own, three world-less ClientSessions over the in-memory wire with latency and loss;
 // fails when a client draws an entity away from where the host had it. ./gradlew netsession -Pseconds=60 -Pseed=1

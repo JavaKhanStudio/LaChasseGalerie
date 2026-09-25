@@ -39,8 +39,13 @@ public class Transport_Udp implements Net_Transport
 {
 	final DatagramChannel channel;
 	final Net_PeerTable table;
-	/** One byte more than a legal payload, so a packet too big to be ours is seen, not silently truncated. */
-	final ByteBuffer in = ByteBuffer.allocateDirect(MAX_PAYLOAD + 1);
+	/**
+	 * A relay's Data indication carries a whole payload plus its framing (r45) : the one packet allowed past
+	 * MAX_PAYLOAD, and only when it is STUN-framed, which no game or lobby codec reads.
+	 */
+	public static final int MAX_RELAYED_DATAGRAM = MAX_PAYLOAD + Turn_Codec.OVERHEAD + 8;
+	/** One byte more than the biggest legal datagram, so a packet too big to be ours is seen, not silently truncated. */
+	final ByteBuffer in = ByteBuffer.allocateDirect(MAX_RELAYED_DATAGRAM + 1);
 	int dropped;
 
 	/** An ephemeral port : what every player uses. */
@@ -128,7 +133,7 @@ public class Transport_Udp implements Net_Transport
 				break;
 
 			in.flip();
-			if (in.remaining() > MAX_PAYLOAD)
+			if (in.remaining() > MAX_PAYLOAD && (in.remaining() > MAX_RELAYED_DATAGRAM || !Stun_Codec.isStunPacket(in)))
 			{
 				// Not ours, or a fragmented monster : reading it would be reading somebody else's mail
 				dropped++;

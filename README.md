@@ -118,6 +118,18 @@ service's address and a six-letter code. The service is its own deployable:
 ./gradlew :lobby:run --args=7770       # a lobby service on UDP port 7770 (the default)
 ./gradlew :lobby:installDist           # lobby/build/install/lobby: two jars and a start script, for a VPS
 ```
+
+The lobby service and the relay (coturn) run on a VPS, `141.94.115.201` (r45): join through them with
+`--lobby 141.94.115.201:7770`. A pair whose punch fails goes through the relay, and the lobby row says
+"relayed". `deploy/` puts them there and proves them; they need the internet, so they are not in `nettest`:
+
+```sh
+deploy/relay/deploy.sh      # coturn on the VPS (the secret is made there, once, and never leaves it)
+deploy/lobby/deploy.sh      # the lobby service beside it, handing out relay credentials
+deploy/relay/check.sh       # what the relay refuses: loopback, private ranges, the box itself, a bad password
+deploy/relay/netrelay.sh    # two sockets on this machine through the relay, 1200 B both ways
+./gradlew netonline         # host and joiner through the VPS's lobby AND relay: both rows RELAYED
+```
 `netmirror` plays 8 headless players and holds `core/src/jks/online` to the world: every entity the
 host's snapshot names must be where its body is on a client that owns no physics.
 
@@ -175,7 +187,9 @@ desktop/   LWJGL3 launcher and all game assets (desktop/assets)
            packaging/ is where an icon goes for ./gradlew jpackage
 lobby/     the lobby service as a process (jks.lobby.Lobby_Main): core's jks.net and jks.lobby, without libGDX
 headless/  the game with no window or sound: the loop a host with no screen runs (jks.headless.Headless_Runner)
-smoke/     the headless gates (./gradlew smoke, nettest, netsession, netprocs, netlobby, netmirror, netcensus); smoke drives headless/
+smoke/     the headless gates (./gradlew smoke, nettest, netsession, netprocs, netlobby, netmirror, netcensus,
+           and netnat, netrelay, netonline, which need the internet); smoke drives headless/
+deploy/    the lobby service and the relay on the VPS (deploy/lobby, deploy/relay), and the scripts that prove them
 docs/      design notes: online-multiplayer.md (the plan for going online),
            browser-target.md (whether this can run in a browser, and what it would cost)
 tools/     browser-spike/ compiles the game to JavaScript and serves it (not part of the build)

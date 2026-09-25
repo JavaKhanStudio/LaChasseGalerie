@@ -363,8 +363,8 @@ public class Vue_Lobby extends AVue_Model
 		lines.add(new String[] {"You", selfLine(), null}) ;
 		showRows(lines) ;
 
-		// The game goes where the check got an answer (r42), not to the first address the service gave
-		if(client == null && link != null && link.route() == Lobby_Ice.Route.DIRECT)
+		// The game goes where the check got an answer (r42), or through the relay (r45), not to the first address the service gave
+		if(client == null && link != null && link.usable())
 			client = new ClientSession(lobby.game(), link.address(), Vue_Client.machineKey(), relay) ;
 		if(client == null)
 			return false ;

@@ -312,7 +312,7 @@ disagree:
 | 2.2 ICE: IPv6, punch, relay — and say which | r42 | `#network` |
 | 2.3 the lobby screen | r43 | `#hud` `#network` |
 | 2.4 `jpackage`, so the firewall prompt names the game | **done, r44** | `#build` |
-| 2.5 decide and deploy the relay | r45, **blocked on d6** | `#network` |
+| 2.5 decide and deploy the relay | **done, r45** (d6 -> relay: coturn on VPS_1) | `#network` |
 | 2.6 a browser tab as a player | r46 | `#network` |
 | 3 feel, measured first | r47 | `#network` |
 | 3 disconnects, and the host leaving | r48 | `#network` |
@@ -469,7 +469,7 @@ plus the magic cookie, so neither the game nor the lobby codec can mistake it; b
   ±32, ±128, ±256). After a first answer, better addresses get 300 ms to answer too. Nothing in 4 s
   is `CANNOT_CONNECT`, still checked once a second. The joiner nominates: its ClientSession goes to
   `ice().link(joined().host.get(0)).address()`;
-- **the row**: `CHECKING`, `DIRECT`, `RELAYED` (a slot: no relay exists until r45), `CANNOT_CONNECT`,
+- **the row**: `CHECKING`, `DIRECT`, `RELAYED` (r45: the relay answered and nothing direct did in 2 s), `CANNOT_CONNECT`,
   `RECONNECTING`. A direct route is checked every second (every 100 ms once an answer is late, so a
   lossy minute is not a network change); no answer for 3.5 s is `RECONNECTING`, then it is checked
   from scratch. The transport's timeouts of addresses only checks ever went to are swallowed; an

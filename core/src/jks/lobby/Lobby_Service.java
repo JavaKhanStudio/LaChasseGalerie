@@ -1,6 +1,9 @@
 package jks.lobby;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.util.Base64;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -9,6 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.function.LongSupplier;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 import jks.net.Lobby_Codec;
 import jks.net.Lobby_Message;
@@ -87,6 +93,12 @@ public final class Lobby_Service
 	private final Map<String, long[]> answered = new HashMap<String, long[]>();
 	private long lastReap;
 
+	/** The relay HOSTED and JOINED name (r45), and the secret its credentials are signed with ; null for none. */
+	private String relayServer;
+	private byte[] relaySecret;
+	/** Wall-clock seconds, for the credential's expiry : the relay reads it against its own clock, not ours. */
+	public LongSupplier epochSeconds = () -> System.currentTimeMillis() / 1000L;
+
 	public int joins, refusals, rejected, outdated, throttled;
 
 	/** A transport reporting a peer lost changes nothing : the reap decides, whatever the transport's timeout. */
@@ -98,6 +110,39 @@ public final class Lobby_Service
 		this.transport = transport;
 		this.clock = clock;
 		this.random = random;
+	}
+
+	/** How long a credential the service mints is good for : a long evening's play, and a leak that dies overnight. */
+	public static final long RELAY_CREDENTIAL_S = 24 * 3600;
+
+	/**
+	 * Names the game's relay in every HOSTED and JOINED, with a credential minted for each : coturn's
+	 * use-auth-secret (TURN REST), the username its expiry, the password base64 HMAC-SHA1 of it under the
+	 * relay's secret. The secret never leaves this process.
+	 */
+	public void relay(String server, String secret)
+	{
+		relayServer = server;
+		relaySecret = secret == null ? null : secret.getBytes(StandardCharsets.UTF_8);
+	}
+
+	/** A fresh credential for the relay, for this lobby ; null when there is no relay. */
+	Lobby_Message.Relay mintRelay(String code)
+	{
+		if (relayServer == null || relaySecret == null)
+			return null;
+		String username = (epochSeconds.getAsLong() + RELAY_CREDENTIAL_S) + ":" + code;
+		try
+		{
+			Mac mac = Mac.getInstance("HmacSHA1");
+			mac.init(new SecretKeySpec(relaySecret, "HmacSHA1"));
+			String password = Base64.getEncoder().encodeToString(mac.doFinal(username.getBytes(StandardCharsets.UTF_8)));
+			return new Lobby_Message.Relay(relayServer, username, password);
+		}
+		catch (GeneralSecurityException e)
+		{
+			throw new IllegalStateException("every JDK has HmacSHA1", e);
+		}
 	}
 
 	/** Reads what arrived, answers it, and reaps the lobbies whose host went quiet. Returns the packets read. */
@@ -191,7 +236,10 @@ public final class Lobby_Service
 		}
 		else
 			update(lobby, from, message);
-		answer(from, new Lobby_Message.Hosted(lobby.code, from.address()));
+		Lobby_Message.Hosted hosted = new Lobby_Message.Hosted(lobby.code, from.address());
+		// The host does not allocate today : it reads the relay's ip, to call a route through it RELAYED
+		hosted.relay = mintRelay(lobby.code);
+		answer(from, hosted);
 	}
 
 	void update(Lobby lobby, Net_Peer from, Lobby_Message.Host message)
@@ -244,6 +292,7 @@ public final class Lobby_Service
 		joined.code = lobby.code;
 		joined.you = from.address();
 		joined.host.addAll(lobby.candidates);
+		joined.relay = mintRelay(lobby.code);
 		Lobby_Message.Peer peer = new Lobby_Message.Peer();
 		peer.code = lobby.code;
 		addCandidates(peer.joiner, from.address(), message.candidates);

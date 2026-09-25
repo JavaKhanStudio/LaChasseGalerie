@@ -15,6 +15,8 @@ import jks.net.Net_Peer;
 import jks.net.Net_Rejected;
 import jks.net.Net_Transport;
 import jks.net.Stun_Codec;
+import jks.net.Turn_Client;
+import jks.net.Turn_Codec;
 
 /**
  * A player's side of the lobby service (phase 2.1) : host a lobby, list lobbies, join one by code,
@@ -38,8 +40,13 @@ import jks.net.Stun_Codec;
  * about, and their STUN packets are taken off the same socket as the service's. {@link #candidates}
  * starts as the transport's own addresses.
  *
+ * THE RELAY (r45) : when JOINED names one, the joiner allocates on it at once ({@link #relay()}), offers
+ * the relayed address with its next JOIN, and lets the host's ip through it. Its own checks to the host
+ * through the relay go to {@code "relay/<host>"}, a peer only this client's views know : {@link #game()}
+ * resolves and sends to it like any other, so a session built on a RELAYED row never knows.
+ *
  * Addresses are the transport's text : hand {@link #joined()}'s to the same transport, and a joiner's
- * game to {@code ice().link(joined().host.get(0)).address()} once that says DIRECT.
+ * game to {@code ice().link(joined().host.get(0)).address()} once that row is usable (DIRECT or RELAYED).
  *
  * Not thread safe : pump it, or its game view, from the loop.
  */
@@ -63,6 +70,10 @@ public final class Lobby_Client implements AutoCloseable
 	public final List<String> candidates = new ArrayList<String>();
 
 	private final Lobby_Ice ice;
+	private final Random random = new Random();
+	/** The joiner's allocation on the relay JOINED named ; null until then, or when there is none. */
+	private Turn_Client relay;
+	private boolean relayOffered;
 	private String publicAddress;
 	private int outdated = -1;
 	private boolean serviceLost;
@@ -84,19 +95,73 @@ public final class Lobby_Client implements AutoCloseable
 	private final Deque<Object[]> held = new ArrayDeque<Object[]>();
 	public int rejected, heldDropped;
 
-	private final Net_Transport game = new Net_Transport()
+	/** The socket, and the relay behind it : a "relay/" peer is sent through the relay, anything else straight. What ICE and the game both send on. */
+	private final Net_Transport wire = new Net_Transport()
 	{
 		@Override
 		public Net_Peer resolve(String address)
 		{
+			if (Turn_Client.isRelayed(address))
+			{
+				if (relay == null)
+					throw new IllegalArgumentException("no relay to reach " + address + " through");
+				return relay.peer(address);
+			}
 			return shared.resolve(address);
 		}
 
 		@Override
 		public void send(Net_Peer peer, ByteBuffer payload)
 		{
+			if (Turn_Client.isRelayed(peer.address()))
+				relay.send(peer, payload);
+			else
+				shared.send(peer, payload);
+		}
+
+		@Override
+		public int pump(Net_Listener listener)
+		{
+			throw new UnsupportedOperationException("the lobby client pumps the socket");
+		}
+
+		@Override
+		public int localPort()
+		{
+			return shared.localPort();
+		}
+
+		@Override
+		public List<String> localAddresses()
+		{
+			return shared.localAddresses();
+		}
+
+		@Override
+		public int dropped()
+		{
+			return shared.dropped();
+		}
+
+		@Override
+		public void close()
+		{
+		}
+	};
+
+	private final Net_Transport game = new Net_Transport()
+	{
+		@Override
+		public Net_Peer resolve(String address)
+		{
+			return wire.resolve(address);
+		}
+
+		@Override
+		public void send(Net_Peer peer, ByteBuffer payload)
+		{
 			ice.played(peer.address());
-			shared.send(peer, payload);
+			wire.send(peer, payload);
 		}
 
 		@Override
@@ -114,7 +179,9 @@ public final class Lobby_Client implements AutoCloseable
 					delivered++;
 				}
 			}
-			delivered += shared.pump(route(listener));
+			Net_Listener routed = route(listener);
+			delivered += shared.pump(routed);
+			relayLost(routed);
 			update();
 			return delivered;
 		}
@@ -149,7 +216,7 @@ public final class Lobby_Client implements AutoCloseable
 		this.shared = shared;
 		this.service = shared.resolve(serviceAddress);
 		this.clock = clock;
-		this.ice = new Lobby_Ice(shared, clock, new Random(), this::publicAddress);
+		this.ice = new Lobby_Ice(wire, clock, random, this::publicAddress);
 		candidates.addAll(shared.localAddresses());
 	}
 
@@ -157,6 +224,12 @@ public final class Lobby_Client implements AutoCloseable
 	public Lobby_Ice ice()
 	{
 		return ice;
+	}
+
+	/** The joiner's allocation on the relay, or null : no relay named yet, or this machine hosts. */
+	public Turn_Client relay()
+	{
+		return relay;
 	}
 
 	/** The same socket, for HostSession or ClientSession : the service's packets never reach them. */
@@ -168,8 +241,18 @@ public final class Lobby_Client implements AutoCloseable
 	/** Reads what arrived and sends what is due, when no session is pumping {@link #game()}. Game packets wait for it. */
 	public void pump()
 	{
-		shared.pump(route(null));
+		Net_Listener routed = route(null);
+		shared.pump(routed);
+		relayLost(routed);
 		update();
+	}
+
+	/** Relayed peers that went quiet, told like the socket's own. */
+	void relayLost(Net_Listener routed)
+	{
+		if (relay != null)
+			for (Net_Peer peer : relay.takeLost())
+				routed.lost(peer);
 	}
 
 	// ---------------------------------------------------------------- asking
@@ -236,6 +319,8 @@ public final class Lobby_Client implements AutoCloseable
 		code = null;
 		joining = null;
 		browsing = false;
+		if (relay != null)
+			relay.close();
 	}
 
 	// ---------------------------------------------------------------- what is known
@@ -300,6 +385,12 @@ public final class Lobby_Client implements AutoCloseable
 			@Override
 			public void received(Net_Peer from, ByteBuffer payload)
 			{
+				// The relay's answers, and what it relays : unwrapped, then routed again as from the relayed peer
+				if (relay != null && relay.fromServer(from) && Turn_Codec.isTurnPacket(payload))
+				{
+					relay.received(payload, this);
+					return;
+				}
 				// A connectivity check, a probe's answer : ICE's, whoever it is from
 				if (Stun_Codec.isStunPacket(payload))
 				{
@@ -328,6 +419,8 @@ public final class Lobby_Client implements AutoCloseable
 			{
 				if (peer.equals(service))
 					serviceLost = true;
+				else if (relay != null && relay.fromServer(peer))
+					return; // quiet between refreshes : the relay's own requests say when it is gone
 				else if (ice.swallowLost(peer))
 					return; // only checks ever went there
 				else if (gameListener != null)
@@ -372,6 +465,8 @@ public final class Lobby_Client implements AutoCloseable
 				if (hosting)
 					code = hosted.code;
 				publicAddress = hosted.you;
+				if (hosted.relay != null)
+					ice.relayAt(hosted.relay.server);
 				break;
 			case LISTING:
 				if (browsing)
@@ -387,6 +482,13 @@ public final class Lobby_Client implements AutoCloseable
 				{
 					joined = answer;
 					ice.check(answer.host);
+					// One allocation per join, with the first credential : every JOINED after it mints another
+					if (answer.relay != null && relay == null)
+					{
+						ice.relayAt(answer.relay.server);
+						relay = new Turn_Client(shared, answer.relay.server, answer.relay.username, answer.relay.password, clock, random);
+						relay.start();
+					}
 				}
 				break;
 			case PEER:
@@ -425,7 +527,31 @@ public final class Lobby_Client implements AutoCloseable
 			browse();
 		if (now - lastSent >= REFRESH_MS)
 			send(new Lobby_Message.Ping());
+		if (relay != null)
+			updateRelay();
 		ice.update();
+	}
+
+	/** Once allocated : offer the relayed address to the host, let the host's ip through, check the host through it. */
+	void updateRelay()
+	{
+		relay.update();
+		String relayed = relay.relayed();
+		if (relayed == null || relayOffered || joined == null)
+			return;
+		relayOffered = true;
+		if (!candidates.contains(relayed))
+		{
+			if (candidates.size() >= Lobby_Codec.MAX_CANDIDATES)
+				candidates.remove(candidates.size() - 1);
+			candidates.add(relayed);
+		}
+		// The host's public address, as the service saw it : where its answers through the relay come from
+		String host = joined.host.get(0);
+		relay.permit(host);
+		ice.check(java.util.Arrays.asList(host, Turn_Client.PREFIX + host));
+		if (joining != null)
+			sendJoin();
 	}
 
 	void sendHost()
