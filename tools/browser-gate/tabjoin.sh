@@ -16,7 +16,7 @@
 #                                              refused at once and stay on its lobby screen (tab_2_refused.png)
 #
 # Fails unless the tab plays IN, draws snapshots with its own hero in them, its hero walks right in the
-# tab AND on the host (host.log), and the host's row for it said its route. Everything lands in
+# tab AND on the host (host.log), the host's row for it said its route, and it joined ONCE (lobby.log, r86). Everything lands in
 # html/build/tabjoin/: host_5_browser_open.png, host_4_run.png, tab_*.png, host.log, lobby.log, tab.json.
 set -euo pipefail
 
@@ -71,6 +71,10 @@ if [ -n "${REFUSED:-}" ]; then
 fi
 row=$(grep -o "row for the tab says : .*" "$out/host.log" || true)
 [ -n "$row" ] || { echo "tabjoin: FAILED — the host never showed the tab's row open"; status=1; }
+# One call however long the host waits before Start (r86) : a second JOINING is a tab that timed its host out and offered again
+joins=$(grep -c "JOINING .* from ws/" "$out/lobby.log" || true)
+echo "tabjoin: the tab joined $joins time(s)"
+[ "$joins" = 1 ] || { echo "tabjoin: FAILED — the tab joined $joins times, not once : it lost its host while waiting for Start"; status=1; }
 tab_player=$(python3 -c "import json; print(json.load(open('$out/tab.json')).get('player', 0))" 2>/dev/null || echo 0)
 # The tab's hero on the HOST: its x in the first and last second it is logged
 python3 - "$out/host.log" "$tab_player" <<'PY' || status=1

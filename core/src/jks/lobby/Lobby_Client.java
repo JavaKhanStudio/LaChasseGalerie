@@ -78,6 +78,12 @@ public final class Lobby_Client implements AutoCloseable
 	static final int HELD = 256;
 	/** Offers kept for {@link #takeOffers()} when nobody takes them. A host with no tabs is refused for them by the service (r85). */
 	public static final int HELD_OFFERS = 16;
+	/**
+	 * A tab's channel is lost after 10 s of silence at both ends (r86), and before Start this host holds the tab's
+	 * HELLOs and says nothing on it : while this client pumps, each open tab is sent a PING this often, so a tab
+	 * waiting on its lobby screen keeps its one call, and a host that is really gone still goes quiet.
+	 */
+	public static final long TAB_KEEPALIVE_MS = 2_000;
 
 	private final Net_Transport shared;
 	private final Net_Peer service;
@@ -126,6 +132,7 @@ public final class Lobby_Client implements AutoCloseable
 		public final int call;
 		public final Net_Tabs.Tab tab;
 		boolean answered;
+		long lastKept = Long.MIN_VALUE / 2;
 
 		Tab(int call, Net_Tabs.Tab tab)
 		{
@@ -317,7 +324,25 @@ public final class Lobby_Client implements AutoCloseable
 		shared.pump(routed);
 		relayLost(routed);
 		pumpTabs(null);
+		keepTabs();
 		update();
+	}
+
+	/**
+	 * The tabs' packets are held, so nobody answers them : a lobby PING down each open channel keeps the host heard
+	 * (r86). The tab's session reads it as not its own and drops it ; once the game pumps, the session speaks itself.
+	 */
+	void keepTabs()
+	{
+		if (tabs == null)
+			return;
+		long now = clock.getAsLong();
+		for (Tab tab : answering)
+			if (tab.answered && tab.tab.open() && now - tab.lastKept >= TAB_KEEPALIVE_MS)
+			{
+				tab.lastKept = now;
+				tabs.send(tab.tab.peer(), Lobby_Codec.encode(new Lobby_Message.Ping()));
+			}
 	}
 
 	/** The tabs' packets and losses, to the game listener or held for it like the socket's. A lost tab's row goes. */

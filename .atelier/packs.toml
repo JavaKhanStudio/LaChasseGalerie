@@ -378,7 +378,10 @@ rows - a tab has no Lobby_Ice link), and game() routes "rtc/" peers to it, pumpe
 so HostSession sees a tab as any joiner. The client OWNS it: close() closes it. HOST carries takesTabs()
 (r85, lobby VERSION 5): true with a Net_Tabs plugged, or after answerTabsByHand() (probes that answer through
 takeOffers()/answer themselves - nettest, netwsonline); with neither (natives did not load) the service REFUSES a
-tab's JOIN and OFFER at once, reason NO_TABS, and the tab's screen says so (REFUSED=1 tabjoin.sh renders it). Core reaches rtc through GVars_Heart.tabs, a Supplier Launcher_Game sets
+tab's JOIN and OFFER at once, reason NO_TABS, and the tab's screen says so (REFUSED=1 tabjoin.sh renders it).
+Before Start the tab's HELLOs are HELD and nobody answers them, so Lobby_Client's own pump sends a lobby PING
+down each open tab channel every TAB_KEEPALIVE_MS 2 s (r86): without it the tab times its host out at 10 s and
+JOINs again. ClientSession drops lobby packets unread; tabjoin.sh fails on more than one JOINING in lobby.log. Core reaches rtc through GVars_Heart.tabs, a Supplier Launcher_Game sets
 (Transport_Rtc.open + STUN_SERVERS; the tab brings TURN from its JOINED). libwebrtc's threads are NOT daemon:
 an unclosed Transport_Rtc keeps a JVM alive after its window is gone (Main_Game.dispose disposes a Vue_Lobby
 for that). Next, in order: r81 DONE (the html module: core/src now

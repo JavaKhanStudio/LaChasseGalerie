@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
+import jks.net.Lobby_Codec;
 import jks.net.Lobby_Message;
 import jks.net.Net_Codec;
 import jks.net.Net_Listener;
@@ -247,6 +248,13 @@ final class Net_Rtc_Checks
 			while (atTab.size() == 0 && System.currentTimeMillis() < deadline)
 			{
 				tabEnd.pump(atTab);
+				// The host's lobby keeps the held tab's channel with PINGs (r86) : not the packet this waits for
+				for (int i = atTab.size() - 1; i >= 0; i--)
+					if (Lobby_Codec.isLobbyPacket(ByteBuffer.wrap(atTab.payloads.get(i))))
+					{
+						atTab.payloads.remove(i);
+						atTab.from.remove(i);
+					}
 				Thread.sleep(5);
 			}
 			eq(1, atTab.size(), "the host's packet reached the tab");

@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
+import jks.net.Lobby_Codec;
 import jks.net.Net_Codec;
 import jks.net.Net_Input;
 import jks.net.Net_Listener;
@@ -296,6 +297,9 @@ public final class ClientSession implements AutoCloseable
 
 	void received(ByteBuffer payload)
 	{
+		// A host's lobby keeping a tab's channel alive before Start (r86) : heard, and nothing to read
+		if (Lobby_Codec.isLobbyPacket(payload))
+			return;
 		Net_Message message;
 		try
 		{

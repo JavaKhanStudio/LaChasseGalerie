@@ -495,6 +495,15 @@ class Net_Tab_Checks
 		is(java.util.Arrays.equals(new byte[] { 1, 2, 3 }, game.payloads.get(0)), "whole");
 		eq(Collections.singletonList("rtc/2"), addresses(game.lost), "the failed call's peer, told lost to the game");
 
+		// While its packets were held, the tab heard its host's lobby every TAB_KEEPALIVE_MS (r86) : PINGs, nothing else
+		is(tabs.sent.size() >= 2, "keepalives down the open tab's channel in 2 s held : " + tabs.sent.size());
+		for (Object[] sent : tabs.sent)
+		{
+			eq("rtc/1", sent[0], "a keepalive to the open tab, never the failed one");
+			is(Lobby_Codec.decode(ByteBuffer.wrap((byte[]) sent[1])) instanceof Lobby_Message.Ping, "a keepalive is a lobby PING");
+		}
+		tabs.sent.clear();
+
 		// Sent to by its name, through the tabs and never the socket
 		host.game().send(host.game().resolve("rtc/1"), ByteBuffer.wrap(new byte[] { 9 }));
 		eq(1, tabs.sent.size(), "a packet to rtc/1 went through the tabs");
