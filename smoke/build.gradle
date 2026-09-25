@@ -36,7 +36,7 @@ tasks.register('nettest', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     // The rtc/* checks load libwebrtc's natives
     jvmArgs '--enable-native-access=ALL-UNNAMED'
-    finalizedBy 'netsession', 'netending', 'netprocs', 'netlobby'
+    finalizedBy 'netsession', 'netending', 'netprocs', 'netlobby', 'nettab'
 }
 
 // ./gradlew netcensus : how big a snapshot the real game makes. Plays the headless loop with 8
@@ -160,4 +160,22 @@ tasks.register('netlobby', JavaExec) {
     doFirst { systemProperty 'lobby.classpath', lobbyClasspath.asPath }
     args 'lobby'
     mustRunAfter 'nettest', 'netsession', 'netprocs'
+}
+
+// ./gradlew nettab : a browser tab joins a desktop host (r80). A service JVM (lobby module, no libGDX), a host
+// JVM whose lobby takes tabs, a UDP client JVM and a tab JVM (a Transport_Rtc offering through the service's
+// WebSocket front) play one session ; then the host again WITHOUT libwebrtc's natives, as a dist built on
+// another platform : it plays the UDP client and leaves the tab unanswered.
+tasks.register('nettab', JavaExec) {
+    group = 'verification'
+    description = 'Plays a host JVM with a UDP client JVM and a WebRTC tab JVM through a lobby service, then with no WebRTC natives.'
+    mainClass = 'jks.smoke.Net_Procs'
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = rootProject.file('desktop/assets')
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    def lobbyClasspath = project(':lobby').sourceSets.main.runtimeClasspath
+    inputs.files(lobbyClasspath)
+    doFirst { systemProperty 'lobby.classpath', lobbyClasspath.asPath }
+    args 'tab-gate'
+    mustRunAfter 'nettest', 'netsession', 'netprocs', 'netlobby'
 }

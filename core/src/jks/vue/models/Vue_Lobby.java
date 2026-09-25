@@ -176,6 +176,9 @@ public class Vue_Lobby extends AVue_Model
 	private void hostGame()
 	{
 		lobby.host(HostSession.MAX_PLAYERS) ;
+		// Browser tabs too (r80), when this machine's WebRTC loads : a tab's row is its data channel's
+		if(GVars_Heart.tabs != null && !lobby.takesTabs())
+			lobby.tabs(GVars_Heart.tabs.get()) ;
 		mode = Mode.HOSTING ;
 		Table table = start("Your game") ;
 
@@ -355,16 +358,19 @@ public class Vue_Lobby extends AVue_Model
 				joinerHeard.remove(key) ;
 				lobby.ice().forget(key) ;
 			}
-		lobby.players(1 + joinerOrder.size()) ;
+		lobby.players(1 + joinerOrder.size() + lobby.tabRows().size()) ;
 
 		List<String[]> lines = new ArrayList<String[]>() ;
-		lines.add(new String[] {"You (host)", selfLine(), null}) ;
+		lines.add(new String[] {"You (host)", selfLine(), GVars_Heart.tabs != null && !lobby.takesTabs() ? "Browser players cannot join : WebRTC did not load on this machine." : null}) ;
 		int number = 2 ;
 		for(String key : joinerOrder)
 		{
 			Lobby_Ice.Link link = lobby.ice().link(key) ;
 			lines.add(new String[] {"Player " + number++, routeLine(link), link == null ? null : link.advice()}) ;
 		}
+		// A tab has no Lobby_Ice link : its route is its own WebRTC connection's
+		for(Lobby_Client.Tab tab : lobby.tabRows())
+			lines.add(new String[] {"Player " + number++, tabLine(tab), tab.tab.failure() == null ? null : "The browser could not connect : " + tab.tab.failure()}) ;
 		showRows(lines) ;
 	}
 
@@ -463,6 +469,15 @@ public class Vue_Lobby extends AVue_Model
 			default :
 				return "" ;
 		}
+	}
+
+	private static String tabLine(Lobby_Client.Tab tab)
+	{
+		if(tab.tab.failure() != null)
+			return "browser : cannot connect" ;
+		if(!tab.answered())
+			return "browser : answering..." ;
+		return tab.tab.open() ? "browser : WebRTC data channel open" : "browser : connecting over WebRTC..." ;
 	}
 
 	/** The line under every screen : what the service said, then what this machine can fix. */

@@ -20,6 +20,8 @@ configurations.configureEach {
 
 dependencies {
     implementation project(':core')
+    // A hosting window answers browser tabs (r80) : libwebrtc, this build machine's natives only
+    implementation project(':rtc')
     implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:$gdxVersion"
     implementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
     implementation "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-desktop"

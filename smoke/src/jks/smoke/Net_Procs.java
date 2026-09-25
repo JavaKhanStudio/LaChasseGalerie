@@ -2,6 +2,10 @@ package jks.smoke;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -13,6 +17,8 @@ import java.util.concurrent.TimeUnit;
 import jks.headless.Headless_Runner;
 import jks.lobby.Lobby_Client;
 import jks.lobby.Lobby_Ice;
+import jks.net.Lobby_Codec;
+import jks.net.Lobby_Message;
 import jks.net.Net_Input;
 import jks.net.Net_Message;
 import jks.net.Net_Snapshot;
@@ -21,6 +27,7 @@ import jks.net.Transport_Udp;
 import jks.online.ClientSession;
 import jks.online.Game_Simulation;
 import jks.online.HostSession;
+import jks.rtc.Transport_Rtc;
 import jks.vars.GVars_Random;
 
 /**
@@ -43,9 +50,16 @@ import jks.vars.GVars_Random;
  * from, the host holds each player it let in to have come from an address the service mirrored to it,
  * and the parent holds the service to have logged both joins and the host closing.
  *
- *   java jks.smoke.Net_Procs [lobby]                          the gate, direct or through a lobby
- *   java jks.smoke.Net_Procs host clients [service]           a host : prints PORT n, or CODE c once the service opened its lobby
- *   java jks.smoke.Net_Procs client port|service/CODE name    a client for that many seconds
+ * `./gradlew nettab` is a browser tab joining (r80) : the service JVM, a host JVM whose lobby takes tabs
+ * (a Transport_Rtc plugged in), a UDP client JVM, and a TAB JVM - a Transport_Rtc that offers through the
+ * service's WebSocket front, then plays a ClientSession on its data channel, held to the same account as a
+ * client. Then again with the host on a classpath WITHOUT libwebrtc's natives, as a dist built on another
+ * platform is : it must host the UDP client all the same, and the tab must get no answer.
+ *
+ *   java jks.smoke.Net_Procs [lobby|tab]                       the gate : direct, through a lobby, or with a tab
+ *   java jks.smoke.Net_Procs host clients [service [tabs]]     a host : prints PORT n, or CODE c once the service opened its lobby
+ *   java jks.smoke.Net_Procs client port|service/CODE name     a client for that many seconds
+ *   java jks.smoke.Net_Procs tab ws-host:port CODE name [refused]  a browser tab, played by the JVM ; refused : no answer is due
  */
 public class Net_Procs
 {
@@ -55,9 +69,14 @@ public class Net_Procs
 	public static void main(String[] args) throws Exception
 	{
 		if (args.length > 0 && args[0].equals("host"))
-			Headless_Runner.launch(1280, 720, runner -> host(runner, args.length > 1 ? Integer.parseInt(args[1]) : CLIENTS, args.length > 2 ? args[2] : null));
+			Headless_Runner.launch(1280, 720, runner -> host(runner, args.length > 1 ? Integer.parseInt(args[1]) : CLIENTS, args.length > 2 ? args[2] : null,
+					args.length > 3 ? Integer.parseInt(args[3]) : -1));
 		else if (args.length > 0 && args[0].equals("client"))
 			System.exit(client(args[1], args[2]));
+		else if (args.length > 0 && args[0].equals("tab"))
+			System.exit(tab(args[1], args[2], args[3], args.length > 4 && args[4].equals("refused")));
+		else if (args.length > 0 && args[0].equals("tab-gate"))
+			System.exit(tabGate());
 		else
 			System.exit(gate(args.length > 0 && args[0].equals("lobby")));
 	}
@@ -154,6 +173,90 @@ public class Net_Procs
 		return failures == 0 ? 0 : 1;
 	}
 
+	/**
+	 * nettab : a host that takes tabs plays a UDP client and a tab ; then a host with no WebRTC natives
+	 * plays the UDP client and leaves the tab unanswered.
+	 */
+	static int tabGate() throws Exception
+	{
+		String classpath = System.getProperty("lobby.classpath");
+		if (classpath == null)
+			throw new IllegalStateException("-Dlobby.classpath is not set : run it as ./gradlew nettab");
+		String full = System.getProperty("java.class.path");
+		// What a dist built on another platform is : the rtc module's classes, and no natives for this machine
+		StringBuilder bare = new StringBuilder();
+		int removed = 0;
+		for (String entry : full.split(java.io.File.pathSeparator))
+		{
+			if (new java.io.File(entry).getName().matches("webrtc-java-.*-(linux|windows|macos)-.*\\.jar"))
+			{
+				removed++;
+				continue;
+			}
+			bare.append(bare.length() == 0 ? "" : java.io.File.pathSeparator).append(entry);
+		}
+		if (removed == 0)
+			throw new IllegalStateException("no webrtc-java natives jar on the classpath to take away : " + full);
+		int failures = tabRun(classpath, full, true) + tabRun(classpath, bare.toString(), false);
+		System.out.println(failures == 0 ? "PROCS ok : a host JVM played a UDP client JVM and a tab JVM through a lobby service ; without WebRTC natives it played the UDP client and left the tab unanswered"
+				: "PROCS FAILED : " + failures + " problem(s)");
+		return failures == 0 ? 0 : 1;
+	}
+
+	static int tabRun(String lobbyClasspath, String hostClasspath, boolean natives) throws Exception
+	{
+		String self = System.getProperty("java.class.path");
+		List<Process> processes = new ArrayList<Process>();
+		Process service = null;
+		int failures = 0;
+		String run = natives ? "" : "-bare";
+		System.out.println(natives ? "PROCS a host that takes tabs" : "PROCS a host with no WebRTC natives, as a dist built on another platform");
+		try
+		{
+			CompletableFuture<String> servicePort = new CompletableFuture<String>(), wsPort = new CompletableFuture<String>();
+			List<String> serviceLog = Collections.synchronizedList(new ArrayList<String>());
+			service = start("lobby" + run, servicePort, "PORT ", serviceLog, java(lobbyClasspath, "jks.lobby.Lobby_Main", "0"));
+			String lobby = "127.0.0.1:" + servicePort.get(DEADLINE_SECONDS, TimeUnit.SECONDS);
+			String ws = null;
+			synchronized (serviceLog)
+			{
+				for (String line : serviceLog)
+					if (line.contains("WS "))
+						ws = "127.0.0.1:" + line.substring(line.indexOf("WS ") + 3).trim();
+			}
+			if (ws == null)
+				throw new IllegalStateException("the service never said its WebSocket port : " + serviceLog);
+
+			CompletableFuture<String> ready = new CompletableFuture<String>();
+			processes.add(start("host" + run, ready, "CODE ", null, java(hostClasspath, Net_Procs.class.getName(), "host", "1", lobby, natives ? "1" : "0")));
+			String code = ready.get(DEADLINE_SECONDS, TimeUnit.SECONDS);
+			processes.add(start("client" + run, null, null, null, java(self, Net_Procs.class.getName(), "client", lobby + "/" + code, "client")));
+			processes.add(start("tab" + run, null, null, null, natives ? java(self, Net_Procs.class.getName(), "tab", ws, code, "tab")
+					: java(self, Net_Procs.class.getName(), "tab", ws, code, "tab", "refused")));
+
+			long deadline = System.currentTimeMillis() + DEADLINE_SECONDS * 1000L;
+			for (Process process : processes)
+			{
+				long left = Math.max(1, deadline - System.currentTimeMillis());
+				if (!process.waitFor(left, TimeUnit.MILLISECONDS))
+				{
+					System.out.println("PROCS a process overran " + DEADLINE_SECONDS + " s");
+					failures++;
+				}
+				else if (process.exitValue() != 0)
+					failures++;
+			}
+		}
+		finally
+		{
+			for (Process process : processes)
+				process.destroyForcibly();
+			if (service != null)
+				service.destroyForcibly();
+		}
+		return failures;
+	}
+
 	static List<String> java(String classpath, String main, String... args)
 	{
 		List<String> command = new ArrayList<String>();
@@ -199,8 +302,10 @@ public class Net_Procs
 
 	// ---------------------------------------------------------------- the host
 
-	static void host(Headless_Runner runner, int expected, String service) throws Exception
+	/** tabs : how many browser tabs must play too (r80), with a Transport_Rtc plugged into the lobby ; 0 : none may, -1 : none are asked for. */
+	static void host(Headless_Runner runner, int clients, String service, int tabs) throws Exception
 	{
+		int expected = clients + Math.max(0, tabs);
 		GVars_Random.seed(1);
 		runner.boot();
 
@@ -211,6 +316,16 @@ public class Net_Procs
 		{
 			// ONE socket : the lobby is talked to on the transport the game plays on, and the session gets the view without its packets
 			Lobby_Client lobby = service == null ? null : new Lobby_Client(transport, service, () -> System.nanoTime() / 1_000_000L);
+			if (lobby != null && tabs >= 0)
+			{
+				// As the desktop launcher does : no natives, no tabs, and the desktop players all the same
+				Transport_Rtc rtc = Transport_Rtc.open(Collections.emptyList());
+				if (rtc != null)
+					lobby.tabs(rtc);
+				System.out.println(rtc == null ? "TABS none : this host's WebRTC did not load" : "TABS taken");
+				if ((rtc != null) != (tabs > 0))
+					throw new IllegalStateException(tabs > 0 ? "WebRTC did not load where the gate put its natives" : "WebRTC loaded with its natives taken away");
+			}
 			HostSession host = new HostSession(lobby == null ? transport : lobby.game(), new Game_Simulation(), new HostSession.Events()
 			{
 				@Override
@@ -265,10 +380,17 @@ public class Net_Procs
 				throw new IllegalStateException(joined.size() + " players joined, expected " + expected);
 			if (lobby != null)
 			{
+				int tabSeats = 0;
 				for (HostSession.Seat seat : joined)
-					if (!mirrored.contains(seat.peer.address()))
+					if (seat.peer.address().startsWith(Transport_Rtc.PREFIX))
+						tabSeats++;
+					else if (!mirrored.contains(seat.peer.address()))
 						throw new IllegalStateException(seat.player + " played from " + seat.peer.address() + ", not from an address the service mirrored : " + mirrored);
-				System.out.println("every player came from an address the service mirrored : " + mirrored);
+				if (tabSeats != Math.max(0, tabs))
+					throw new IllegalStateException(tabSeats + " tabs played, expected " + Math.max(0, tabs));
+				if (tabs == 0 && lobby.takeOffers().isEmpty() && lobby.offersRefused == 0)
+					throw new IllegalStateException("a host with no tabs never saw the tab's offer : nothing proves it was refused");
+				System.out.println("every UDP player came from an address the service mirrored : " + mirrored + (tabs >= 0 ? " ; tabs " + tabSeats : ""));
 				for (Lobby_Ice.Link row : lobby.ice().links())
 					System.out.println("lobby row " + row + (row.advice() == null ? "" : " : " + row.advice()));
 				lobby.close();
@@ -314,6 +436,88 @@ public class Net_Procs
 			}
 			else
 				client = new ClientSession(transport, "127.0.0.1:" + target);
+			return play(client, lobby, name);
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace(System.out);
+			return 1;
+		}
+	}
+
+	/**
+	 * A browser tab, played by this JVM (r80) : java.net.http's WebSocket on the service's front joins the
+	 * code and offers a Transport_Rtc's description ; with the host's answer the data channel opens and a
+	 * ClientSession plays on it, held to a client's account. Refused : the host has no WebRTC, and the tab
+	 * must get no answer in the time a host that has takes.
+	 */
+	static int tab(String ws, String code, String name, boolean refused)
+	{
+		try (Transport_Rtc transport = new Transport_Rtc(Collections.emptyList()))
+		{
+			Net_Tab_Checks.Tab tab = new Net_Tab_Checks.Tab();
+			tab.socket = HttpClient.newHttpClient().newWebSocketBuilder().buildAsync(URI.create("ws://" + ws + "/"), tab).get(10, TimeUnit.SECONDS);
+			Lobby_Message.Join join = new Lobby_Message.Join();
+			join.code = code;
+			tab.send(join);
+			Lobby_Message joined = next(tab, 10_000);
+			if (!(joined instanceof Lobby_Message.Joined))
+				throw new IllegalStateException(name + " was not joined : " + joined);
+			Transport_Rtc.Call call = transport.offer();
+			long deadline = System.nanoTime() + 10_000_000_000L;
+			while (call.sdp() == null)
+			{
+				if (System.nanoTime() > deadline)
+					throw new IllegalStateException(name + " never finished describing itself");
+				Thread.sleep(5);
+			}
+			tab.send(new Lobby_Message.Offer(code, call.sdp()));
+			System.out.println(name + " : joined " + code + " on the WebSocket front, offered " + call.sdp().length() + " B");
+			Lobby_Message answer = next(tab, refused ? 6_000 : 10_000);
+			if (refused)
+			{
+				if (answer != null)
+					throw new IllegalStateException(name + " was answered by a host with no WebRTC : " + answer);
+				System.out.println(name + " : no answer in 6 s, as due from a host with no WebRTC");
+				System.out.println(name + " ok");
+				tab.socket.abort();
+				return 0;
+			}
+			if (!(answer instanceof Lobby_Message.Answer))
+				throw new IllegalStateException(name + " got no answer : " + answer);
+			call.answered(((Lobby_Message.Answer) answer).sdp);
+			tab.socket.sendClose(WebSocket.NORMAL_CLOSURE, "signalled");
+			while (!call.open())
+			{
+				if (System.nanoTime() > deadline || call.failure() != null)
+					throw new IllegalStateException(name + "'s channel never opened : " + call.failure());
+				Thread.sleep(5);
+			}
+			System.out.println(name + " : the data channel is open, playing on " + call.peer().address());
+			return play(new ClientSession(transport, call.peer().address()), null, name);
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace(System.out);
+			return 1;
+		}
+	}
+
+	/** The next lobby message the tab got, or null after that long. */
+	static Lobby_Message next(Net_Tab_Checks.Tab tab, long millis) throws Exception
+	{
+		Object got = tab.in.poll(millis, TimeUnit.MILLISECONDS);
+		if (got == null)
+			return null;
+		if (!(got instanceof byte[]))
+			throw new IllegalStateException("the tab got " + got + " where a message was due");
+		return Lobby_Codec.decode(ByteBuffer.wrap((byte[]) got));
+	}
+
+	/** Plays the session until it has been in for CLIENT_SECONDS, then quits : 0 if it held to account. */
+	static int play(ClientSession client, Lobby_Client lobby, String name) throws Exception
+	{
+		{
 			int ticks = 0, inTicks = 0, heroTicks = 0;
 			int withPress = 0, againstPress = 0;
 			int lastHero = -1;
@@ -365,6 +569,12 @@ public class Net_Procs
 
 			float snapshotsPerSecond = client.snapshotsReceived / (float) CLIENT_SECONDS;
 			client.close();
+			// The quit goes out before the transport closes : a data channel closing drops what it still holds
+			for (int i = 0; i < 10; i++)
+			{
+				client.tick(0);
+				Thread.sleep(10);
+			}
 			System.out.println(name + " : player " + client.player() + ", " + client.snapshotsReceived + " snapshots (" + snapshotsPerSecond + "/s), hero drawn "
 					+ heroTicks + " ticks, walked with the press " + withPress + " ticks and against it " + againstPress);
 			if (client.player() == 0)
@@ -377,11 +587,6 @@ public class Net_Procs
 				throw new IllegalStateException(name + "'s hero does not walk the way it presses : with " + withPress + ", against " + againstPress);
 			System.out.println(name + " ok");
 			return 0;
-		}
-		catch (Exception e)
-		{
-			e.printStackTrace(System.out);
-			return 1;
 		}
 	}
 

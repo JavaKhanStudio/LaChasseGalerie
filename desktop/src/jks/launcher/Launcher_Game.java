@@ -8,7 +8,9 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 
 import jks.amain.Main_Game;
 import jks.debug.GVars_Debug;
+import jks.lobby.Lobby_Ice;
 import jks.launcher.settings.Utils_Launcher;
+import jks.rtc.Transport_Rtc;
 import jks.sounds.GVars_Audio;
 import jks.vars.GVars_Heart;
 
@@ -54,6 +56,9 @@ public class Launcher_Game
 				throw new IllegalArgumentException("--join needs the host's address, as host:port") ;
 			GVars_Heart.joinAddress = args.get(join + 1) ;
 		}
+		
+		// A lobby this window hosts takes browser tabs too (r80), when libwebrtc loads here
+		GVars_Heart.tabs = () -> Transport_Rtc.open(Transport_Rtc.stun(Lobby_Ice.STUN_SERVERS)) ;
 		
 		Utils_Launcher.preferX11OnLinux();
 		Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();

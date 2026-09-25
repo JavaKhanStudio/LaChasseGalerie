@@ -285,6 +285,15 @@ tick, exit 0/1 — what a screenless host runs; not in core so the game never de
 d7dfc70), desktop (application, `run`, `dist`, `jpackage`), smoke (the gates: `smoke`, `nettest`,
 `netcensus`, `netmirror` and the other net* tasks), lobby (the lobby service, core's classes
 without libGDX), rtc (WebRTC, desktop only) and html (the browser build, r81).
+DESKTOP DEPENDS ON rtc (r80: a hosting window answers browser tabs), so `dist` carries libwebrtc -
+but ONLY THE BUILD MACHINE'S natives (rtc/build.gradle picks one classifier: linux-x86_64 here, a
+~25 MB .so; the fat jar is 59 MB with it). A PER-PLATFORM DIST THEREFORE NEEDS: built ON that
+platform (Windows natives come from a Windows build, macOS from a Mac), or that platform's
+webrtc-java classifier added to rtc's runtimeOnly by hand. A dist without its natives still plays and
+hosts desktop players - Transport_Rtc.open catches the load failure (ExceptionInInitializerError),
+the host's lobby row says "Browser players cannot join", tab offers go unanswered - so a missing
+native is silent at build time: `./gradlew nettab` proves both cases (it runs a host with the
+natives jar taken off its classpath). jpackage is per-platform already, so it is right by construction.
 THE HTML MODULE COMPILES core/src TO JAVASCRIPT (GWT, docs/browser-target.md section 11): anything
 under core/src the game reaches must translate, and javac will not tell you — no array clone(), no
 java.nio.channels, java.net, javax.crypto, SecureRandom, threads, String.format. What cannot
@@ -361,10 +370,20 @@ adds it; a ws/ peer BROWSEs and JOINs (JOINED carries the relay = the tab's TURN
 mirrored and cannot HOST. OFFER (tab) -> the service names a call u16 and sends OFFER_PARTs to the host over
 UDP -> Lobby_Client.takeOffers() -> answer(call, sdp) sends ANSWER_PARTs -> the tab gets ANSWER whole. Parts
 are <= CHUNK_BYTES 1024 (fits MAX_RELAYED), MAX_PARTS 8, MAX_SDP 8 kB, SDP text is printable ASCII+tab/CR/LF;
-jks.net.Lobby_Chunks puts them back whole or never (5 s, keyed on sender+call). Next, in order: r80 (the host answers, rtc peers in game()), r81 DONE (the html module: core/src now
+jks.net.Lobby_Chunks puts them back whole or never (5 s, keyed on sender+call). THE HOST ANSWERS A TAB (r80):
+jks.net.Net_Tabs is the seam (a Net_Transport whose peers are "rtc/N" and which answer(offer)s; Transport_Rtc
+implements it), so jks.lobby stays JDK-only. Lobby_Client.tabs(Net_Tabs) plugs one in: it then answers each
+whole offer ITSELF, sends the ANSWER once gathered (once), lists them in tabRows() (Vue_Lobby's "browser : ..."
+rows - a tab has no Lobby_Ice link), and game() routes "rtc/" peers to it, pumped and HELD like the socket's,
+so HostSession sees a tab as any joiner. The client OWNS it: close() closes it. With none plugged (natives did
+not load) offers wait in takeOffers(), capped at HELD_OFFERS, and nothing answers them: that IS the refusal (no
+protocol message, no redeploy). Core reaches rtc through GVars_Heart.tabs, a Supplier Launcher_Game sets
+(Transport_Rtc.open + STUN_SERVERS; the tab brings TURN from its JOINED). libwebrtc's threads are NOT daemon:
+an unclosed Transport_Rtc keeps a JVM alive after its window is gone (Main_Game.dispose disposes a Vue_Lobby
+for that). Next, in order: r81 DONE (the html module: core/src now
 COMPILES TO JAVASCRIPT, so jks.net/online/lobby code the game reaches must translate — no array clone(),
 no java.nio.channels/java.net/javax.crypto/SecureRandom; stand-ins live in html/gwt/jks/super/; check with
-`tools/browser-gate/gate.sh --draft`, docs/browser-target.md section 11), r82 (the tab's transport and lobby), r83 (the gate).
+`tools/browser-gate/gate.sh --draft`, docs/browser-target.md section 11), r80 DONE, r82 (the tab's transport and lobby), r83 (the gate).
 THE RELAY EXISTS AND IS DEPLOYED (r45, d6 -> relay, on Simon's word: "we already have a VPS we could
 use for testing"). VPS_1 = Fountain of Dreams' OVH box, 141.94.115.201, ubuntu with
 OnceUponATime/HQ/staging_deploy_key (deploy/vps.sh). There: coturn 4.7.0 (deploy/relay, UDP 3478,
@@ -529,7 +548,7 @@ com.github.crykn:kryonet on JitPack. Netty is overkill for the game socket, reas
 lobby service. weupnp for best-effort UPnP, never relied on. coturn is what a relay VPS runs.
 The Windows Defender prompt saying 'java.exe wants to accept connections' is a real reason people
 click No, and it is a #build problem (jpackage), not yours.
-Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 81 checks (11 of them the lobby's, 5 the tab signalling's: java.net.http's WebSocket as the tab against a real Transport_Ws, and offers over a lossy wire; 11 ICE's, 7 the relay's, 3 rtc's: two Transport_Rtc in one JVM, no internet) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
+Gates: `./gradlew nettest` IS YOURS — about 50 s, no window, 83 checks (11 of them the lobby's, 6 the tab signalling's: java.net.http's WebSocket as the tab against a real Transport_Ws, offers over a lossy wire, and a Fake_Tabs host proving Lobby_Client's rtc routing; 11 ICE's, 7 the relay's, 4 rtc's: two Transport_Rtc in one JVM, and a tab joining a Lobby_Client host through a local service, no internet) then netsession, netprocs, netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code) and nettab (r80: a host JVM plays a UDP client JVM and a Java TAB JVM, then again with its webrtc natives taken away), over
 jks.net and the mirror (codec round trips, every truncation and bit flip, checksummed lies, the
 size refusal, and): round trips over real UDP on loopback and over the in-memory wire, the payload cap,
 whole-or-nothing delivery, a host learning an unknown peer, a pump that never blocks, a peer

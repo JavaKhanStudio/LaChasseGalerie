@@ -8,7 +8,10 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
+import jks.net.Lobby_Message;
+import jks.net.Net_Codec;
 import jks.net.Net_Listener;
+import jks.net.Net_Message;
 import jks.net.Net_Peer;
 import jks.net.Net_Transport;
 import jks.rtc.Transport_Rtc;
@@ -183,6 +186,83 @@ final class Net_Rtc_Checks
 			host.pump(inbox);
 			eq(1, inbox.lost.size(), "once");
 			tab.close();
+		}
+	}
+
+	/**
+	 * r80 : a tab joins a desktop host the way a browser will. The tab is a Transport_Rtc that offers, and
+	 * java.net.http's WebSocket on a local service's front ; the host a Lobby_Client on a real UDP socket with
+	 * a Transport_Rtc plugged in. The offer goes through the service, the host answers it by itself, the
+	 * channel opens, and game packets cross both ways through the host's game view as from "rtc/N".
+	 */
+	static void aTabJoinsAHostThroughTheLobby() throws Exception
+	{
+		try (Net_Tab_Checks.Live live = new Net_Tab_Checks.Live(); Transport_Rtc tabEnd = new Transport_Rtc(Collections.emptyList()))
+		{
+			Transport_Rtc hostTabs = new Transport_Rtc(Collections.emptyList());
+			live.host.host(8);
+			live.host.tabs(hostTabs);
+			live.until(() -> live.host.code() != null, 3000, "the host got no code");
+			String code = live.host.code();
+
+			Net_Tab_Checks.Tab tab = live.tab();
+			Lobby_Message.Join join = new Lobby_Message.Join();
+			join.code = code;
+			tab.send(join);
+			is(live.next(tab, 3000) instanceof Lobby_Message.Joined, "the tab was not joined");
+
+			long started = System.currentTimeMillis();
+			Transport_Rtc.Call offer = tabEnd.offer();
+			live.until(() -> offer.sdp() != null, 5000, "the tab never finished describing itself");
+			tab.send(new Lobby_Message.Offer(code, offer.sdp()));
+			Lobby_Message answer = live.next(tab, 5000);
+			is(answer instanceof Lobby_Message.Answer, "the tab got " + answer + ", not the host's answer");
+			eq(1, live.host.tabRows().size(), "the host's rows : the tab it answered");
+			is(live.host.tabRows().get(0).answered(), "its row says the answer went");
+			offer.answered(((Lobby_Message.Answer) answer).sdp);
+			live.until(() -> offer.open() && live.host.tabRows().get(0).tab.open(), 5000, "the channel never opened both ways");
+			System.out.println("NET      a tab joined through the lobby in " + (System.currentTimeMillis() - started) + " ms");
+
+			// A game packet from the tab : held while the lobby pumps, delivered from rtc/N once the game does
+			Net_Message.Hello hello = new Net_Message.Hello(80);
+			tabEnd.send(offer.peer(), Net_Codec.encode(hello));
+			Net_Run.Inbox game = new Net_Run.Inbox();
+			long deadline = System.currentTimeMillis() + 3000;
+			while (game.size() == 0 && System.currentTimeMillis() < deadline)
+			{
+				live.service.pump();
+				live.host.pump();
+				Thread.sleep(20);
+				live.host.game().pump(game);
+			}
+			eq(1, game.size(), "the tab's HELLO reached the host's game");
+			Net_Peer tabPeer = game.from(0);
+			is(tabPeer.address().startsWith(Transport_Rtc.PREFIX), "the host's game hears the tab as rtc/N : " + tabPeer.address());
+			is(Net_Codec.decode(ByteBuffer.wrap(game.payloads.get(0))) instanceof Net_Message.Hello, "whole, a HELLO");
+
+			// The host answers through the same view, by the tab's name
+			live.host.game().send(live.host.game().resolve(tabPeer.address()), ByteBuffer.wrap(new byte[Net_Transport.MAX_PAYLOAD]));
+			Net_Run.Inbox atTab = new Net_Run.Inbox();
+			deadline = System.currentTimeMillis() + 3000;
+			while (atTab.size() == 0 && System.currentTimeMillis() < deadline)
+			{
+				tabEnd.pump(atTab);
+				Thread.sleep(5);
+			}
+			eq(1, atTab.size(), "the host's packet reached the tab");
+			eq(Net_Transport.MAX_PAYLOAD, atTab.payloads.get(0).length, "whole");
+
+			// The tab goes : the host's game hears it lost, and the row goes
+			tabEnd.close();
+			Net_Run.Inbox after = new Net_Run.Inbox();
+			deadline = System.currentTimeMillis() + 8000;
+			while (after.lost.isEmpty() && System.currentTimeMillis() < deadline)
+			{
+				live.host.game().pump(after);
+				Thread.sleep(5);
+			}
+			eq(Collections.singletonList(tabPeer), after.lost, "the host's game hears the tab went");
+			is(live.host.tabRows().isEmpty(), "and its row is gone");
 		}
 	}
 }

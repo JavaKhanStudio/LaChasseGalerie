@@ -33,6 +33,7 @@ import dev.onvoid.webrtc.SetSessionDescriptionObserver;
 import dev.onvoid.webrtc.media.audio.HeadlessAudioDeviceModule;
 import jks.net.Net_Listener;
 import jks.net.Net_Peer;
+import jks.net.Net_Tabs;
 import jks.net.Net_Transport;
 
 /**
@@ -60,10 +61,10 @@ import jks.net.Net_Transport;
  * over in {@link #pump}, on the caller's thread, as the interface promises. Audio is the headless module :
  * a transport never opens a sound device.
  */
-public final class Transport_Rtc implements Net_Transport
+public final class Transport_Rtc implements Net_Tabs
 {
 	/** How a data channel's peer is named : "rtc/" and a number, unique within this transport. */
-	public static final String PREFIX = "rtc/";
+	public static final String PREFIX = Net_Tabs.PREFIX;
 	/** The label both ends give the channel. */
 	public static final String LABEL = "game";
 	public static final long DEFAULT_TIMEOUT_MS = 10_000;
@@ -87,7 +88,7 @@ public final class Transport_Rtc implements Net_Transport
 	}
 
 	/** One tab being put in touch, and then its channel. Read only from the thread that pumps. */
-	public final class Call
+	public final class Call implements Net_Tabs.Tab
 	{
 		final Peer peer;
 		final RTCPeerConnection connection;
@@ -101,24 +102,28 @@ public final class Transport_Rtc implements Net_Transport
 			this.connection = connection;
 		}
 
+		@Override
 		public Net_Peer peer()
 		{
 			return peer;
 		}
 
 		/** This end's whole description, candidates included, or null while ICE is still gathering. */
+		@Override
 		public String sdp()
 		{
 			return sdp;
 		}
 
 		/** Why this call cannot go on, or null. A failed call's peer is reported lost. */
+		@Override
 		public String failure()
 		{
 			return failure;
 		}
 
 		/** True once the channel is open both ways : a packet sent now is on its way. */
+		@Override
 		public boolean open()
 		{
 			RTCDataChannel channel = this.channel;
@@ -218,6 +223,34 @@ public final class Transport_Rtc implements Net_Transport
 	int next = 1;
 	boolean closed;
 
+	/**
+	 * A host's tabs, or null when this machine cannot have any : the rtc module ships only the natives of
+	 * the machine that built it (rtc/build.gradle), so a dist built elsewhere has none for this one, and
+	 * libwebrtc failing to load must cost the tabs, never the desktop players. Why is said on stderr.
+	 */
+	public static Transport_Rtc open(List<Server> servers)
+	{
+		try
+		{
+			return new Transport_Rtc(servers);
+		}
+		catch (Throwable e)
+		{
+			// UnsatisfiedLinkError, NoClassDefFoundError, ExceptionInInitializerError : a missing or foreign native
+			System.err.println("rtc : no WebRTC on this machine, browser tabs cannot join : " + e);
+			return null;
+		}
+	}
+
+	/** STUN servers as {@link Server}s, from "host:port" : what a host gathers its public candidates with. */
+	public static List<Server> stun(List<String> servers)
+	{
+		List<Server> made = new ArrayList<Server>();
+		for (String server : servers)
+			made.add(new Server("stun:" + server));
+		return made;
+	}
+
 	public Transport_Rtc(List<Server> servers)
 	{
 		this(servers, () -> System.nanoTime() / 1_000_000L, DEFAULT_TIMEOUT_MS);
@@ -256,6 +289,7 @@ public final class Transport_Rtc implements Net_Transport
 	}
 
 	/** The host's end : answers a tab's offer. Send {@link Call#sdp()} back to the tab once it is not null. */
+	@Override
 	public Call answer(String offer)
 	{
 		Call call = newCall();

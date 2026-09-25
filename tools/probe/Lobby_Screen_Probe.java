@@ -52,6 +52,12 @@ import jks.vue.models.Vue_Menu;
  *
  * -Dprobe.private=true on the host (r76) : it makes its lobby private before host_2_open.png, so the
  * joiner's join_1_listed.png shows Open games without it, and the joiner still gets in by the code.
+ *
+ * -Dprobe.tab=127.0.0.1:7771 on the host ALONE (r80) : the probe plays a browser tab from this JVM - a
+ * Transport_Rtc that offers through the service's WebSocket front - and writes the host's row for it,
+ * answered and connecting (host_5_tab_connecting.png), then with its data channel open (host_6_tab_open.png),
+ * and exits 0. -Dprobe.notabs=true beside it : the host has no WebRTC, as a dist built on another platform,
+ * and writes host_5_no_tabs.png.
  */
 public class Lobby_Screen_Probe implements ApplicationListener
 {
@@ -63,6 +69,11 @@ public class Lobby_Screen_Probe implements ApplicationListener
 	final long started = System.currentTimeMillis() ;
 	static final boolean block = Boolean.getBoolean("probe.block") ;
 	static final boolean unlisted = Boolean.getBoolean("probe.private") ;
+	static final String tabFront = System.getProperty("probe.tab") ;
+	static final boolean noTabs = Boolean.getBoolean("probe.notabs") ;
+	/** The probe's tab : its answer arrived (it waits 1.5 s before taking it, so the connecting row is seen), its channel open. */
+	volatile boolean tabAnswered, tabOpen ;
+	volatile String tabFailure ;
 	long stepStarted = started ;
 
 	Lobby_Screen_Probe(boolean host, String out)
@@ -77,6 +88,8 @@ public class Lobby_Screen_Probe implements ApplicationListener
 		jks.sounds.GVars_Audio.muted = true ;
 		// A local service unless told otherwise : the game's default is VPS_1's (r78)
 		GVars_Heart.lobbyService = arg.length > 2 ? arg[2] : "127.0.0.1:7770" ;
+		// As Launcher_Game does, without STUN : the probe stays on this machine. notabs : as if the natives did not load
+		GVars_Heart.tabs = () -> noTabs ? null : jks.rtc.Transport_Rtc.open(java.util.Collections.emptyList()) ;
 		Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration() ;
 		// -Dprobe.size=1920x1080 : the fullscreen layout, in a window of that size
 		String[] size = System.getProperty("probe.size", "1280x720").split("x") ;
@@ -151,6 +164,11 @@ public class Lobby_Screen_Probe implements ApplicationListener
 				}
 				if(at(1_000))
 					grab("host_2_open.png") ;
+				if(tabFront != null)
+				{
+					hostTab() ;
+					return ;
+				}
 				if(block)
 				{
 					for(Lobby_Ice.Link link : lobby().ice().links())
@@ -289,6 +307,117 @@ public class Lobby_Screen_Probe implements ApplicationListener
 		}
 	}
 
+	/** Host step 3 with -Dprobe.tab : a tab joins from this JVM, and the host's row for it is written twice. */
+	void hostTab() throws Exception
+	{
+		if(at(1_500))
+		{
+			if(noTabs)
+			{
+				grab("host_5_no_tabs.png") ;
+				log("no tabs : " + !lobby().takesTabs()) ;
+				Gdx.app.exit() ;
+				step = 99 ;
+				return ;
+			}
+			String code = lobby().code() ;
+			Thread tab = new Thread(() -> playTab(code), "probe-tab") ;
+			tab.setDaemon(true) ;
+			tab.start() ;
+		}
+		if(tabFailure != null)
+			fail("the tab : " + tabFailure) ;
+		if(tabAnswered && connectingAt < 0)
+			connectingAt = System.currentTimeMillis() ;
+		if(connectingAt > 0 && System.currentTimeMillis() - connectingAt > 700 && !grabbedConnecting)
+		{
+			grabbedConnecting = true ;
+			log("rows : " + lobby().tabRows().size() + ", open " + (lobby().tabRows().size() > 0 && lobby().tabRows().get(0).tab.open())) ;
+			grab("host_5_tab_connecting.png") ;
+		}
+		boolean rowOpen = lobby().tabRows().size() > 0 && lobby().tabRows().get(0).tab.open() ;
+		if(tabOpen && rowOpen && openAt < 0)
+			openAt = System.currentTimeMillis() ;
+		if(openAt > 0 && System.currentTimeMillis() - openAt > 1_000)
+		{
+			grab("host_6_tab_open.png") ;
+			log("a tab's row : " + lobby().tabRows().get(0).tab.peer() + " open") ;
+			Gdx.app.exit() ;
+			step = 99 ;
+		}
+	}
+	long connectingAt = -1, openAt = -1 ;
+	/** The probe's tab's transport : closed with the window, or its libwebrtc threads keep this JVM alive. */
+	volatile jks.rtc.Transport_Rtc tabEnd ;
+	boolean grabbedConnecting ;
+
+	/** A browser tab, played on its own thread : joins on the WebSocket front, offers, takes the answer late, then says HELLO every half second. */
+	void playTab(String code)
+	{
+		try
+		{
+			jks.rtc.Transport_Rtc end = new jks.rtc.Transport_Rtc(java.util.Collections.emptyList()) ;
+			tabEnd = end ;
+			java.util.concurrent.LinkedBlockingQueue<byte[]> in = new java.util.concurrent.LinkedBlockingQueue<byte[]>() ;
+			java.net.http.WebSocket socket = java.net.http.HttpClient.newHttpClient().newWebSocketBuilder()
+					.buildAsync(java.net.URI.create("ws://" + tabFront + "/"), new java.net.http.WebSocket.Listener()
+					{
+						java.io.ByteArrayOutputStream partial = new java.io.ByteArrayOutputStream() ;
+						public java.util.concurrent.CompletionStage<?> onBinary(java.net.http.WebSocket ws, ByteBuffer data, boolean last)
+						{
+							byte[] bytes = new byte[data.remaining()] ;
+							data.get(bytes) ;
+							partial.write(bytes, 0, bytes.length) ;
+							if(last)
+							{
+								in.add(partial.toByteArray()) ;
+								partial.reset() ;
+							}
+							ws.request(1) ;
+							return null ;
+						}
+					}).get(10, java.util.concurrent.TimeUnit.SECONDS) ;
+			Lobby_Message.Join join = new Lobby_Message.Join() ;
+			join.code = code ;
+			socket.sendBinary(jks.net.Lobby_Codec.encode(join), true).join() ;
+			jks.rtc.Transport_Rtc.Call call = end.offer() ;
+			while(call.sdp() == null)
+				Thread.sleep(5) ;
+			socket.sendBinary(jks.net.Lobby_Codec.encode(new Lobby_Message.Offer(code, call.sdp())), true).join() ;
+			log("the tab offered " + call.sdp().length() + " B") ;
+			Lobby_Message.Answer answer = null ;
+			while(answer == null)
+			{
+				byte[] got = in.poll(10, java.util.concurrent.TimeUnit.SECONDS) ;
+				if(got == null)
+					throw new IllegalStateException("no answer in 10 s") ;
+				Lobby_Message message = jks.net.Lobby_Codec.decode(ByteBuffer.wrap(got)) ;
+				if(message instanceof Lobby_Message.Answer)
+					answer = (Lobby_Message.Answer) message ;
+			}
+			tabAnswered = true ;
+			Thread.sleep(1_500) ;
+			call.answered(answer.sdp) ;
+			while(!call.open())
+			{
+				if(call.failure() != null)
+					throw new IllegalStateException(call.failure()) ;
+				Thread.sleep(5) ;
+			}
+			tabOpen = true ;
+			log("the tab's channel is open, as " + call.peer()) ;
+			while(true)
+			{
+				end.send(call.peer(), jks.net.Net_Codec.encode(new jks.net.Net_Message.Hello(80))) ;
+				Thread.sleep(500) ;
+			}
+		}
+		catch(Exception e)
+		{
+			tabFailure = String.valueOf(e) ;
+		}
+	}
+
 	Menu_Focus focus() throws Exception
 	{
 		if(!(GVars_Heart.vue instanceof Vue_Lobby))
@@ -395,5 +524,10 @@ public class Lobby_Screen_Probe implements ApplicationListener
 	public void resize(int width, int height) {game.resize(width, height) ;}
 	public void pause() {game.pause() ;}
 	public void resume() {game.resume() ;}
-	public void dispose() {game.dispose() ;}
+	public void dispose()
+	{
+		game.dispose() ;
+		if(tabEnd != null)
+			tabEnd.close() ;
+	}
 }

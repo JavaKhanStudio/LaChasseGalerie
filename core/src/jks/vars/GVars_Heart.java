@@ -3,6 +3,7 @@ package jks.vars;
 import jks.camera.GVars_Camera;
 import jks.input.GVars_Controller;
 import jks.lobby.Lobby_Client;
+import jks.net.Net_Tabs;
 import jks.net.Net_Transport;
 import jks.parralax.GVars_Parralax;
 import jks.personnage.index.Index_Sprite;
@@ -41,6 +42,12 @@ public class GVars_Heart
 	 * runs so a latecomer can still find it, and closes both with the server. Null otherwise.
 	 */
 	public static Lobby_Host lobbyHost;
+	/**
+	 * How a hosting window takes browser tabs (r80) : the desktop launcher sets it to open jks.rtc's
+	 * Transport_Rtc, which core cannot name. Null, or a supplier giving null (this machine's WebRTC did not
+	 * load), and the lobby hosts desktop players only : a tab's offer goes unanswered.
+	 */
+	public static java.util.function.Supplier<Net_Tabs> tabs;
 
 	/** A hosted lobby and the one socket it and the game share. */
 	public static final class Lobby_Host

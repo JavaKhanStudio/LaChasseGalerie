@@ -285,6 +285,227 @@ class Net_Tab_Checks
 		eq(before, front.toTab.size(), "messages to the tab after a stranger's and a finished call's answers");
 	}
 
+	/**
+	 * A host's tabs with no libwebrtc behind them (r80) : an offer containing "unparsable" fails, any other
+	 * is answered at the next pump ; {@link #toHost} is what the tabs sent, delivered at the next pump, and
+	 * {@link #sent} what the host sent them. Lets the in-memory wire prove Lobby_Client's routing.
+	 */
+	static final class Fake_Tabs implements jks.net.Net_Tabs
+	{
+		final class Fake implements jks.net.Net_Tabs.Tab
+		{
+			final Net_Peer peer;
+			final String offer;
+			String sdp, failure;
+
+			Fake(String offer)
+			{
+				String address = "rtc/" + (calls.size() + 1);
+				this.peer = () -> address;
+				this.offer = offer;
+			}
+
+			@Override
+			public Net_Peer peer()
+			{
+				return peer;
+			}
+
+			@Override
+			public String sdp()
+			{
+				return sdp;
+			}
+
+			@Override
+			public String failure()
+			{
+				return failure;
+			}
+
+			@Override
+			public boolean open()
+			{
+				return sdp != null && failure == null;
+			}
+		}
+
+		final List<Fake> calls = new ArrayList<Fake>();
+		final Deque<Object[]> toHost = new ArrayDeque<Object[]>();
+		final List<Object[]> sent = new ArrayList<Object[]>();
+		boolean closed;
+
+		@Override
+		public Tab answer(String offer)
+		{
+			Fake call = new Fake(offer);
+			calls.add(call);
+			return call;
+		}
+
+		@Override
+		public Net_Peer resolve(String address)
+		{
+			for (Fake call : calls)
+				if (call.peer.address().equals(address))
+					return call.peer;
+			return () -> address;
+		}
+
+		@Override
+		public void send(Net_Peer peer, ByteBuffer payload)
+		{
+			byte[] bytes = new byte[payload.remaining()];
+			payload.get(bytes);
+			sent.add(new Object[] { peer.address(), bytes });
+		}
+
+		@Override
+		public int pump(Net_Listener listener)
+		{
+			for (Fake call : calls)
+				if (call.sdp == null && call.failure == null)
+				{
+					if (call.offer.contains("unparsable"))
+					{
+						call.failure = "the offer : unparsable";
+						toHost.add(new Object[] { call.peer, null });
+					}
+					else
+						call.sdp = sdp("answer-" + call.peer.address(), 900);
+				}
+			int delivered = 0;
+			while (!toHost.isEmpty())
+			{
+				Object[] event = toHost.poll();
+				if (event[1] == null)
+					listener.lost((Net_Peer) event[0]);
+				else
+				{
+					listener.received((Net_Peer) event[0], ByteBuffer.wrap((byte[]) event[1]));
+					delivered++;
+				}
+			}
+			return delivered;
+		}
+
+		@Override
+		public int localPort()
+		{
+			return 0;
+		}
+
+		@Override
+		public int dropped()
+		{
+			return 0;
+		}
+
+		@Override
+		public void close()
+		{
+			closed = true;
+		}
+	}
+
+	/**
+	 * A host with no tabs (its WebRTC did not load) keeps at most HELD_OFFERS offers and answers none, and
+	 * its UDP players are as before. With tabs plugged, it answers each offer itself, once, sends nothing
+	 * for one that fails, and its game view carries the tab's peer : held before a session pumps, delivered
+	 * after, sent to by its name, and lost - row and all - when the tab goes.
+	 */
+	static void hostAnswersTabsOnlyWithTabs() throws Exception
+	{
+		Net_Lobby_Checks.Rig rig = new Net_Lobby_Checks.Rig(80);
+		Queue_Front front = new Queue_Front();
+		rig.service.front(front);
+		Lobby_Client host = rig.client("host");
+		host.host(8);
+		rig.until(() -> host.code() != null, 5000, "no code");
+
+		is(!host.takesTabs(), "a host takes tabs before any is plugged");
+		for (int i = 0; i < Lobby_Client.HELD_OFFERS + 4; i++)
+		{
+			front.send(new Lobby_Message.Offer(host.code(), sdp("unheard" + i, 1500)));
+			rig.step(250);
+		}
+		rig.step(250);
+		eq(0, answers(front), "answers from a host with no tabs");
+		eq(4, host.offersRefused, "offers past HELD_OFFERS, dropped");
+		List<Lobby_Client.Call> kept = host.takeOffers();
+		eq(Lobby_Client.HELD_OFFERS, kept.size(), "offers kept for takeOffers");
+		eq(sdp("unheard4", 1500), kept.get(0).sdp, "the oldest went first");
+
+		// A UDP joiner is let through as ever
+		Lobby_Client joiner = rig.client("joiner");
+		joiner.join(host.code());
+		rig.until(() -> joiner.joined() != null, 5000, "a UDP joiner beside refused tabs was not joined");
+
+		Fake_Tabs tabs = new Fake_Tabs();
+		host.tabs(tabs);
+		is(host.takesTabs(), "a host with tabs plugged takes them");
+		front.toTab.clear();
+		front.send(new Lobby_Message.Offer(host.code(), sdp("tab", 2500)));
+		front.send(new Lobby_Message.Offer(host.code(), "v=0\r\nunparsable\r\n"));
+		rig.step(250);
+		rig.step(250);
+		eq(2, tabs.calls.size(), "offers the host handed its tabs");
+		eq(1, answers(front), "answers the tab got : the one that parsed, never the failed one");
+		eq(sdp("answer-rtc/1", 900), ((Lobby_Message.Answer) front.toTab.get(front.toTab.size() - 1)).sdp, "the answer is the tabs' own description");
+		rig.run(2000, 250);
+		eq(1, answers(front), "an answer is sent once");
+		eq(1, host.tabRows().size(), "rows : the tab that is connecting, not the one that failed");
+		eq("rtc/1", host.tabRows().get(0).tab.peer().address(), "the row's peer");
+		is(host.tabRows().get(0).answered(), "the row says its answer went");
+		eq(4 + 1, host.offersRefused, "the failed offer counted refused");
+		is(host.takeOffers().isEmpty(), "an offer answered by the tabs is not kept for takeOffers too");
+
+		// The tab's packets : held while nobody pumps the game, then delivered from rtc/1
+		Net_Peer tabPeer = tabs.calls.get(0).peer;
+		tabs.toHost.add(new Object[] { tabPeer, new byte[] { 1, 2, 3 } });
+		rig.step(16);
+		Net_Run.Inbox game = new Net_Run.Inbox();
+		host.game().pump(game);
+		// The failed call's loss was held too, before the tab's packet
+		eq(1, game.size(), "the tab's packet, held then delivered");
+		eq("rtc/1", game.from(0).address(), "from the tab's peer");
+		is(java.util.Arrays.equals(new byte[] { 1, 2, 3 }, game.payloads.get(0)), "whole");
+		eq(Collections.singletonList("rtc/2"), addresses(game.lost), "the failed call's peer, told lost to the game");
+
+		// Sent to by its name, through the tabs and never the socket
+		host.game().send(host.game().resolve("rtc/1"), ByteBuffer.wrap(new byte[] { 9 }));
+		eq(1, tabs.sent.size(), "a packet to rtc/1 went through the tabs");
+		eq("rtc/1", tabs.sent.get(0)[0], "to the tab");
+
+		// The tab goes : lost to the game, and its row with it
+		tabs.toHost.add(new Object[] { tabPeer, null });
+		game = new Net_Run.Inbox();
+		host.game().pump(game);
+		eq(Collections.singletonList("rtc/1"), addresses(game.lost), "the tab that went, told lost");
+		is(host.tabRows().isEmpty(), "and its row gone");
+
+		// Closing the lobby closes the tabs : they are the client's
+		host.close();
+		is(tabs.closed && !host.takesTabs(), "the tabs closed with the lobby");
+	}
+
+	static int answers(Queue_Front front)
+	{
+		int answers = 0;
+		for (Lobby_Message message : front.toTab)
+			if (message instanceof Lobby_Message.Answer)
+				answers++;
+		return answers;
+	}
+
+	static List<String> addresses(List<Net_Peer> peers)
+	{
+		List<String> addresses = new ArrayList<String>();
+		for (Net_Peer peer : peers)
+			addresses.add(peer.address());
+		return addresses;
+	}
+
 	// ---------------------------------------------------------------- over a real WebSocket
 
 	/** A browser tab, as java.net.http sees one : messages whole into a queue, closes as their status code. */

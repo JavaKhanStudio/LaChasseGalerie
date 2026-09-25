@@ -112,6 +112,7 @@ It cannot see rendering bugs. `./gradlew build` compiles it but does not run it.
 ./gradlew netsession  # the game headless behind a HostSession, three ClientSessions in the same JVM
 ./gradlew netprocs    # a host JVM and two client JVMs, over UDP on 127.0.0.1, in real time
 ./gradlew netlobby    # the same, found through a lobby service JVM: the clients know only the code
+./gradlew nettab      # a host JVM plays a UDP client and a WebRTC tab JVM; then, without WebRTC, refuses the tab
 ./gradlew netmirror   # a headless host's snapshots applied every tick to clients with no world
 ```
 
@@ -131,7 +132,10 @@ service's address and a six-letter code. The service is its own deployable:
 
 A browser tab cannot send UDP, so the service has a second front for it (r79): a WebSocket server on TCP
 7771 carrying the same lobby messages, plus the tab's WebRTC offer, which the service hands the host in
-packets and whose answer it brings back.
+packets and whose answer it brings back. A hosting window answers it (r80) with its own WebRTC stack
+(`rtc` module) and the tab plays beside the UDP players. The dist carries only the natives of the
+machine that built it: build a Windows or macOS dist on that platform, or its host plays desktop
+players only and a tab gets no answer (the lobby screen says so).
 
 ```sh
 ./gradlew :lobby:run --args="7770 7771" # a lobby service on UDP port 7770 and its WebSocket front on TCP 7771 (the defaults)

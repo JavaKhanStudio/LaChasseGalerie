@@ -16,6 +16,7 @@ import jks.vars.GVars_Heart;
 import jks.vinterface.GVars_Interface;
 import jks.vue.models.Vue_Client;
 import jks.vue.models.Vue_Game;
+import jks.vue.models.Vue_Lobby;
 import jks.vue.models.Vue_Menu;
 
 public class Main_Game extends ApplicationAdapter 
@@ -114,6 +115,10 @@ public class Main_Game extends ApplicationAdapter
     	GVars_AudioManager.StopAndDisposeMusic();
     	if(host != null)
     		closeHost() ; 
+    	// A window closed on its lobby screen : the lobby's tabs (r80) run libwebrtc threads that keep the
+    	// JVM alive after the window is gone, so the lobby is closed here, which closes them
+    	if(GVars_Heart.vue instanceof Vue_Lobby)
+    		GVars_Heart.vue.dispose() ; 
     }
     
     private void hostFromLobby()

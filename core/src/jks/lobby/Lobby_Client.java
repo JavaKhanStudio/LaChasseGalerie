@@ -3,7 +3,9 @@ package jks.lobby;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.function.LongSupplier;
@@ -14,6 +16,7 @@ import jks.net.Lobby_Message;
 import jks.net.Net_Listener;
 import jks.net.Net_Peer;
 import jks.net.Net_Rejected;
+import jks.net.Net_Tabs;
 import jks.net.Net_Transport;
 import jks.net.Stun_Codec;
 import jks.net.Turn_Client;
@@ -50,6 +53,12 @@ import jks.net.Turn_Codec;
  * here in OFFER_PARTs, whole or not at all, and a host takes it with {@link #takeOffers()} and gives its
  * description back with {@link #answer}, which goes to the service in parts under the same call.
  *
+ * A HOST THAT TAKES TABS (r80) has a {@link Net_Tabs} plugged in with {@link #tabs(Net_Tabs)} : it then
+ * answers each offer by itself, sends the answer once gathered, and {@link #game()} carries the tabs'
+ * peers ("rtc/N") beside the socket's, pumped and held the same way, so HostSession sees a tab like any
+ * joiner. With none plugged - no WebRTC on this machine - offers wait in {@link #takeOffers()}, at most
+ * {@link #HELD_OFFERS} of them, and one nobody answers is a tab refused.
+ *
  * Addresses are the transport's text : hand {@link #joined()}'s to the same transport, and a joiner's
  * game to {@code ice().link(joined().host.get(0)).address()} once that row is usable (DIRECT or RELAYED).
  *
@@ -66,6 +75,8 @@ public final class Lobby_Client implements AutoCloseable
 	public static final long RETRY_MS = 500;
 	/** Game packets held while nobody pumps the game view. Past it, the oldest go, like a full socket buffer. */
 	static final int HELD = 256;
+	/** Offers kept for {@link #takeOffers()} when nobody takes them : a host with no tabs refuses by never answering. */
+	public static final int HELD_OFFERS = 16;
 
 	private final Net_Transport shared;
 	private final Net_Peer service;
@@ -105,6 +116,31 @@ public final class Lobby_Client implements AutoCloseable
 
 	private final List<Call> offers = new ArrayList<Call>();
 	private final Lobby_Chunks chunks = new Lobby_Chunks();
+	/** Offers dropped unanswered : past {@link #HELD_OFFERS} with no tabs plugged, or answered with a failure. */
+	public int offersRefused;
+
+	/** A tab this host answered (r80) : its call, and whether the answer went. Gone once its peer is lost. */
+	public static final class Tab
+	{
+		public final int call;
+		public final Net_Tabs.Tab tab;
+		boolean answered;
+
+		Tab(int call, Net_Tabs.Tab tab)
+		{
+			this.call = call;
+			this.tab = tab;
+		}
+
+		/** The answer went to the service : what is left is the tab's ICE and the channel. */
+		public boolean answered()
+		{
+			return answered;
+		}
+	}
+
+	private Net_Tabs tabs;
+	private final List<Tab> answering = new ArrayList<Tab>();
 
 	private boolean browsing;
 	private Lobby_Message.Listing listing;
@@ -177,12 +213,21 @@ public final class Lobby_Client implements AutoCloseable
 		@Override
 		public Net_Peer resolve(String address)
 		{
+			if (tabs != null && Net_Tabs.isTab(address))
+				return tabs.resolve(address);
 			return wire.resolve(address);
 		}
 
 		@Override
 		public void send(Net_Peer peer, ByteBuffer payload)
 		{
+			if (Net_Tabs.isTab(peer.address()))
+			{
+				// A tab that went with its tabs : dropped, like a packet to a peer that left
+				if (tabs != null)
+					tabs.send(peer, payload);
+				return;
+			}
 			ice.played(peer.address());
 			wire.send(peer, payload);
 		}
@@ -205,6 +250,7 @@ public final class Lobby_Client implements AutoCloseable
 			Net_Listener routed = route(listener);
 			delivered += shared.pump(routed);
 			relayLost(routed);
+			delivered += pumpTabs(listener);
 			update();
 			return delivered;
 		}
@@ -267,7 +313,73 @@ public final class Lobby_Client implements AutoCloseable
 		Net_Listener routed = route(null);
 		shared.pump(routed);
 		relayLost(routed);
+		pumpTabs(null);
 		update();
+	}
+
+	/** The tabs' packets and losses, to the game listener or held for it like the socket's. A lost tab's row goes. */
+	int pumpTabs(Net_Listener gameListener)
+	{
+		if (tabs == null)
+			return 0;
+		return tabs.pump(new Net_Listener()
+		{
+			@Override
+			public void received(Net_Peer from, ByteBuffer payload)
+			{
+				if (gameListener != null)
+					gameListener.received(from, payload);
+				else
+				{
+					byte[] copy = new byte[payload.remaining()];
+					payload.duplicate().get(copy);
+					hold(new Object[] { from, copy });
+				}
+			}
+
+			@Override
+			public void lost(Net_Peer peer)
+			{
+				for (Iterator<Tab> it = answering.iterator(); it.hasNext();)
+				{
+					Tab tab = it.next();
+					if (!tab.tab.peer().address().equals(peer.address()))
+						continue;
+					// Gone before its answer could go : the tab was refused
+					if (!tab.answered)
+						offersRefused++;
+					it.remove();
+				}
+				if (gameListener != null)
+					gameListener.lost(peer);
+				else
+					hold(new Object[] { peer, null });
+			}
+		});
+	}
+
+	/**
+	 * Takes browser tabs as players (r80) : from now on this host answers their offers itself, and
+	 * {@link #game()} carries their peers. Null takes them away. The client owns it : {@link #close()} closes it.
+	 */
+	public void tabs(Net_Tabs tabs)
+	{
+		if (this.tabs != null && this.tabs != tabs)
+			this.tabs.close();
+		this.tabs = tabs;
+		answering.clear();
+	}
+
+	/** Whether this host takes tabs : false when none is plugged, as on a machine whose WebRTC did not load. */
+	public boolean takesTabs()
+	{
+		return tabs != null;
+	}
+
+	/** The tabs this host answered and has not lost yet, in the order they came : a lobby screen's rows. */
+	public List<Tab> tabRows()
+	{
+		return Collections.unmodifiableList(answering);
 	}
 
 	/** Relayed peers that went quiet, told like the socket's own. */
@@ -359,6 +471,7 @@ public final class Lobby_Client implements AutoCloseable
 		browsing = false;
 		if (relay != null)
 			relay.close();
+		tabs(null);
 	}
 
 	// ---------------------------------------------------------------- what is known
@@ -570,7 +683,7 @@ public final class Lobby_Client implements AutoCloseable
 				{
 					String sdp = chunks.add(service.address(), part, clock.getAsLong());
 					if (sdp != null)
-						offers.add(new Call(part.call, sdp));
+						offered(part.call, sdp);
 				}
 				break;
 			case REFUSED:
@@ -584,6 +697,44 @@ public final class Lobby_Client implements AutoCloseable
 				break;
 			default:
 				break;
+		}
+	}
+
+	/** A tab's offer, whole : answered here when tabs are plugged, else kept for {@link #takeOffers()}, the oldest going first. */
+	void offered(int call, String sdp)
+	{
+		if (tabs == null)
+		{
+			offers.add(new Call(call, sdp));
+			while (offers.size() > HELD_OFFERS)
+			{
+				offers.remove(0);
+				offersRefused++;
+			}
+			return;
+		}
+		answering.add(new Tab(call, tabs.answer(sdp)));
+	}
+
+	/** Each tab's answer once gathered, sent once ; a tab that failed before it could be answered is refused. */
+	void updateTabs()
+	{
+		for (Iterator<Tab> it = answering.iterator(); it.hasNext();)
+		{
+			Tab tab = it.next();
+			if (tab.answered)
+				continue;
+			if (tab.tab.failure() != null)
+			{
+				// Or when its loss is pumped, whichever comes first : once
+				offersRefused++;
+				it.remove();
+			}
+			else if (tab.tab.sdp() != null && hosting && code != null)
+			{
+				tab.answered = true;
+				answer(tab.call, tab.tab.sdp());
+			}
 		}
 	}
 
@@ -603,6 +754,8 @@ public final class Lobby_Client implements AutoCloseable
 			send(new Lobby_Message.Ping());
 		if (relay != null)
 			updateRelay();
+		if (tabs != null)
+			updateTabs();
 		ice.update();
 	}
 

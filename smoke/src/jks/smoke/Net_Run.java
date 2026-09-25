@@ -101,6 +101,7 @@ public class Net_Run
 		check("tab/offers-and-answers-over-a-bad-wire", Net_Tab_Checks::offersOverABadWire);
 		check("tab/browse-join-offer-and-answer-over-the-websocket-front", Net_Tab_Checks::tabSignalsOverTheWebSocketFront);
 		check("tab/the-front-refuses-what-is-not-a-tab", Net_Tab_Checks::frontRefusesWhatIsNotATab);
+		check("tab/a-host-answers-tabs-only-with-tabs-and-carries-their-peers", Net_Tab_Checks::hostAnswersTabsOnlyWithTabs);
 		check("ice/stun-codec-reads-the-rfc-5769-vectors", Net_Ice_Checks::codecReadsTheRfcVectors);
 		check("ice/stun-codec-refuses-and-never-mixes", Net_Ice_Checks::codecRefusesAndNeverMixes);
 		check("ice/address-text-is-the-transports", Net_Ice_Checks::addressTextIsTheTransports);
@@ -122,6 +123,7 @@ public class Net_Run
 		check("rtc/open-and-carry-both-ways", Net_Rtc_Checks::openAndCarryBothWays);
 		check("rtc/unreliable-unordered-and-capped", Net_Rtc_Checks::unreliableUnorderedAndCapped);
 		check("rtc/closed-silent-and-refused-are-lost-once", Net_Rtc_Checks::closedSilentAndRefusedAreLostOnce);
+		check("rtc/a-tab-joins-a-host-through-the-lobby", Net_Rtc_Checks::aTabJoinsAHostThroughTheLobby);
 
 		System.out.println(failed == 0 ? "NET ok, " + checks + " checks" : "NET FAILED " + failed + " of " + checks + " check(s)");
 		System.exit(failed == 0 ? 0 : 1);
