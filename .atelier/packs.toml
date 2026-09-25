@@ -170,7 +170,9 @@ core/src/jks/vinterface/GVars_Interface.java (the Stage, the skin, the bottomSco
 personnage/ScoreLabel.java (one player's name, score and deaths),
 vinterface/Utils_Interface (texture -> drawable), debug/ShowFPS (only with --debug).
 Skin: desktop/assets/skin/freezing-ui.json + .atlas, which loads font-export.fnt,
-font-button-export.fnt and font-title-export.fnt — all three are needed. Icons:
+font-button-export.fnt and font-title-export.fnt — all three are needed. GVars_Interface.loadSkin
+sets the "font" line height to 21 (the .fnt says 16, its descenders reach 19: wrapped lines
+overlapped, r75). Icons:
 ui/score.png, ui/death.png, tinted per player with the hero's colour in
 ScoreLabel.setColor.
 Every size is computed ONCE in GVars_Interface.init from Gdx.graphics: the table is 70% x
@@ -200,7 +202,9 @@ a pad, the keyboard, or a pointer that is nobody - which Vue_Game takes in its c
 joins as player 1 at the END of init. Anything that opens a run from a menu must pass one, and
 anything that joins a player must come after GVars_Interface.init and the canoe.
 Gate: `./gradlew :desktop:run --args=--mute`, join two players, and look at it windowed
-AND with --fullscreen.
+AND with --fullscreen. Unattended, 1920x1080 is `gamescope --backend headless -W 1920 -H 1080
+-w 1920 -h 1080 -- env ALSOFT_DRIVERS=null java ...` (cage clamps every window to 1280x720);
+tools/probe/Lobby_Screen_Probe.java shows the whole command.
 """
 
 [tags.audio]

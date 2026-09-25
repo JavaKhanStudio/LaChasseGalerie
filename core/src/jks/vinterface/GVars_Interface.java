@@ -26,7 +26,12 @@ public class GVars_Interface
 	public static void loadSkin()
 	{
 		if(baseSkin == null)
+		{
 			baseSkin = new Skin(Gdx.files.internal("skin/freezing-ui.json"));
+			// font-export.fnt says lineHeight=16 but its descenders reach 19 px down : a wrapped label drew
+			// its lines into each other (r75). One line is laid out on its cap height, so only wraps move
+			baseSkin.getFont("font").getData().setLineHeight(21);
+		}
 	}
 
 	public static void init() 

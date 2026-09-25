@@ -1,4 +1,5 @@
 import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -15,6 +16,10 @@ import jks.amain.Main_Game;
 import jks.input.Menu_Picker;
 import jks.lobby.Lobby_Client;
 import jks.lobby.Lobby_Ice;
+import jks.net.Lobby_Message;
+import jks.net.Net_Listener;
+import jks.net.Net_Peer;
+import jks.net.Net_Transport;
 import jks.vars.GVars_Heart;
 import jks.vinterface.Menu_Focus;
 import jks.vue.models.Vue_Client;
@@ -36,6 +41,14 @@ import jks.vue.models.Vue_Menu;
  *
  * Exits 0 once the host saw a joiner's row say direct and started, and the joiner was let in and drew the
  * run ; it prints PROBE FAIL and exits 1 on a deadline.
+ *
+ * -Dprobe.size=1920x1080 needs a display that big : cage clamps a window to its 1280x720 output. Run it in
+ * gamescope's headless backend instead of tools/offscreen.sh (r75) :
+ *   gamescope --backend headless -W 1920 -H 1080 -w 1920 -h 1080 -- env ALSOFT_DRIVERS=null java -Dprobe.size=1920x1080 ...
+ *
+ * -Dprobe.block=true on BOTH (r75) : the joiner's socket drops every packet to and from anyone but the
+ * lobby service and the STUN servers, as two symmetric NATs would, so each side's row goes to cannot
+ * connect and draws its fix. Each writes that screen (host_cannot.png, join_cannot.png) and exits 0.
  */
 public class Lobby_Screen_Probe implements ApplicationListener
 {
@@ -45,6 +58,7 @@ public class Lobby_Screen_Probe implements ApplicationListener
 	/** Frames, for the log ; every wait is in milliseconds, since an offscreen window draws far more than 60 a second. */
 	int frame, step ;
 	final long started = System.currentTimeMillis() ;
+	static final boolean block = Boolean.getBoolean("probe.block") ;
 	long stepStarted = started ;
 
 	Lobby_Screen_Probe(boolean host, String out)
@@ -122,6 +136,20 @@ public class Lobby_Screen_Probe implements ApplicationListener
 			case 3 :
 				if(at(1_000))
 					grab("host_2_open.png") ;
+				if(block)
+				{
+					for(Lobby_Ice.Link link : lobby().ice().links())
+						if(link.route() == Lobby_Ice.Route.CANNOT_CONNECT && cannotSince < 0)
+							cannotSince = System.currentTimeMillis() ;
+					// A second after, so the fix line was laid out and drawn
+					if(cannotSince > 0 && System.currentTimeMillis() - cannotSince > 1_000)
+					{
+						grab("host_cannot.png") ;
+						Gdx.app.exit() ;
+						step = 99 ;
+					}
+					return ;
+				}
 				for(Lobby_Ice.Link link : lobby().ice().links())
 					if(link.route() == Lobby_Ice.Route.DIRECT)
 					{
@@ -169,6 +197,14 @@ public class Lobby_Screen_Probe implements ApplicationListener
 				next() ;
 				return ;
 			case 1 :
+				if(block && !(field(Lobby_Client.class, "shared").get(lobby()) instanceof Blocking))
+				{
+					Net_Transport real = (Net_Transport) field(Lobby_Client.class, "shared").get(lobby()) ;
+					Blocking blocking = new Blocking(real, real.resolve(GVars_Heart.lobbyService)) ;
+					field(Lobby_Client.class, "shared").set(lobby(), blocking) ;
+					field(Lobby_Ice.class, "shared").set(lobby().ice(), blocking) ;
+					log("blocking everyone but the lobby service and STUN") ;
+				}
 				Path code = Paths.get(out, "code.txt") ;
 				// Let the list of open games come round with the host's in it : it is asked for every 3 s
 				if(!Files.exists(code) || Files.getLastModifiedTime(code).toMillis() > System.currentTimeMillis() - 4_000) return ;
@@ -187,6 +223,20 @@ public class Lobby_Screen_Probe implements ApplicationListener
 				next() ;
 				return ;
 			case 3 :
+				if(block)
+				{
+					Lobby_Message.Joined joined = lobby().joined() ;
+					Lobby_Ice.Link link = joined == null ? null : lobby().ice().link(joined.host.get(0)) ;
+					if(link != null && link.route() == Lobby_Ice.Route.CANNOT_CONNECT && cannotSince < 0)
+						cannotSince = System.currentTimeMillis() ;
+					if(cannotSince > 0 && System.currentTimeMillis() - cannotSince > 1_000)
+					{
+						grab("join_cannot.png") ;
+						Gdx.app.exit() ;
+						step = 99 ;
+					}
+					return ;
+				}
 				if(GVars_Heart.vue instanceof Vue_Client)
 				{
 					log("let in") ;
@@ -262,6 +312,7 @@ public class Lobby_Screen_Probe implements ApplicationListener
 	}
 	final java.util.Set<Long> taken = new java.util.HashSet<Long>() ;
 	int walked ;
+	long cannotSince = -1 ;
 	long lastSecond = -1 ;
 	Object shownVue ;
 
@@ -285,6 +336,45 @@ public class Lobby_Screen_Probe implements ApplicationListener
 		PixmapIO.writePNG(Gdx.files.absolute(out + "/" + name), pixmap) ;
 		pixmap.dispose() ;
 		log("wrote " + name + " at frame " + frame) ;
+	}
+
+	/** The joiner's socket as two symmetric NATs leave it : only the lobby service and STUN get through. */
+	static final class Blocking implements Net_Transport
+	{
+		final Net_Transport real ;
+		final Net_Peer service ;
+
+		Blocking(Net_Transport real, Net_Peer service)
+		{
+			this.real = real ;
+			this.service = service ;
+		}
+
+		boolean through(Net_Peer peer)
+		{return peer.equals(service) || peer.toString().endsWith(":19302") || peer.toString().endsWith(":3478") ;}
+
+		public Net_Peer resolve(String address) {return real.resolve(address) ;}
+		public void send(Net_Peer peer, ByteBuffer payload)
+		{
+			if(through(peer))
+				real.send(peer, payload) ;
+		}
+		public int pump(Net_Listener listener)
+		{
+			return real.pump(new Net_Listener()
+			{
+				public void received(Net_Peer from, ByteBuffer payload)
+				{
+					if(through(from))
+						listener.received(from, payload) ;
+				}
+				public void lost(Net_Peer peer) {listener.lost(peer) ;}
+			}) ;
+		}
+		public int localPort() {return real.localPort() ;}
+		public java.util.List<String> localAddresses() {return real.localAddresses() ;}
+		public int dropped() {return real.dropped() ;}
+		public void close() {real.close() ;}
 	}
 
 	public void resize(int width, int height) {game.resize(width, height) ;}
