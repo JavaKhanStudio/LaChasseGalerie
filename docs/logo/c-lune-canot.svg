@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- C: the crescent moon IS the canoe, flying, with its crew and a trail of sparks -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#121631"/><stop offset="1" stop-color="#3a2a6e"/>
+    </linearGradient>
+    <linearGradient id="moon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff6d8"/><stop offset="1" stop-color="#f0c872"/>
+    </linearGradient>
+    <clipPath id="tile"><rect width="128" height="128" rx="26"/></clipPath>
+    <mask id="cres"><rect width="128" height="128" fill="#fff"/><circle cx="66" cy="34" r="46" fill="#000"/></mask>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="128" height="128" fill="url(#sky)"/>
+    <g fill="#e8f4ff"><circle cx="24" cy="24" r="1.8"/><circle cx="98" cy="18" r="1.3"/><circle cx="62" cy="14" r="1.1"/><circle cx="108" cy="40" r="1.1"/></g>
+    <g transform="rotate(-10 64 64)">
+      <!-- sparks behind -->
+      <g fill="#f0c872"><circle cx="14" cy="70" r="2.4" opacity=".9"/><circle cx="6" cy="78" r="1.7" opacity=".7"/><circle cx="12" cy="86" r="1.3" opacity=".5"/><circle cx="2" cy="66" r="1.1" opacity=".5"/></g>
+      <!-- the unlit moon, so the crew stands out against it -->
+      <circle cx="64" cy="54" r="44" fill="#f4ead0" fill-opacity=".09"/>
+      <!-- crew -->
+      <g fill="#0d1026" stroke="#0d1026" stroke-linecap="round">
+        <circle cx="46" cy="58" r="4.2" stroke="none"/><circle cx="64" cy="56" r="4.2" stroke="none"/><circle cx="82" cy="58" r="4.2" stroke="none"/>
+        <rect x="41.5" y="61" width="9" height="12" rx="2.5" stroke="none"/><rect x="59.5" y="59" width="9" height="12" rx="2.5" stroke="none"/><rect x="77.5" y="61" width="9" height="12" rx="2.5" stroke="none"/>
+        <line x1="50" y1="54" x2="38" y2="92" stroke-width="2.6"/><line x1="68" y1="52" x2="56" y2="92" stroke-width="2.6"/><line x1="86" y1="54" x2="74" y2="92" stroke-width="2.6"/>
+      </g>
+      <!-- the crescent hull -->
+      <circle cx="64" cy="54" r="44" fill="url(#moon)" mask="url(#cres)"/>
+    </g>
+  </g>
+</svg>

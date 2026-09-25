@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- B: the game's axe crossed with a voyageur's paddle, on the moon -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#121631"/><stop offset="1" stop-color="#2b4a8c"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#dfe6f2"/><stop offset=".5" stop-color="#ffffff"/><stop offset="1" stop-color="#9aa6bd"/>
+    </linearGradient>
+    <clipPath id="tile"><rect width="128" height="128" rx="26"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="128" height="128" fill="url(#sky)"/>
+    <g fill="#e8f4ff"><circle cx="18" cy="20" r="1.6"/><circle cx="108" cy="22" r="1.3"/><circle cx="110" cy="96" r="1.1"/><circle cx="16" cy="100" r="1.1"/></g>
+    <circle cx="64" cy="64" r="40" fill="#8a5fd0" fill-opacity=".45"/>
+    <circle cx="64" cy="64" r="32" fill="#f4ead0" fill-opacity=".85"/>
+    <!-- paddle: shaft from top-left to bottom-right -->
+    <g transform="rotate(135 64 64)">
+      <rect x="61.5" y="10" width="5" height="70" rx="2.5" fill="#b9793d"/>
+      <rect x="59" y="8" width="10" height="6" rx="3" fill="#8c5427"/>
+      <path d="M64 74C74 78 76 92 74 108C72 118 56 118 54 108C52 92 54 78 64 74z" fill="#c98a4b" stroke="#6b3d1a" stroke-width="2"/>
+      <path d="M64 80V112" stroke="#6b3d1a" stroke-width="1.6"/>
+    </g>
+    <!-- axe: handle top-right to bottom-left, double bit at the top -->
+    <g transform="rotate(45 64 64)">
+      <rect x="61" y="22" width="6" height="92" rx="3" fill="#7a4a24"/>
+      <rect x="60" y="100" width="8" height="12" rx="2" fill="#4e2c12"/>
+      <path d="M64 30C54 20 40 18 32 20C28 30 28 44 32 54C40 56 54 54 64 44z" fill="url(#steel)" stroke="#2a2f45" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M64 30C74 20 88 18 96 20C100 30 100 44 96 54C88 56 74 54 64 44z" fill="url(#steel)" stroke="#2a2f45" stroke-width="2.4" stroke-linejoin="round"/>
+      <rect x="59" y="28" width="10" height="18" rx="2" fill="#4e2c12"/>
+    </g>
+  </g>
+</svg>
