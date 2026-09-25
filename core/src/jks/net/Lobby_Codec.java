@@ -30,15 +30,26 @@ import java.util.List;
  *   REFUSED    code c6 | reason u8 | game u8
  *   PING       (empty)
  *   PONG       you addr
+ *   OFFER      game u8 | code c6 | sdp                          (r79, version 4 : the WebSocket front only)
+ *   ANSWER     code c6 | sdp                                    (the WebSocket front only)
+ *   OFFER_PART code c6 | call u16 | part u8 | parts u8 | bytes  (service to host, over UDP)
+ *   ANSWER_PART                     the same                    (host to service, over UDP)
  *
  *   code c6      six characters of {@link #CODE_ALPHABET}, or six zero bytes for none (HOST, REFUSED)
  *   addr         length u8 (1-64) | printable ASCII
  *   candidates   count u8 (0-5) | count x addr
  *   relay        0 u8 when the service has none, or 1 u8 | server addr | username addr | password addr   (r45, version 2)
  *   unlisted     0 u8 for a lobby BROWSE lists, 1 u8 for one joinable by its code only   (r76, version 3)
+ *   sdp          length u16 (1-{@link #MAX_SDP}) | that many bytes of {@link #isSdp} text
+ *   bytes        the rest of the body : 1-{@link #CHUNK_BYTES} bytes of that text, part of a description
  * </pre>
  * OUTDATED with no body is the one layout no version may change : a service that is newer than a
  * game still has a way to say so. {@link #decode} hands one of another version back instead of refusing it.
+ *
+ * A WebRTC description (r79) is about 1 kB, past one packet : OFFER and ANSWER carry it whole and are the
+ * two messages allowed past {@link Net_Transport#MAX_PAYLOAD}, up to {@link #MAX_MESSAGE}, because they only
+ * ever go over the WebSocket front (Transport_Ws), where a message is not a datagram. Over UDP a description
+ * goes in parts of at most {@link #CHUNK_BYTES}, which {@link Lobby_Chunks} cuts and puts back together.
  *
  * Like the game codec, encoding past {@link Net_Transport#MAX_PAYLOAD} throws, and decoding refuses a
  * packet whole - never half-reads it - when it is truncated, corrupted, another version or not a value
@@ -47,7 +58,7 @@ import java.util.List;
 public final class Lobby_Codec
 {
 	/** Bump on ANY change to a layout above, except OUTDATED's, which never changes. */
-	public static final int VERSION = 3;
+	public static final int VERSION = 4;
 	public static final int MAGIC = 'L';
 
 	/** No 0/O, no 1/I : a code is read aloud and typed by a person. 32 letters, six of them : 2^30 codes. */
@@ -59,6 +70,13 @@ public final class Lobby_Codec
 	public static final int ROW_BYTES = CODE_LENGTH + 2, MAX_ROWS = 100;
 
 	static final int HEADER = 3, CHECKSUM = 4;
+
+	/** A description's bytes in one part, and parts in one description : 8 kB, several times what a browser makes. */
+	public static final int CHUNK_BYTES = 1024, MAX_PARTS = 8, MAX_SDP = CHUNK_BYTES * MAX_PARTS;
+	/** The biggest OFFER : what the WebSocket front must take in one message. */
+	public static final int MAX_MESSAGE = HEADER + 1 + CODE_LENGTH + 2 + MAX_SDP + CHECKSUM;
+	/** An OFFER_PART or ANSWER_PART before its bytes. */
+	static final int PART_HEADER = CODE_LENGTH + 2 + 1 + 1;
 
 	private Lobby_Codec()
 	{
@@ -135,6 +153,17 @@ public final class Lobby_Codec
 			case PONG:
 				body = addressSize(((Lobby_Message.Pong) message).you);
 				break;
+			case OFFER:
+				body = 1 + CODE_LENGTH + sdpSize(((Lobby_Message.Offer) message).sdp);
+				break;
+			case ANSWER:
+				body = CODE_LENGTH + sdpSize(((Lobby_Message.Answer) message).sdp);
+				break;
+			case OFFER_PART:
+			case ANSWER_PART:
+				byte[] bytes = ((Lobby_Message.Part) message).bytes;
+				body = PART_HEADER + (bytes == null ? 0 : bytes.length);
+				break;
 			default:
 				body = 0;
 				break;
@@ -142,17 +171,23 @@ public final class Lobby_Codec
 		return HEADER + body + CHECKSUM;
 	}
 
+	/** The most bytes a message of this type may take : a packet, or for OFFER and ANSWER a WebSocket message. */
+	public static int limit(Lobby_Message.Type type)
+	{
+		return type == Lobby_Message.Type.OFFER || type == Lobby_Message.Type.ANSWER ? MAX_MESSAGE : Net_Transport.MAX_PAYLOAD;
+	}
+
 	/**
 	 * Writes the packet at the buffer's position and leaves the position after it.
 	 *
-	 * @throws IllegalArgumentException if it would pass {@link Net_Transport#MAX_PAYLOAD}, or a field
+	 * @throws IllegalArgumentException if it would pass {@link #limit}, or a field
 	 *         cannot be written : a code that is not one, an address too long or not ASCII, too many rows
 	 */
 	public static void encode(Lobby_Message message, ByteBuffer out)
 	{
 		int size = sizeOf(message);
-		if (size > Net_Transport.MAX_PAYLOAD)
-			throw new IllegalArgumentException("a " + message.type() + " is " + size + " B, past the " + Net_Transport.MAX_PAYLOAD + " B a packet may be");
+		if (size > limit(message.type()))
+			throw new IllegalArgumentException("a " + message.type() + " is " + size + " B, past the " + limit(message.type()) + " B it may be");
 		if (out.order() != ByteOrder.BIG_ENDIAN)
 			throw new IllegalArgumentException("the protocol is big-endian, the buffer is " + out.order());
 		if (out.remaining() < size)
@@ -229,6 +264,29 @@ public final class Lobby_Codec
 				break;
 			case PONG:
 				putAddress(out, ((Lobby_Message.Pong) message).you);
+				break;
+			case OFFER:
+				Lobby_Message.Offer offer = (Lobby_Message.Offer) message;
+				out.put(Net_Codec.u8(offer.game, "game version"));
+				putCode(out, offer.code, false);
+				putSdp(out, offer.sdp);
+				break;
+			case ANSWER:
+				putCode(out, ((Lobby_Message.Answer) message).code, false);
+				putSdp(out, ((Lobby_Message.Answer) message).sdp);
+				break;
+			case OFFER_PART:
+			case ANSWER_PART:
+				Lobby_Message.Part part = (Lobby_Message.Part) message;
+				if (part.parts < 1 || part.parts > MAX_PARTS || part.part < 0 || part.part >= part.parts)
+					throw new IllegalArgumentException("part " + part.part + " of " + part.parts + ", at most " + MAX_PARTS);
+				if (part.bytes == null || part.bytes.length < 1 || part.bytes.length > CHUNK_BYTES || !isSdp(part.bytes, 0, part.bytes.length))
+					throw new IllegalArgumentException("a part is 1 to " + CHUNK_BYTES + " B of description text");
+				putCode(out, part.code, false);
+				out.putShort(Net_Codec.u16(part.call, "call"));
+				out.put((byte) part.part);
+				out.put((byte) part.parts);
+				out.put(part.bytes);
 				break;
 			default:
 				// OUTDATED, PING : the header says it all
@@ -359,6 +417,31 @@ public final class Lobby_Codec
 				return new Lobby_Message.Ping();
 			case PONG:
 				return new Lobby_Message.Pong(getAddress(in, version));
+			case OFFER:
+				Lobby_Message.Offer offer = new Lobby_Message.Offer();
+				offer.game = in.get() & 0xFF;
+				offer.code = getCode(in, version, false);
+				offer.sdp = getSdp(in, version);
+				return offer;
+			case ANSWER:
+				String answered = getCode(in, version, false);
+				return new Lobby_Message.Answer(answered, getSdp(in, version));
+			case OFFER_PART:
+			case ANSWER_PART:
+				Lobby_Message.Part part = new Lobby_Message.Part(type);
+				part.code = getCode(in, version, false);
+				part.call = in.getShort() & 0xFFFF;
+				part.part = in.get() & 0xFF;
+				part.parts = in.get() & 0xFF;
+				if (part.parts < 1 || part.parts > MAX_PARTS || part.part >= part.parts)
+					throw bad(version, "part " + part.part + " of " + part.parts);
+				if (in.remaining() < 1 || in.remaining() > CHUNK_BYTES)
+					throw new Net_Rejected(Net_Rejected.Reason.LENGTH, version, "a part of " + in.remaining() + " B");
+				part.bytes = new byte[in.remaining()];
+				in.get(part.bytes);
+				if (!isSdp(part.bytes, 0, part.bytes.length))
+					throw bad(version, "a part that is not description text");
+				return part;
 			default:
 				// OUTDATED with a body : not the frozen layout
 				throw new Net_Rejected(Net_Rejected.Reason.LENGTH, version, "an OUTDATED has no body");
@@ -486,6 +569,68 @@ public final class Lobby_Codec
 		if (present > 1)
 			throw bad(version, "a relay flag of " + present);
 		return present == 0 ? null : new Lobby_Message.Relay(getAddress(in, version), getAddress(in, version), getAddress(in, version));
+	}
+
+	/**
+	 * What a description may hold : printable ASCII, tab, CR and LF, 1 to {@link #MAX_SDP} of them. SDP may
+	 * carry UTF-8 in a few free-text fields ; no browser writes any there, and ASCII needs no charset in GWT.
+	 */
+	public static boolean isSdp(String sdp)
+	{
+		if (sdp == null || sdp.isEmpty() || sdp.length() > MAX_SDP)
+			return false;
+		for (int i = 0; i < sdp.length(); i++)
+			if (!isSdpChar(sdp.charAt(i)))
+				return false;
+		return true;
+	}
+
+	static boolean isSdp(byte[] bytes, int from, int to)
+	{
+		for (int i = from; i < to; i++)
+			if (!isSdpChar((char) (bytes[i] & 0xFF)))
+				return false;
+		return true;
+	}
+
+	static boolean isSdpChar(char c)
+	{
+		return c >= 0x20 && c <= 0x7E || c == '\t' || c == '\r' || c == '\n';
+	}
+
+	static int sdpSize(String sdp)
+	{
+		return 2 + (sdp == null ? 0 : sdp.length());
+	}
+
+	static void putSdp(ByteBuffer out, String sdp)
+	{
+		if (!isSdp(sdp))
+			throw new IllegalArgumentException("not a description the lobby can carry : " + (sdp == null ? null : sdp.length() + " chars"));
+		out.putShort((short) sdp.length());
+		for (int i = 0; i < sdp.length(); i++)
+			out.put((byte) sdp.charAt(i));
+	}
+
+	static String getSdp(ByteBuffer in, int version) throws Net_Rejected
+	{
+		int length = in.getShort() & 0xFFFF;
+		if (length < 1 || length > MAX_SDP)
+			throw bad(version, "a description of " + length + " B");
+		byte[] bytes = new byte[length];
+		in.get(bytes);
+		if (!isSdp(bytes, 0, length))
+			throw bad(version, "a description that is not text");
+		return ascii(bytes, 0, length);
+	}
+
+	/** Bytes already checked to be ASCII, as a String, without asking for a charset. */
+	static String ascii(byte[] bytes, int from, int to)
+	{
+		char[] chars = new char[to - from];
+		for (int i = from; i < to; i++)
+			chars[i - from] = (char) (bytes[i] & 0xFF);
+		return new String(chars);
 	}
 
 	static Net_Rejected bad(int version, String detail)

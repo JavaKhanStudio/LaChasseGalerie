@@ -17,7 +17,9 @@ import java.util.List;
  * The contract, and the protocol above it must survive all of it :
  * <ul>
  * <li>a packet may be lost, duplicated or arrive out of order - never truncated ;</li>
- * <li>a payload is at most {@link #MAX_PAYLOAD} bytes, or send refuses it ;</li>
+ * <li>a payload is at most {@link #MAX_PAYLOAD} bytes, or send refuses it - the one exception is the
+ *     lobby service's WebSocket front (jks.lobby.Transport_Ws, r79), where a message is not a datagram
+ *     and a whole WebRTC description may pass ;</li>
  * <li>nothing blocks : send returns when the packet is handed to the OS, pump when the arrived
  *     packets have been delivered ;</li>
  * <li>a peer that stops answering is reported lost, once, and forgotten.</li>

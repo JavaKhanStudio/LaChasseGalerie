@@ -16,6 +16,7 @@ import java.util.function.LongSupplier;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import jks.net.Lobby_Chunks;
 import jks.net.Lobby_Codec;
 import jks.net.Lobby_Message;
 import jks.net.Net_Listener;
@@ -38,6 +39,14 @@ import jks.net.Net_Transport;
  * here is UDP : the WebRTC signalling a browser player needs (d7, r46) is a front that feeds the same
  * lobbies, not a second service.
  *
+ * THE TAB'S FRONT (r79) : {@link #front} adds a second transport, {@link Transport_Ws}, whose peers are
+ * {@code "ws/..."}. A tab BROWSEs and JOINs like anyone - its JOINED carries the relay, which is the tab's
+ * TURN server - but no PEER goes to the host for it : a tab cannot be punched to. It OFFERs its WebRTC
+ * description instead ; the service names the offer with a call, hands it to the host in OFFER_PARTs over
+ * the host's own socket, puts the host's ANSWER_PARTs back together ({@link Lobby_Chunks}) and gives the
+ * tab the ANSWER whole. A call the host does not answer within {@link #CALL_MS} is forgotten. Only a
+ * tab offers, and only a host answers, and only the call it was given.
+ *
  * A lobby lives as long as its host keeps sending HOST ({@link Lobby_Client#REFRESH_MS}) : it is gone
  * {@link #REAP_MS} after the last one, and at once on CLOSE. The transport's own timeout is not asked :
  * it differs between transports, and a lobby must not die sooner on one than on another.
@@ -55,6 +64,9 @@ public final class Lobby_Service
 	public static final long REAP_MS = 20_000;
 	public static final int MAX_LOBBIES = 4096;
 	public static final int ANSWERS_PER_SECOND = 20;
+	/** How long an offer waits for its host's answer : the host answers once its ICE gathering is complete. */
+	public static final long CALL_MS = 30_000;
+	public static final int MAX_CALLS = 4096;
 
 	/** One open lobby. */
 	public static final class Lobby
@@ -84,6 +96,8 @@ public final class Lobby_Service
 	}
 
 	private final Net_Transport transport;
+	/** The tabs' front (r79), or null : every {@code "ws/"} peer is answered through it. */
+	private Net_Transport stream;
 	private final LongSupplier clock;
 	private final Random random;
 	public Events events = new Events() {};
@@ -101,7 +115,28 @@ public final class Lobby_Service
 	/** Wall-clock seconds, for the credential's expiry : the relay reads it against its own clock, not ours. */
 	public LongSupplier epochSeconds = () -> System.currentTimeMillis() / 1000L;
 
-	public int joins, refusals, rejected, outdated, throttled;
+	public int joins, refusals, rejected, outdated, throttled, offers, answers;
+
+	/** An offer on its way to a host, until its answer is back with the tab. */
+	static final class Call
+	{
+		final Net_Peer tab, host;
+		final String code;
+		final long at;
+
+		Call(Net_Peer tab, Net_Peer host, String code, long at)
+		{
+			this.tab = tab;
+			this.host = host;
+			this.code = code;
+			this.at = at;
+		}
+	}
+
+	private final Map<Integer, Call> calls = new HashMap<Integer, Call>();
+	/** Drawn from the random at first, so a restarted service does not reuse the calls it just gave out. */
+	private int nextCall;
+	private final Lobby_Chunks chunks = new Lobby_Chunks();
 
 	/** A transport reporting a peer lost changes nothing : the reap decides, whatever the transport's timeout. */
 	private final Net_Listener listener = (from, payload) -> received(from, payload);
@@ -112,6 +147,18 @@ public final class Lobby_Service
 		this.transport = transport;
 		this.clock = clock;
 		this.random = random;
+		this.nextCall = random.nextInt(0x10000);
+	}
+
+	/** The tabs' front (r79) : a {@link Transport_Ws} this service pumps with its own, whose peers it answers through it. */
+	public void front(Net_Transport stream)
+	{
+		this.stream = stream;
+	}
+
+	static boolean isTab(Net_Peer peer)
+	{
+		return Transport_Ws.isWs(peer.address());
 	}
 
 	/** How long a credential the service mints is good for : a long evening's play, and a leak that dies overnight. */
@@ -151,6 +198,8 @@ public final class Lobby_Service
 	public int pump()
 	{
 		int read = transport.pump(listener);
+		if (stream != null)
+			read += stream.pump(listener);
 		long now = clock.getAsLong();
 		if (now - lastReap >= 1000)
 		{
@@ -211,6 +260,14 @@ public final class Lobby_Service
 			case PING:
 				answer(from, new Lobby_Message.Pong(from.address()));
 				break;
+			case OFFER:
+				if (isTab(from))
+					offer(from, (Lobby_Message.Offer) message);
+				break;
+			case ANSWER_PART:
+				if (!isTab(from))
+					answerPart(from, (Lobby_Message.Part) message);
+				break;
 			default:
 				// What the service sends is not a player's to send it
 				break;
@@ -219,6 +276,9 @@ public final class Lobby_Service
 
 	void host(Net_Peer from, Lobby_Message.Host message)
 	{
+		// A tab cannot host : nobody can reach it but through a description it offers
+		if (isTab(from))
+			return;
 		Lobby lobby = byHost.get(from);
 		if (lobby == null)
 		{
@@ -273,22 +333,29 @@ public final class Lobby_Service
 		answer(from, listing);
 	}
 
-	void join(Net_Peer from, Lobby_Message.Join message)
+	/** The lobby of that code if this game may join it ; null, and the asker told why, if not. */
+	Lobby joinable(Net_Peer from, String code, int game)
 	{
-		Lobby lobby = byCode.get(message.code);
+		Lobby lobby = byCode.get(code);
 		Lobby_Message.Refused.Reason no = null;
 		if (lobby == null)
 			no = Lobby_Message.Refused.Reason.NO_SUCH_LOBBY;
-		else if (lobby.game != message.game)
+		else if (lobby.game != game)
 			no = Lobby_Message.Refused.Reason.VERSION;
 		else if (lobby.players >= lobby.seats)
 			no = Lobby_Message.Refused.Reason.FULL;
-		if (no != null)
-		{
-			refusals++;
-			answer(from, new Lobby_Message.Refused(message.code, no, lobby != null ? lobby.game : message.game));
+		if (no == null)
+			return lobby;
+		refusals++;
+		answer(from, new Lobby_Message.Refused(code, no, lobby != null ? lobby.game : game));
+		return null;
+	}
+
+	void join(Net_Peer from, Lobby_Message.Join message)
+	{
+		Lobby lobby = joinable(from, message.code, message.game);
+		if (lobby == null)
 			return;
-		}
 
 		// The mirror : each side learns where the other's packets will come from
 		Lobby_Message.Joined joined = new Lobby_Message.Joined();
@@ -303,10 +370,55 @@ public final class Lobby_Service
 		if (answer(from, joined))
 		{
 			joins++;
+			// A tab reaches the host through the description it offers, never a punch : nothing to mirror
+			if (isTab(from))
+			{
+				events.joining(lobby, from);
+				return;
+			}
 			// Counted against the host too : a flood of forged joins must not become a flood at a player
 			answer(lobby.host, peer);
 			events.joining(lobby, from);
 		}
+	}
+
+	/** A tab's description : to the lobby's host, in parts, under a call its answer will come back on. */
+	void offer(Net_Peer tab, Lobby_Message.Offer message)
+	{
+		Lobby lobby = joinable(tab, message.code, message.game);
+		if (lobby == null)
+			return;
+		if (calls.size() >= MAX_CALLS)
+		{
+			throttled++;
+			return;
+		}
+		int call;
+		do
+			call = nextCall++ & 0xFFFF;
+		while (calls.containsKey(call));
+		calls.put(call, new Call(tab, lobby.host, lobby.code, clock.getAsLong()));
+		offers++;
+		for (Lobby_Message.Part part : Lobby_Chunks.split(Lobby_Message.Type.OFFER_PART, lobby.code, call, message.sdp))
+			answer(lobby.host, part);
+	}
+
+	/** A part of a host's answer : once whole, to the tab that offered, and the call is over. */
+	void answerPart(Net_Peer from, Lobby_Message.Part part)
+	{
+		Call call = calls.get(part.call);
+		// Only the host the offer went to answers it, and only under its own code
+		if (call == null || !call.host.equals(from) || !call.code.equals(part.code))
+		{
+			rejected++;
+			return;
+		}
+		String sdp = chunks.add(from.address(), part, clock.getAsLong());
+		if (sdp == null)
+			return;
+		calls.remove(part.call);
+		answers++;
+		answer(call.tab, new Lobby_Message.Answer(call.code, sdp));
 	}
 
 	// ---------------------------------------------------------------- leaving
@@ -316,6 +428,10 @@ public final class Lobby_Service
 		for (Lobby lobby : new ArrayList<Lobby>(byCode.values()))
 			if (now - lobby.lastHeard > REAP_MS)
 				remove(lobby, "no refresh for " + (now - lobby.lastHeard) / 1000 + " s");
+		for (Iterator<Call> it = calls.values().iterator(); it.hasNext();)
+			if (now - it.next().at > CALL_MS)
+				it.remove();
+		chunks.expire(now);
 		// A second's count is only worth keeping during that second
 		for (Iterator<long[]> it = answered.values().iterator(); it.hasNext();)
 			if (it.next()[0] < now / 1000)
@@ -348,7 +464,7 @@ public final class Lobby_Service
 			throttled++;
 			return false;
 		}
-		transport.send(to, Lobby_Codec.encode(message));
+		(stream != null && isTab(to) ? stream : transport).send(to, Lobby_Codec.encode(message));
 		return true;
 	}
 

@@ -2,7 +2,8 @@
 # lobby's installDist (two jars and a start script) to
 # /opt/lachassegalerie/lobby/app and runs this there. UDP 7770, host network:
 # the address a player's packet comes from IS the service's answer (free STUN),
-# and docker's userland proxy would rewrite it.
+# and docker's userland proxy would rewrite it. TCP 7771 is the tabs' WebSocket
+# front (r79): a browser cannot send UDP, so it signals there (ws://, no TLS yet).
 #
 # It names the relay in every HOSTED and JOINED, minting credentials from the
 # relay's own secret: `docker compose --env-file ../relay/.env` is how
@@ -21,7 +22,7 @@ services:
       LOBBY_RELAY: ${RELAY_PUBLIC_IP}:3478
       LOBBY_RELAY_SECRET: ${TURN_SECRET}
       JAVA_OPTS: -Xmx64m
-    command: ["bin/lobby", "7770"]
+    command: ["bin/lobby", "7770", "7771"]
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}

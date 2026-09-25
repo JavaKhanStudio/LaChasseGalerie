@@ -114,8 +114,12 @@ hero of its own and fails when a client draws an entity away from where the host
 the host opens a lobby on the very socket it plays on, and the clients reach it knowing only the
 service's address and a six-letter code. The service is its own deployable:
 
+A browser tab cannot send UDP, so the service has a second front for it (r79): a WebSocket server on TCP
+7771 carrying the same lobby messages, plus the tab's WebRTC offer, which the service hands the host in
+packets and whose answer it brings back.
+
 ```sh
-./gradlew :lobby:run --args=7770       # a lobby service on UDP port 7770 (the default)
+./gradlew :lobby:run --args="7770 7771" # a lobby service on UDP port 7770 and its WebSocket front on TCP 7771 (the defaults)
 ./gradlew :lobby:installDist           # lobby/build/install/lobby: two jars and a start script, for a VPS
 ```
 
@@ -130,6 +134,7 @@ deploy/lobby/deploy.sh      # the lobby service beside it, handing out relay cre
 deploy/relay/check.sh       # what the relay refuses: loopback, private ranges, the box itself, a bad password
 deploy/relay/netrelay.sh    # two sockets on this machine through the relay, 1200 B both ways
 ./gradlew netonline         # host and joiner through the VPS's lobby AND relay: both rows RELAYED
+./gradlew netwsonline       # a WebSocket tab and a UDP host through the VPS's lobby: a 3 kB offer and its answer, whole
 ```
 `netmirror` plays 8 headless players and holds `core/src/jks/online` to the world: every entity the
 host's snapshot names must be where its body is on a client that owns no physics.

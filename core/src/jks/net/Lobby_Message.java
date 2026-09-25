@@ -25,7 +25,9 @@ public abstract class Lobby_Message
 	/** The byte on the wire. Never renumber one : bump {@link Lobby_Codec#VERSION} instead. OUTDATED is 0 forever. */
 	public enum Type
 	{
-		OUTDATED, HOST, HOSTED, CLOSE, BROWSE, LISTING, JOIN, JOINED, PEER, REFUSED, PING, PONG;
+		OUTDATED, HOST, HOSTED, CLOSE, BROWSE, LISTING, JOIN, JOINED, PEER, REFUSED, PING, PONG,
+		/** A tab's WebRTC signalling (r79, version 4) : whole over the WebSocket front, in parts over UDP. */
+		OFFER, ANSWER, OFFER_PART, ANSWER_PART;
 
 		static Type of(int code)
 		{
@@ -322,6 +324,90 @@ public abstract class Lobby_Message
 		public Type type()
 		{
 			return Type.PING;
+		}
+	}
+
+	/**
+	 * Tab to service, over the WebSocket front only (r79) : my WebRTC offer, for the host of this code. A
+	 * description is whole, never trickled ({@code jks.rtc.Transport_Rtc} sends one once ICE gathering is
+	 * complete), and at about 1 kB it is past one lobby packet : the service hands it to the host in
+	 * {@link Part}s and brings the host's {@link Answer} back. Refused like a JOIN : no such lobby, another
+	 * version, full.
+	 */
+	public static final class Offer extends Lobby_Message
+	{
+		public int game = Net_Codec.VERSION;
+		public String code;
+		/** The session description : SDP text, {@link Lobby_Codec#isSdp} (printable ASCII, tab, CR, LF). */
+		public String sdp;
+
+		public Offer()
+		{
+		}
+
+		public Offer(String code, String sdp)
+		{
+			this.code = code;
+			this.sdp = sdp;
+		}
+
+		@Override
+		public Type type()
+		{
+			return Type.OFFER;
+		}
+	}
+
+	/** Service to tab, over the WebSocket front : the host of this code answered your offer with this description. */
+	public static final class Answer extends Lobby_Message
+	{
+		public String code;
+		public String sdp;
+
+		public Answer()
+		{
+		}
+
+		public Answer(String code, String sdp)
+		{
+			this.code = code;
+			this.sdp = sdp;
+		}
+
+		@Override
+		public Type type()
+		{
+			return Type.ANSWER;
+		}
+	}
+
+	/**
+	 * One packet of a description, over UDP (r79) : an OFFER_PART is service to host, an ANSWER_PART host to
+	 * service. The service names each offer with a {@link #call} ; the host answers under the same one. Parts
+	 * come in any order and any may be lost : {@link Lobby_Chunks} gives the description back whole, or never.
+	 */
+	public static final class Part extends Lobby_Message
+	{
+		/** OFFER_PART or ANSWER_PART. */
+		public final Type kind;
+		public String code;
+		/** The service's name for this offer and its answer, u16. */
+		public int call;
+		/** This part's place, from 0, of {@link #parts}. */
+		public int part, parts;
+		public byte[] bytes;
+
+		public Part(Type kind)
+		{
+			if (kind != Type.OFFER_PART && kind != Type.ANSWER_PART)
+				throw new IllegalArgumentException("a part of an offer or of an answer, not of a " + kind);
+			this.kind = kind;
+		}
+
+		@Override
+		public Type type()
+		{
+			return kind;
 		}
 	}
 

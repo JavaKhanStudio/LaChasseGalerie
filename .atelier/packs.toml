@@ -343,8 +343,15 @@ COMPLETE: ~1 kB offer, more than a lobby packet, hence r79's chunks); libwebrtc 
 (the one-socket rule does not apply: the lobby only carries the two descriptions); callbacks only fill
 queues, pump delivers on the caller's thread; audio is HeadlessAudioDeviceModule, never a sound device.
 A description that does not parse THROWS a java.lang.Error out of libwebrtc: it came from a stranger,
-so it fails its call (caught), never the host. Next, in order: r79 (WS front + OFFER/ANSWER chunks, lobby
-v4), r80 (the host answers, rtc peers in game()), r81 (the html module; parallax 2.1.0 patched copy
+so it fails its call (caught), never the host. THE TAB'S SIGNALLING EXISTS (r79, lobby VERSION 4):
+jks.lobby.Transport_Ws is the service's second front, a JDK-only RFC 6455 server (TCP 7771 on VPS_1, ws://,
+no TLS yet) behind Net_Transport, peers "ws/<ip:port>", each binary message the SAME Lobby_Codec bytes; it
+alone may send past MAX_PAYLOAD, up to Lobby_Codec.MAX_MESSAGE (a whole OFFER/ANSWER). Lobby_Service.front()
+adds it; a ws/ peer BROWSEs and JOINs (JOINED carries the relay = the tab's TURN server) but gets NO PEER
+mirrored and cannot HOST. OFFER (tab) -> the service names a call u16 and sends OFFER_PARTs to the host over
+UDP -> Lobby_Client.takeOffers() -> answer(call, sdp) sends ANSWER_PARTs -> the tab gets ANSWER whole. Parts
+are <= CHUNK_BYTES 1024 (fits MAX_RELAYED), MAX_PARTS 8, MAX_SDP 8 kB, SDP text is printable ASCII+tab/CR/LF;
+jks.net.Lobby_Chunks puts them back whole or never (5 s, keyed on sender+call). Next, in order: r80 (the host answers, rtc peers in game()), r81 (the html module; parallax 2.1.0 patched copy
 until parallax:r44 publishes 2.2.0, Simon's pick), r82 (the tab's transport and lobby), r83 (the gate).
 THE RELAY EXISTS AND IS DEPLOYED (r45, d6 -> relay, on Simon's word: "we already have a VPS we could
 use for testing"). VPS_1 = Fountain of Dreams' OVH box, 141.94.115.201, ubuntu with
@@ -355,7 +362,7 @@ so turnserver.conf DENIES every loopback/private/carrier range and the box's own
 remove a denied-peer-ip line to make a test pass - test on a local coturn. The secret is made on the
 box, never leaves it (/opt/lachassegalerie/relay/.env, 0600), and the lobby mints TURN REST credentials
 from it (24 h, username = expiry:code) into HOSTED and JOINED: lobby protocol VERSION 2 added that relay
-block (VERSION 3 since r76: a game and VPS_1's service must match, so redeploy deploy/lobby with any bump). Game side: jks.net.Turn_Codec (TURN on STUN framing, long-term credential; checked against RFC
+block (VERSION 4 since r79: a game and VPS_1's service must match, so redeploy deploy/lobby with any bump). Game side: jks.net.Turn_Codec (TURN on STUN framing, long-term credential; checked against RFC
 5769's signed vector) and jks.net.Turn_Client (one allocation on the SHARED socket). Only the JOINER
 allocates, on JOINED; it offers the relayed ip:port in its next JOIN, permits the host's ip, and reaches
 the host as the peer "relay/<host ip:port>", which Lobby_Client's views resolve and send through the
@@ -368,7 +375,8 @@ symmetric is RELAYED at 2000 ms, every other pair stays DIRECT as fast as before
 DIRECT or RELAYED, and a usable row keeps its route. Gates: nettest's relay/* checks (a Fake_Relay on the
 in-memory wire), `deploy/relay/check.sh` (what the real relay refuses), `deploy/relay/netrelay.sh` (two
 sockets here through it, 1200 B both ways), `./gradlew netonline` (host and joiner through VPS_1's lobby
-AND relay, both rows RELAYED; Lobby_Ice.relayOnly is that probe's knob, never the game's).
+AND relay, both rows RELAYED; Lobby_Ice.relayOnly is that probe's knob, never the game's). `./gradlew netwsonline`
+(r79): a java.net.http tab on VPS_1's WS front (TCP 7771) and a UDP host, a 3 kB offer and its answer whole.
 ICE EXISTS, NOT ICE4J (r42, phase 2.2): ice4j binds its own socket per harvester and cannot share the
 game's one socket, and no other Java library could, so jks.net.Stun_Codec (RFC 5389 Binding request/
 success, pure; 0x00/0x01 + magic cookie, refused by the game and lobby codecs as NOT_OURS) and
@@ -400,8 +408,7 @@ the session game(), the same socket minus the service's packets - never open a s
 lobby. Refresh/PING every 3 s (a 10 s peer timeout with 5 s pings calls the service lost after one
 lost answer). The `lobby` module is the deployable (Lobby_Main, core's classes WITHOUT libGDX): keep
 jks.net and jks.lobby JDK-only or it breaks. Candidates (LAN, IPv6) and the punch plug into
-Lobby_Client.candidates and takeJoiners() (r42). Tab signalling (r46) needs a message bigger than a
-packet and a non-UDP front on the same lobbies.
+Lobby_Client.candidates and takeJoiners() (r42). Tab signalling is the WebSocket front (r79, above).
 SESSIONS EXIST (d779fa5, phase 1.4): jks.online.HostSession owns the only world, behind
 Host_Simulation (Game_Simulation is the real game), and has no hero of its own - a zero-hero host is
 what the gates run; a local keyboard joins beside it via GVars_Controller.newPlayer. ClientSession
@@ -510,7 +517,7 @@ com.github.crykn:kryonet on JitPack. Netty is overkill for the game socket, reas
 lobby service. weupnp for best-effort UPnP, never relied on. coturn is what a relay VPS runs.
 The Windows Defender prompt saying 'java.exe wants to accept connections' is a real reason people
 click No, and it is a #build problem (jpackage), not yours.
-Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 76 checks (11 of them the lobby's, 11 ICE's, 7 the relay's, 3 rtc's: two Transport_Rtc in one JVM, no internet) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
+Gates: `./gradlew nettest` IS YOURS — about 25 s, no window, 81 checks (11 of them the lobby's, 5 the tab signalling's: java.net.http's WebSocket as the tab against a real Transport_Ws, and offers over a lossy wire; 11 ICE's, 7 the relay's, 3 rtc's: two Transport_Rtc in one JVM, no internet) then netsession, netprocs and netlobby (a service JVM with no libGDX, a host, 2 clients that know only the code), over
 jks.net and the mirror (codec round trips, every truncation and bit flip, checksummed lies, the
 size refusal, and): round trips over real UDP on loopback and over the in-memory wire, the payload cap,
 whole-or-nothing delivery, a host learning an unknown peer, a pump that never blocks, a peer

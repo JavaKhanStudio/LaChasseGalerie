@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.LongSupplier;
 
+import jks.net.Lobby_Chunks;
 import jks.net.Lobby_Codec;
 import jks.net.Lobby_Message;
 import jks.net.Net_Listener;
@@ -44,6 +45,10 @@ import jks.net.Turn_Codec;
  * the relayed address with its next JOIN, and lets the host's ip through it. Its own checks to the host
  * through the relay go to {@code "relay/<host>"}, a peer only this client's views know : {@link #game()}
  * resolves and sends to it like any other, so a session built on a RELAYED row never knows.
+ *
+ * A BROWSER TAB (r79) reaches a host through the service's WebSocket front : its WebRTC offer arrives
+ * here in OFFER_PARTs, whole or not at all, and a host takes it with {@link #takeOffers()} and gives its
+ * description back with {@link #answer}, which goes to the service in parts under the same call.
  *
  * Addresses are the transport's text : hand {@link #joined()}'s to the same transport, and a joiner's
  * game to {@code ice().link(joined().host.get(0)).address()} once that row is usable (DIRECT or RELAYED).
@@ -83,6 +88,23 @@ public final class Lobby_Client implements AutoCloseable
 	private int players, seats;
 	private boolean unlisted;
 	private final List<List<String>> joiners = new ArrayList<List<String>>();
+
+	/** A tab's WebRTC offer, whole (r79) : answer it under its {@link #call} with {@link Lobby_Client#answer}. */
+	public static final class Call
+	{
+		/** The service's name for this offer, which the answer must carry back. */
+		public final int call;
+		public final String sdp;
+
+		Call(int call, String sdp)
+		{
+			this.call = call;
+			this.sdp = sdp;
+		}
+	}
+
+	private final List<Call> offers = new ArrayList<Call>();
+	private final Lobby_Chunks chunks = new Lobby_Chunks();
 
 	private boolean browsing;
 	private Lobby_Message.Listing listing;
@@ -379,6 +401,33 @@ public final class Lobby_Client implements AutoCloseable
 		return taken;
 	}
 
+	/** For a host : the tabs' offers that arrived whole since the last call (r79). */
+	public List<Call> takeOffers()
+	{
+		chunks.expire(clock.getAsLong());
+		List<Call> taken = new ArrayList<Call>(offers);
+		offers.clear();
+		return taken;
+	}
+
+	/** Parts of offers still missing one : a part lost on the way fails its offer whole, after {@link Lobby_Chunks#TIMEOUT_MS}. */
+	public Lobby_Chunks offerParts()
+	{
+		return chunks;
+	}
+
+	/**
+	 * For a host : this machine's description, for the tab that made that offer. Sent once, in parts : a
+	 * part lost is an answer lost, and the tab offers again.
+	 */
+	public void answer(int call, String sdp)
+	{
+		if (!hosting || code == null)
+			throw new IllegalStateException("only a host with a lobby answers an offer");
+		for (Lobby_Message.Part part : Lobby_Chunks.split(Lobby_Message.Type.ANSWER_PART, code, call, sdp))
+			send(part);
+	}
+
 	/** The lobby version the service speaks, when it is not this game's ; -1 otherwise. Worth telling a person : update the game. */
 	public int serviceOutdated()
 	{
@@ -513,6 +562,15 @@ public final class Lobby_Client implements AutoCloseable
 				{
 					joiners.add(new ArrayList<String>(peer.joiner));
 					ice.check(peer.joiner);
+				}
+				break;
+			case OFFER_PART:
+				Lobby_Message.Part part = (Lobby_Message.Part) message;
+				if (hosting && part.code.equals(code))
+				{
+					String sdp = chunks.add(service.address(), part, clock.getAsLong());
+					if (sdp != null)
+						offers.add(new Call(part.call, sdp));
 				}
 				break;
 			case REFUSED:

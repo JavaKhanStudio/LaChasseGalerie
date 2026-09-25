@@ -6,7 +6,9 @@ import jks.net.Net_Peer;
 import jks.net.Transport_Udp;
 
 /**
- * The lobby service as a process : `lobby [port]`, UDP, default {@link #DEFAULT_PORT}. It is the one
+ * The lobby service as a process : `lobby [port [wsPort]]`, UDP on port (default {@link #DEFAULT_PORT}) and
+ * the tabs' WebSocket front (r79) on TCP wsPort (default {@link #DEFAULT_WS_PORT}, or any free port when the
+ * UDP port is 0, as the process gate asks). It is the one
  * thing in this project that binds a fixed port, because players must know where to find it
  * (Transport_Udp : "only a dedicated server passes a fixed port").
  *
@@ -19,15 +21,21 @@ import jks.net.Transport_Udp;
 public class Lobby_Main
 {
 	public static final int DEFAULT_PORT = 7770;
+	public static final int DEFAULT_WS_PORT = 7771;
+	/** A tab's browser answers the front's pings by itself : three of them unanswered is a tab gone. */
+	static final long WS_TIMEOUT_MS = 3 * Transport_Ws.PING_MS;
 	/** Longer than the reap : the reap is what closes a quiet lobby, the transport only forgets a quiet peer. */
 	static final long PEER_TIMEOUT_MS = Lobby_Service.REAP_MS + 5_000;
 
 	public static void main(String[] args) throws Exception
 	{
 		int port = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_PORT;
-		try (Transport_Udp transport = Transport_Udp.open(port, () -> System.nanoTime() / 1_000_000L, PEER_TIMEOUT_MS))
+		int wsPort = args.length > 1 ? Integer.parseInt(args[1]) : port == 0 ? 0 : DEFAULT_WS_PORT;
+		try (Transport_Udp transport = Transport_Udp.open(port, () -> System.nanoTime() / 1_000_000L, PEER_TIMEOUT_MS);
+				Transport_Ws front = Transport_Ws.open(wsPort, () -> System.nanoTime() / 1_000_000L, WS_TIMEOUT_MS))
 		{
 			Lobby_Service service = new Lobby_Service(transport, () -> System.nanoTime() / 1_000_000L, new SecureRandom());
+			service.front(front);
 			service.events = new Lobby_Service.Events()
 			{
 				@Override
@@ -56,6 +64,7 @@ public class Lobby_Main
 			}
 			else
 				log("RELAY none : a pair no check gets through cannot play");
+			log("WS " + front.localPort());
 			log("PORT " + transport.localPort());
 
 			long nextCount = System.currentTimeMillis() + 60_000;
@@ -68,7 +77,8 @@ public class Lobby_Main
 				{
 					nextCount += 60_000;
 					log("COUNT " + service.lobbies().size() + " lobbies, " + service.joins + " joins, " + service.refusals + " refused, "
-							+ service.rejected + " rejected, " + service.throttled + " throttled");
+							+ service.rejected + " rejected, " + service.throttled + " throttled, " + front.connections() + " tabs, "
+							+ service.offers + " offers, " + service.answers + " answers");
 				}
 			}
 		}

@@ -96,6 +96,11 @@ public class Net_Run
 		check("lobby/answers-are-throttled", Net_Lobby_Checks::answersAreThrottled);
 		check("lobby/game-packets-wait-for-the-session", Net_Lobby_Checks::gamePacketsWaitForTheSession);
 		check("lobby/one-socket-for-lobby-and-game-over-udp", Net_Lobby_Checks::sharedSocketOverUdp);
+		check("tab/codec-carries-descriptions-whole-and-in-parts", Net_Tab_Checks::codecCarriesDescriptions);
+		check("tab/a-lost-part-fails-its-description-whole", Net_Tab_Checks::lostPartFailsWhole);
+		check("tab/offers-and-answers-over-a-bad-wire", Net_Tab_Checks::offersOverABadWire);
+		check("tab/browse-join-offer-and-answer-over-the-websocket-front", Net_Tab_Checks::tabSignalsOverTheWebSocketFront);
+		check("tab/the-front-refuses-what-is-not-a-tab", Net_Tab_Checks::frontRefusesWhatIsNotATab);
 		check("ice/stun-codec-reads-the-rfc-5769-vectors", Net_Ice_Checks::codecReadsTheRfcVectors);
 		check("ice/stun-codec-refuses-and-never-mixes", Net_Ice_Checks::codecRefusesAndNeverMixes);
 		check("ice/address-text-is-the-transports", Net_Ice_Checks::addressTextIsTheTransports);

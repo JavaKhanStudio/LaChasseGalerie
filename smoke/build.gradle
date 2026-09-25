@@ -93,6 +93,16 @@ tasks.register('netonline', JavaExec) {
     args providers.gradleProperty('lobby').orElse('141.94.115.201:7770').get()
 }
 
+// ./gradlew netwsonline -Plobby=ip:port -Pws=ip:port : a tab's signalling through the REAL lobby service (r79) : a
+// java.net.http WebSocket on its front offers 3 kB to a UDP host and gets the answer back. Needs the internet.
+tasks.register('netwsonline', JavaExec) {
+    group = 'verification'
+    description = 'A WebSocket tab and a UDP host signal through a real lobby service: browse, join, offer, answer.'
+    mainClass = 'jks.smoke.Net_Tab_Online'
+    classpath = sourceSets.main.runtimeClasspath
+    args providers.gradleProperty('lobby').orElse('141.94.115.201:7770').get(), providers.gradleProperty('ws').orElse('141.94.115.201:7771').get()
+}
+
 // ./gradlew netsession : phase 1.4's in-process gate. The real game headless behind a HostSession with
 // no hero of its own, three world-less ClientSessions over the in-memory wire with latency and loss;
 // fails when a client draws an entity away from where the host had it. ./gradlew netsession -Pseconds=60 -Pseed=1
