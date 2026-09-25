@@ -523,3 +523,22 @@ clients' positions track the host's within tolerance. Phase 2 is only proven by 
 two households and one phone hotspot — the hotspot IS the CGNAT case and it is what proves the
 relay.
 """
+
+[tags.docs]
+label = "Docs & board words"
+description = "README.md, docs/*.md; the packs, lexicon, doctrine and routing eval"
+color = "#9fa8ff"
+sort = 110
+context = """
+The board's own upkeep lands here: the Maintenance tickets for Context packs, Lexicon,
+Tag vocabulary and Doctrine (atelier r853).
+.atelier/packs.toml holds one [tags.<slug>] per tag. A pack line names a file or a command;
+one that does not gets cut. `atelier --project lachassegalerie doctor context_packs` lists paths that moved.
+Lexicon: `atelier --project lachassegalerie term list`; a new word:
+  atelier --project lachassegalerie term add "<word>" --short "<one line>" --tags <tag>
+.atelier/doctrine.md holds Simon's lines once he approves them. A change to one is a doubt
+(`atelier ask`), never an edit.
+README.md and docs/*.md (browser-target.md, online-gate.md, online-multiplayer.md) are the
+docs; there is no CLAUDE.md, so agent rules live in these packs.
+.atelier/routing-eval.json is the routing fixture: `atelier --project lachassegalerie route-eval`.
+"""
