@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.MathUtils;
 
 import jks.personnage.index.Enum_AnimState;
 import jks.personnage.index.SIW_Data;
@@ -63,7 +64,11 @@ public class Draw_Hero extends SpriteModel
 			heartTexture = new Texture("tools/heart.png") ; 
 	}
 	
-	/** The clocks only a picture needs, moved on by one step of the simulation. */
+	/**
+	 * The clocks only a picture needs, moved on by one step of the simulation. A heart lost is seen HERE,
+	 * from the hearts going down between two steps : the host and a client both pass theirs, so the
+	 * lost heart's flash needs nothing in the snapshot but the hearts it already carries.
+	 */
 	public void advanceLook(float delta, boolean invulnerable, int hp)
 	{
 		update(delta) ; 
@@ -71,6 +76,20 @@ public class Draw_Hero extends SpriteModel
 			invulnerable_ColorTimmmer += delta ; 
 		if(hp == 1)
 			lastHp_ColorTimmmer += delta ; 
+		
+		if(lostHeart_Timer >= 0)
+		{
+			lostHeart_Timer += delta ; 
+			if(lostHeart_Timer >= lostHeart_blink * lostHeart_blinks)
+				lostHeart_Timer = -1 ; 
+		}
+		// The first hearts this picture is shown are where it starts, not a loss : a client joining mid-run
+		if(heartsBefore >= 0 && hp < heartsBefore)
+		{
+			lostHeart_Top = lostHeart_Timer >= 0 ? Math.max(lostHeart_Top, heartsBefore) : heartsBefore ; 
+			lostHeart_Timer = 0 ; 
+		}
+		heartsBefore = hp ; 
 	}
 	
 	/** What the next draw shows : the bodies' centres in metres, the hearts and the blink. */
@@ -159,6 +178,16 @@ public class Draw_Hero extends SpriteModel
 		batch.setColor(invulnerable_CurrentColor);
 	}
 	
+	/** A heart lost (r91) blinks this many times where it stood, each blink this long, fainter each time. */
+	private static final int lostHeart_blinks = 3 ; 
+	private static final float lostHeart_blink = 0.3f ; 
+	/** How far into its blinks the lost heart is, -1 when none is. */
+	private float lostHeart_Timer = -1 ; 
+	/** The highest heart still blinking : every heart above the ones left, up to it, is lost. */
+	private int lostHeart_Top ; 
+	/** The hearts of the step before, -1 before the first. */
+	private int heartsBefore = -1 ; 
+	
 	float lastHp_ColorTimmmer ; 
 	float lastHp_timeBetween = 0.4f; 
 	boolean drawClassic ; 
@@ -178,12 +207,28 @@ public class Draw_Hero extends SpriteModel
 			batch.setColor(drawClassic ? painColor : Color.LIGHT_GRAY);
 		}
 		for(int x = 1 ; x <= shownHp; x++)
+			drawHeart(batch, x) ; 
+		
+		// The lost one, lit half of each blink, lighter than the others so it reads as a flash, and a step
+		// fainter each blink (1, 0.7, 0.4) : the last one still shows over the river
+		if(lostHeart_Timer >= 0 && lostHeart_Timer % lostHeart_blink < lostHeart_blink / 2)
 		{
-			batch.draw(heartTexture, 
-					bodyX * PPM - baseWidth + fractions * x , 
-					bodyY * PPM - baseHeight/2 - fractions,
-					fractions,fractions);
+			int blink = (int) (lostHeart_Timer / lostHeart_blink) ; 
+			Color fading = index.color.cpy().lerp(Color.WHITE, 0.45f) ; 
+			// Clamped : an alpha past 1 packs to a transparent byte in SpriteBatch
+			fading.a = MathUtils.clamp(1 - 0.3f * blink, 0, 1) ; 
+			batch.setColor(fading) ; 
+			for(int x = shownHp + 1 ; x <= lostHeart_Top ; x++)
+				drawHeart(batch, x) ; 
 		}
+	}
+	
+	private void drawHeart(Batch batch, int x)
+	{
+		batch.draw(heartTexture, 
+				bodyX * PPM - baseWidth + fractions * x , 
+				bodyY * PPM - baseHeight/2 - fractions,
+				fractions,fractions);
 	}
 	
 	@Override
