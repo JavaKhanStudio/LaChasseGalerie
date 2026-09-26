@@ -181,3 +181,14 @@ tasks.register('nettab', JavaExec) {
     args 'tab-gate'
     mustRunAfter 'nettest', 'netsession', 'netprocs', 'netlobby'
 }
+
+// ./gradlew axeprobe : r104. One hero walks each way, stops, and swings each way from rest; fails when
+// a swing from rest leaves the axe where it was.
+tasks.register('axeprobe', JavaExec) {
+    group = 'verification'
+    description = 'Swings a resting axe each way after a walk each way, and fails if one does not turn it.'
+    mainClass = 'jks.smoke.Axe_Probe'
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = rootProject.file('desktop/assets')
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
