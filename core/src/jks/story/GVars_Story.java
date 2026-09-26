@@ -31,6 +31,7 @@ public class GVars_Story
 		currentTimmer_TopEnnemy = 0 ; 
 		currentTimmer_SideEnnemy = 0 ; 
 		descentFrom = -1 ; 
+		cruiseFrom = -1 ; 
 	}
 	
 	public static void act(float delta)
@@ -148,7 +149,59 @@ public class GVars_Story
 			skyScrolled += delta * flyingSpeed ; 
 			Vue_Game.star1.setPosition(Vue_Game.star1.getX(), Vue_Game.star1.getY() - delta * flyingSpeed/3);
 		}
+		else if(timming_currentStoryTime > timming_timeUntil_Stabilise)
+			cruise(delta) ; 
 		
+	}
+	
+	/** The story time the canoe came level after the take-off, and the sky it came level at. -1 before. */
+	static float cruiseStart, cruiseFrom = -1 ; 
+	/** How far the cruise dips under its level (the trees and the hills come back) and climbs over it. */
+	static float cruiseDip = 1150, cruiseClimb = 650 ; 
+	/** The two swells the altitude is made of : slow, and never in step, so it never repeats like a sine. */
+	static float cruiseSwellA = 29f, cruiseSwellB = 47f ; 
+	/** How long the swell takes to grow once level, and to settle before the descent. */
+	static float cruiseEase = 10f ; 
+	
+	/**
+	 * The travel (r93) : level after the take-off, the canoe rises and sinks through the sky for the whole
+	 * song, so the trees and the hills come back under it and the high clouds over it. Only the sky moves :
+	 * the canoe stays where it is on the screen, and a client follows through the sky scroll it is sent.
+	 * A function of the story time alone, so a replay and a client see the same flight.
+	 */
+	private static void cruise(float delta)
+	{
+		if(cruiseFrom < 0)
+		{
+			cruiseFrom = skyScrolled ; 
+			cruiseStart = timming_currentStoryTime ; 
+		}
+		float sky = cruiseFrom + cruiseOffset(timming_currentStoryTime - cruiseStart, timming_timeUntil_Descent - timming_currentStoryTime) ; 
+		GVars_Parralax.scroll(delta, 0, sky - skyScrolled) ; 
+		Vue_Game.star1.setPosition(Vue_Game.star1.getX(), Vue_Game.star1.getY() - (sky - skyScrolled)/3);
+		skyScrolled = sky ; 
+	}
+	
+	/**
+	 * @param since seconds since the canoe came level
+	 * @param left seconds until the descent
+	 * @return how far over (+) or under (-) its level the canoe flies : 0 at both ends, and still there
+	 */
+	static float cruiseOffset(float since, float left)
+	{
+		float a = (float)Math.sin(2 * Math.PI * since / cruiseSwellA) ; 
+		float b = (float)Math.sin(2 * Math.PI * since / cruiseSwellB) ; 
+		// Down first : the hills are what the cruise hid. The weights keep the sum within -1..1
+		float swell = -(0.62f * a + 0.38f * b) ; 
+		float ease = smooth(since / cruiseEase) * smooth(left / cruiseEase) ; 
+		return ease * (swell < 0 ? swell * cruiseDip : swell * cruiseClimb) ; 
+	}
+	
+	/** 0 below 0, 1 above 1, and an S between : no jolt at either end. */
+	static float smooth(float u)
+	{
+		u = Math.max(0, Math.min(1, u)) ; 
+		return u * u * (3 - 2 * u) ; 
 	}
 
 
