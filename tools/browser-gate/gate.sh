@@ -31,7 +31,7 @@ mkdir -p "$out"
 port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
 "$(dirname "$(readlink -f "$(command -v java)")")/jwebserver" -b 127.0.0.1 -p "$port" -d "$war" >"$out/server.log" 2>&1 &
 server=$!
-trap 'kill $server 2>/dev/null' EXIT
+trap 'kill $server 2>/dev/null || true' EXIT
 for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$port/index.html" && break; sleep 0.1; done
 
 node "$here/gate.mjs" "http://127.0.0.1:$port/index.html?mute" "$out"

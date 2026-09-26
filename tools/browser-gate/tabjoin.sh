@@ -55,7 +55,7 @@ javac -cp "$jar" -d "$out/probe" "$root/tools/probe/Lobby_Screen_Probe.java"
 
 free() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
 pids=()
-trap 'kill "${pids[@]}" 2>/dev/null; wait 2>/dev/null' EXIT
+trap 'kill "${pids[@]}" 2>/dev/null || true; wait 2>/dev/null || true' EXIT
 
 if [ -n "$online" ]; then
 	. "$root/deploy/vps.sh"
