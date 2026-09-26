@@ -21,6 +21,7 @@ import jks.personnage.PhysicSpriteEnnemy;
 import jks.personnage.PhysicSpriteHeroes;
 import jks.personnage.ScoreLabel;
 import jks.personnage.index.Index_Sprite;
+import jks.physic.FVars_Physic;
 import jks.physic.Gvars_Physic;
 import jks.physic.objects.PhysicSpriteHp;
 import jks.vars.GVars_Game;
@@ -71,6 +72,8 @@ public class Smoke_Run implements Headless_Runner.Session
 
 	/** What a run printed, without the wall-clock times : two runs of one seed must print the same. */
 	List<String> reports = new ArrayList<>();
+	/** Every potion checked where it appeared, by identity. */
+	final Set<PhysicSpriteHp> potionsSeen = Collections.newSetFromMap(new IdentityHashMap<>());
 	int run;
 
 	@Override
@@ -126,6 +129,7 @@ public class Smoke_Run implements Headless_Runner.Session
 	void playOnce(Headless_Runner runner) throws Exception
 	{
 		frame = joins = forcedDeaths = monstersKilled = mostMonsters = 0;
+		potionsSeen.clear();
 		random = new Random(seed);
 		GVars_Random.seed(seed);
 
@@ -297,6 +301,15 @@ public class Smoke_Run implements Headless_Runner.Session
 			if (!Float.isFinite(hero.body.getPosition().x) || !Float.isFinite(hero.body.getPosition().y))
 				throw new IllegalStateException("a hero position is not finite");
 		}
+
+		// A potion falls onto the canoe, never beside it (r94) : its centre is over the deck when it appears
+		for (PhysicSpriteHp potion : GVars_Game.hpStack)
+			if (potionsSeen.add(potion))
+			{
+				float x = potion.body.getPosition().x * FVars_Physic.PPM;
+				if (x < GVars_Game.canoe.deckLeft() || x > GVars_Game.canoe.deckRight())
+					throw new IllegalStateException("a potion appeared at x " + x + ", off the canoe's deck " + GVars_Game.canoe.deckLeft() + ".." + GVars_Game.canoe.deckRight());
+			}
 
 		// A potion that missed the canoe is destroyed in the update it falls below the world (n7)
 		for (PhysicSpriteHp potion : GVars_Game.hpStack)

@@ -177,11 +177,22 @@ public class GVars_Game
 		}
 	}
 
+	/** How far in from each end of the deck a potion may fall, as a share of the deck. */
+	static final float potionDeckInset = 0.06f ; 
+	
+	/**
+	 * A potion falls from the top of the world onto the canoe (r94) : its centre over the deck, a little
+	 * in from either end, never over the water where nobody can reach it. The canoe is where it always
+	 * is on the screen, even in flight (r93 moves the sky), so its deck is where to aim.
+	 */
 	public static void dropHp() 
 	{
+		float inset = (canoe.deckRight() - canoe.deckLeft()) * potionDeckInset ; 
+		float left = canoe.deckLeft() + inset ; 
+		float centre = left + GVars_Random.random.nextFloat() * (canoe.deckRight() - inset - left) ; 
 		PhysicSpriteHp physic = 
 				new PhysicSpriteHp(	
-						GVars_Random.random.nextInt(GVars_Camera.viewWidth) * GVars_Camera.worldMutiplier ,
+						centre - Index_Sprite.hpBottle.getWidth()/2 ,
 						GVars_Camera.viewHeight * GVars_Camera.worldMutiplier
 						) ;
 		hpStack.add(physic) ; 

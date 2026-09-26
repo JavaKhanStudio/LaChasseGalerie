@@ -42,6 +42,14 @@ public class PhysicSpriteCanoe extends Draw_Canoe
 //        body.setTransform(body.getWorldCenter(), body.getAngle() + (float)Math.toRadians(30));
     }
 	
+	/** The deck's left end, in world pixels : where a potion may fall from (r94). */
+	public float deckLeft()
+	{return (body.getPosition().x - width) * PPM ;}
+	
+	/** The deck's right end, in world pixels. */
+	public float deckRight()
+	{return (body.getPosition().x + width) * PPM ;}
+	
 	static int shakingStrenght = 1 ;
 	
 	public void act(float delta)
