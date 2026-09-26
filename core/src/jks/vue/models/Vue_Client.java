@@ -51,6 +51,7 @@ import jks.sounds.GVars_AudioManager;
 import jks.story.GVars_Story;
 import jks.vars.GVars_Heart;
 import jks.vinterface.GVars_Interface;
+import jks.vinterface.Pause_Screen;
 import jks.vinterface.Score_Screen;
 import jks.vinterface.Touch_Pad;
 import jks.vinterface.ToRender;
@@ -105,6 +106,8 @@ public class Vue_Client extends AVue_Model
 	private int shownRun = -1 ;
 	/** The host's song is over : its final scores, until it starts a new run or closes the server (d14). */
 	private Score_Screen scoreScreen ;
+	/** Escape or a pad's Start (r90) : Resume or Leave, over a run that goes on, since it is the host's. Null while playing. */
+	private Pause_Screen pauseScreen ;
 	/** How long ago the host closed the server, -1 while it has not. */
 	private float closedFor = -1 ;
 	/** How long "the host closed the server" stays up before this window goes back to its menu. */
@@ -210,9 +213,7 @@ public class Vue_Client extends AVue_Model
 		if(GVars_Heart.touch != null)
 			touchPad = new Touch_Pad(GVars_Interface.mainInterface, buttons, this::joinedOrAsked) ;
 
-		Gdx.input.setInputProcessor(new InputMultiplexer(GVars_Interface.mainInterface, keyboard));
-		Controllers.clearListeners();
-		Controllers.addListener(pads) ;
+		listen() ;
 		GVars_AudioManager.PlayAmbiance(Enum_Ambiance.WATER);
 
 		if(client == null)
@@ -242,10 +243,50 @@ public class Vue_Client extends AVue_Model
 		return key ;
 	}
 
+	/** This window's keyboard and pads play the run : at its start, and on Resume. */
+	private void listen()
+	{
+		Gdx.input.setInputProcessor(new InputMultiplexer(GVars_Interface.mainInterface, keyboard));
+		Controllers.clearListeners();
+		Controllers.addListener(pads) ;
+	}
+
+	/**
+	 * Escape, or a pad's Start (r90). Nothing stops : the run is the host's and everyone else's, so the
+	 * choices show over it while this machine's hero stands. Leave says LEAVE and goes back to the menu.
+	 */
+	private void pause()
+	{
+		if(pauseScreen != null || scoreScreen != null || client == null)
+			return ;
+		buttons.leftPressed = false ;
+		buttons.rightPressed = false ;
+		pauseScreen = new Pause_Screen("Paused", "The run goes on for everyone else") ;
+		pauseScreen.choice("Resume", picker -> closePause()) ;
+		pauseScreen.choice("Leave", picker -> GVars_Heart.changeVue(new Vue_Menu())) ;
+		pauseScreen.listen() ;
+	}
+
+	/** The run is this window's to play again : Resume, or the host's song ended under the pause. */
+	private void closePause()
+	{
+		if(pauseScreen == null)
+			return ;
+		pauseScreen.dispose() ;
+		pauseScreen = null ;
+		listen() ;
+	}
+
 	@Override
 	public void update(float delta)
 	{
 		client.tick(pressed()) ;
+
+		// The pick made since the last update. Once it ran, this view may be the old one
+		if(pauseScreen != null && pauseScreen.focus.runPicked() && GVars_Heart.vue != this)
+			return ;
+		if(pauseScreen != null)
+			pauseScreen.act(delta) ;
 
 		if(hostClosed(delta))
 			return ;
@@ -291,7 +332,10 @@ public class Vue_Client extends AVue_Model
 		if(view.over)
 		{
 			if(scoreScreen == null)
+			{
+				closePause() ;
 				openScoreScreen(view) ;
+			}
 			// The host's story has stopped with its song, and its river flows on under the scores
 			GVars_Parralax.scroll(delta, GVars_Story.riverSpeedAt(view.storyTime), 0) ;
 			GVars_Parralax.act(delta) ;
@@ -349,6 +393,8 @@ public class Vue_Client extends AVue_Model
 	{
 		if(scoreScreen != null)
 			scoreScreen.resize(width, height) ;
+		if(pauseScreen != null)
+			pauseScreen.resize(width, height) ;
 	}
 
 	@Override
@@ -391,6 +437,8 @@ public class Vue_Client extends AVue_Model
 		{
 			GVars_Interface.mainInterface.getViewport().apply();
 			GVars_Interface.mainInterface.draw();
+			if(pauseScreen != null)
+				pauseScreen.draw() ;
 		}
 		else
 			scoreScreen.draw() ;
@@ -406,6 +454,8 @@ public class Vue_Client extends AVue_Model
 		closeSession() ;
 		if(scoreScreen != null)
 			scoreScreen.dispose() ;
+		if(pauseScreen != null)
+			pauseScreen.dispose() ;
 		Gdx.input.setInputProcessor(null);
 		Controllers.clearListeners();
 
@@ -536,7 +586,7 @@ public class Vue_Client extends AVue_Model
 		{
 			if(keycode == Keys.ESCAPE)
 			{
-				Gdx.app.exit();
+				pause() ;
 				return true ;
 			}
 			if(!joinedOrAsked())
@@ -588,6 +638,12 @@ public class Vue_Client extends AVue_Model
 		@Override
 		public boolean buttonDown(Controller controller, int buttonCode)
 		{
+			// Before the join : Start pauses, it never asks for a hero
+			if(buttonCode == controller.getMapping().buttonStart)
+			{
+				pause() ;
+				return true ;
+			}
 			if(!joinedOrAsked())
 				return false ;
 

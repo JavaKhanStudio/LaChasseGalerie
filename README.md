@@ -62,7 +62,11 @@ Press any key or gamepad button to join. Press again after dying to jump back in
 | Jump (double)   | Space or ↑        | A          | big ▲ bottom-right  |
 | Swing axe       | D (left), Q (right) | B (left), X (right) | the two axes above ▲ (left, right) |
 | Lower river volume | E              |            |                     |
-| Quit            | Esc               |            |                     |
+| Pause           | Esc               | Start      |                     |
+
+Pause shows **Resume**, **Menu** and **Quit**; Esc or Start again resumes. A local run stops still under it, music
+included. An online run cannot stop for one player: the pause shows over it while it goes on, with **Close the
+server** for the host and **Leave** for a client.
 
 On a phone the page takes taps for the menus, and tapping the code field opens the phone's keyboard. The
 touch buttons show during a run once the page sees a touch screen, and the first tap asks for a hero.

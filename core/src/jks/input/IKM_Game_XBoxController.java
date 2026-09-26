@@ -11,6 +11,11 @@ import jks.vars.GVars_Game;
 
 public class IKM_Game_XBoxController extends ControllerAdapter
 {
+	/** What Start does : the view's pause, as Escape (r90). */
+	private final Runnable pause ;
+	
+	public IKM_Game_XBoxController(Runnable pause)
+	{this.pause = pause ;}
 	
 	@Override
 	public void connected(Controller controller) 
@@ -29,6 +34,13 @@ public class IKM_Game_XBoxController extends ControllerAdapter
 	@Override
 	public boolean buttonDown(Controller controller, int buttonCode) 
 	{
+		// Before the join : Start pauses, it never sits a pad down
+		if(buttonCode == controller.getMapping().buttonStart)
+		{
+			pause.run();
+			return true ;
+		}
+		
 		Player_Inputs inputing = getLocalPlayer(controller) ; 
 		if(inputing == null)
 		{

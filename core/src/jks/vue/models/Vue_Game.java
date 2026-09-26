@@ -13,6 +13,7 @@ import java.util.Map;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.controllers.Controllers;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -30,6 +31,7 @@ import jks.input.IKM_Game_Keyboard;
 import jks.input.IKM_Game_XBoxController;
 import jks.input.Menu_Picker;
 import jks.input.PlayerId;
+import jks.input.Player_Inputs;
 import jks.parralax.Enum_ColdNight;
 import jks.parralax.GVars_Parralax;
 import jks.personnage.PhysicSpriteEnnemy;
@@ -45,6 +47,7 @@ import jks.vars.GVars_Game;
 import jks.vars.GVars_Heart;
 import jks.vinterface.GVars_Interface;
 import jks.vinterface.Menu_Focus;
+import jks.vinterface.Pause_Screen;
 import jks.vinterface.Score_Screen;
 import jks.vinterface.ToRender;
 import jks.vue.AVue_Model;
@@ -62,6 +65,13 @@ public class Vue_Game extends AVue_Model
     private Score_Screen scoreScreen ;
     /** The score screen was opened by a host, so it offers Close the server rather than Menu. */
     private boolean hostedEnding ;
+    
+    /** Escape or a pad's Start in the run (r90) : Resume and what else can be picked. Null while playing. */
+    private Pause_Screen pauseScreen ;
+    /** The pause was opened by a host : its world is everyone's, so it goes on under the pause. */
+    private boolean hostedPause ;
+    /** What a local pause stopped, so Resume plays only that again. */
+    private boolean musicStopped, ambianceStopped ;
     
     /** A run nobody in particular asked for : --menu off, or a mouse click. Everyone joins by hand. */
     public Vue_Game()
@@ -86,9 +96,7 @@ public class Vue_Game extends AVue_Model
     	if(GVars_Debug.coreInformationDebug)
     		toRender.add(new ShowFPS());
     	
-    	Gdx.input.setInputProcessor(new InputMultiplexer(GVars_Interface.mainInterface, new IKM_Game_Keyboard()));
-		Controllers.clearListeners();
-		Controllers.addListener(new IKM_Game_XBoxController()) ; 
+    	listen() ;
 		GVars_AudioManager.PlayAmbiance(Enum_Ambiance.WATER);
 		
 		star1 = new Sprite(new Texture("stars/Stars Small_1.png")) ; 
@@ -99,11 +107,21 @@ public class Vue_Game extends AVue_Model
 		starter.joinTheRun();
     }
 
+    /** This window's keyboard and pads play the run : at its start, and on Resume. */
+    private void listen()
+    {
+    	Gdx.input.setInputProcessor(new InputMultiplexer(GVars_Interface.mainInterface, new IKM_Game_Keyboard(this::pause)));
+		Controllers.clearListeners();
+		Controllers.addListener(new IKM_Game_XBoxController(this::pause)) ; 
+    }
+    
     @Override
     public void resize(int width, int height)
     {
     	if(scoreScreen != null)
     		scoreScreen.resize(width, height);
+    	if(pauseScreen != null)
+    		pauseScreen.resize(width, height);
     }
     
     @Override
@@ -158,6 +176,8 @@ public class Vue_Game extends AVue_Model
     	{
 	    	GVars_Interface.mainInterface.getViewport().apply();
 	    	GVars_Interface.mainInterface.draw();
+	    	if(pauseScreen != null)
+	    		pauseScreen.draw();
     	}
     	else
     		scoreScreen.draw();
@@ -173,8 +193,27 @@ public class Vue_Game extends AVue_Model
 		// touched, since a pick disposes it : the run stays on the score screen until one (d14, d15)
 		if(GVars_Story.runOver())
 		{
+			// Only a hosted run gets here paused : its song ended under the pause, and the score screen takes over
+			closePause() ; 
 			waitForTheNextRun(delta) ; 
 			return ; 
+		}
+		
+		// Close the server, picked on a host's pause : Main_Game has told every peer, the run ends into the menu
+		if(pauseScreen != null && hostedPause && !GVars_Heart.hosting)
+		{
+			GVars_Heart.changeVue(new Vue_Menu());
+			return ; 
+		}
+		// The pick made since the last update. Once it ran, this view may be the old one
+		if(pauseScreen != null && pauseScreen.focus.runPicked() && GVars_Heart.vue != this)
+			return ; 
+		if(pauseScreen != null)
+		{
+			pauseScreen.act(delta);
+			// A local run stands still under its pause : the world, the story clock, the river
+			if(!hostedPause)
+				return ; 
 		}
 		
 		cleanUp() ; 
@@ -254,6 +293,75 @@ public class Vue_Game extends AVue_Model
 		scoreScreen.listen() ; 
 	}
 	
+	/**
+	 * Escape, or a pad's Start (r90). A local run stops whole : no world step, no story time, the music
+	 * and the river sound paused, so it takes up exactly where it stopped. A hosted run cannot : its world
+	 * is every client's, so the same choices show over it while it goes on, the host's own hero standing.
+	 * Nothing pauses the score screen, and a second Escape is the pause screen's own Resume.
+	 */
+	public void pause()
+	{
+		if(pauseScreen != null || scoreScreen != null || GVars_Story.runOver())
+			return ; 
+		
+		hostedPause = GVars_Heart.hosting ; 
+		// The keys and sticks held when Escape came are never released to the run : nobody walks on after Resume
+		for(Player_Inputs held : GVars_Controller.playerList.values())
+		{
+			held.leftPressed = false ; 
+			held.rightPressed = false ; 
+		}
+		
+		if(!hostedPause)
+		{
+			musicStopped = stop(GVars_AudioManager.currentlyRunningMusic) ; 
+			ambianceStopped = stop(GVars_AudioManager.currentlyRunningAmbiance) ; 
+		}
+		
+		pauseScreen = new Pause_Screen("Paused", hostedPause ? "The run goes on for everyone else" : null) ; 
+		pauseScreen.choice("Resume", picker -> resume()) ; 
+		if(hostedPause)
+			pauseScreen.choice("Close the server", picker -> GVars_Heart.hosting = false) ; 
+		else
+		{
+			pauseScreen.choice("Menu", picker -> GVars_Heart.changeVue(new Vue_Menu())) ; 
+			pauseScreen.choice("Quit", picker -> Gdx.app.exit()) ; 
+		}
+		pauseScreen.listen() ; 
+	}
+	
+	private void resume()
+	{
+		closePause() ; 
+		if(musicStopped)
+			GVars_AudioManager.currentlyRunningMusic.play() ; 
+		if(ambianceStopped)
+			GVars_AudioManager.currentlyRunningAmbiance.play() ; 
+		musicStopped = ambianceStopped = false ; 
+		listen() ; 
+	}
+	
+	private void closePause()
+	{
+		if(pauseScreen == null)
+			return ; 
+		pauseScreen.dispose() ; 
+		pauseScreen = null ; 
+	}
+	
+	/** @return whether it was playing, and is now paused */
+	private static boolean stop(Music music)
+	{
+		if(music == null || !music.isPlaying())
+			return false ; 
+		music.pause() ; 
+		return true ; 
+	}
+	
+	/** The pause screen's choices, while it is up : what a headless gate picks with. Null otherwise. */
+	public Menu_Focus pauseChoices()
+	{return pauseScreen == null ? null : pauseScreen.focus ;}
+	
 	/** The score screen's choices, while it is up : what a headless gate picks with. Null otherwise. */
 	public Menu_Focus scoreChoices()
 	{return scoreScreen == null ? null : scoreScreen.focus ;}
@@ -275,6 +383,7 @@ public class Vue_Game extends AVue_Model
 		
 		if(scoreScreen != null)
 			scoreScreen.dispose();
+		closePause() ; 
 		star1.getTexture().dispose();
 		star1 = null ;
 		if(debugRenderer != null)

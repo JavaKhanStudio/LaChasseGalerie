@@ -35,6 +35,8 @@ import jks.vue.models.Vue_Menu;
  * <li>New run, picked by the keyboard : a fresh run under the same session, the clients see the run
  *     number change and keep their players, the keyboard that picked is in it (d9) under a number no
  *     client holds, and the clients join it ;</li>
+ * <li>Escape on the host (r90) : its pause screen shows but the world goes on for the clients, Resume
+ *     takes it away, and a pause still up when the song ends gives way to the score screen ;</li>
  * <li>its song ends too, and Close the server : the session is closed while the run still exists,
  *     both clients hear HOST_ENDED, and the host's window is back on the menu.</li>
  * </ol>
@@ -156,8 +158,23 @@ public class Net_Ending implements Headless_Runner.Session
 		for (ClientSession client : clients)
 			is(GVars_Game.playerRegister.containsKey(PlayerId.of(client.player())), "a client could not join the new run");
 
+		// ---------------------------------------------------------------- 2b. Escape on the host (r90)
+		float storyAtPause = GVars_Story.storyTime();
+		int clientTickAtPause = clients.get(0).newest().tick;
+		secondRun.pause();
+		play(2, true);
+		is(secondRun.pauseChoices() != null, "Escape showed the host no pause screen");
+		is(GVars_Story.storyTime() > storyAtPause + 1.5f, "a hosted pause stopped the story for everyone : " + storyAtPause + " -> " + GVars_Story.storyTime());
+		for (ClientSession client : clients)
+			is(client.state() == ClientSession.State.IN && client.newest().tick > clientTickAtPause + 60, "a client stopped hearing the host while it was paused : " + client.state() + " tick " + client.newest().tick);
+		secondRun.pauseChoices().pick(Menu_Picker.KEYBOARD);
+		play(1, true);
+		is(GVars_Heart.vue == secondRun && secondRun.pauseChoices() == null, "Resume did not take the host's pause away");
+		secondRun.pause();
+
 		// ---------------------------------------------------------------- 3. Close the server
 		toTheEnd(0);
+		is(secondRun.pauseChoices() == null, "the host's pause stayed up over the score screen");
 		play(2, true);
 		choices = secondRun.scoreChoices();
 		is(choices != null, "the second run shows no score screen");

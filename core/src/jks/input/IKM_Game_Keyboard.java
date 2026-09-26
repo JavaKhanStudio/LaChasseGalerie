@@ -4,7 +4,6 @@ import com.badlogic.gdx.Input.Keys;
 
 import static jks.input.GVars_Controller.getLocalPlayer;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputAdapter;
 
 import jks.sounds.GVars_AudioManager;
@@ -12,6 +11,12 @@ import jks.vars.GVars_Game;
 
 public class IKM_Game_Keyboard extends InputAdapter 
 {
+		/** What Escape does : the view's pause (r90). It used to close the game. */
+		private final Runnable pause ;
+		
+		public IKM_Game_Keyboard(Runnable pause)
+		{this.pause = pause ;}
+		
 		// PC input
 		@Override
 		public boolean keyDown (int keycode) 
@@ -19,7 +24,7 @@ public class IKM_Game_Keyboard extends InputAdapter
 			
 			if(keycode == Keys.ESCAPE)
 			{
-				Gdx.app.exit();
+				pause.run();
 				return true ;
 			}
 			
