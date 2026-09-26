@@ -53,6 +53,9 @@ public class Launcher_Game
 		int report = args.indexOf("--report") ;
 		if(report >= 0)
 			GVars_Heart.reportAs = report + 1 < args.size() && !args.get(report + 1).startsWith("--") ? args.get(report + 1) : computerName() ;
+		int lab = args.indexOf("--lab") ;
+		if(lab >= 0)
+			GVars_Heart.lab = lab + 1 < args.size() && !args.get(lab + 1).startsWith("--") ? args.get(lab + 1) : "death" ;
 		int join = args.indexOf("--join") ;
 		if(join >= 0)
 		{

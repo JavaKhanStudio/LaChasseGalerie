@@ -18,6 +18,7 @@ import jks.vue.models.Vue_Client;
 import jks.vue.models.Vue_Game;
 import jks.vue.models.Vue_Lobby;
 import jks.vue.models.Vue_Menu;
+import jks.vue.models.Vue_Lab_Death;
 
 public class Main_Game extends ApplicationAdapter 
 {
@@ -51,6 +52,11 @@ public class Main_Game extends ApplicationAdapter
 	@Override
 	public void create () 
 	{
+		if("death".equals(GVars_Heart.lab))
+		{
+			GVars_Heart.changeVue(new Vue_Lab_Death()) ; 
+			return ; 
+		}
 		if(GVars_Heart.joinAddress != null)
 		{
 			GVars_Heart.changeVue(new Vue_Client(GVars_Heart.joinAddress)) ; 

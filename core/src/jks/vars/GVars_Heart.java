@@ -22,6 +22,8 @@ public class GVars_Heart
 	public static boolean startAtMenu;
 	/** --host [port] : this window hosts, and lets clients in on this UDP port. -1 : not hosting. */
 	public static int hostPort = -1;
+	/** --lab [name] : open a lab instead of the game (r98 : "death", Vue_Lab_Death, the default). Null : the game. */
+	public static String lab;
 	/** --join host:port : this window is a client of that host, and simulates nothing. */
 	public static String joinAddress;
 	/**
