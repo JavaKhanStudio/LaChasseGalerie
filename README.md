@@ -189,18 +189,13 @@ normally `jlink` a small runtime itself, but it cannot on Fedora — the distro 
 `conf/security/java.security` after the build and `jlink` then refuses with *"has been
 modified"*. Build one elsewhere and pass `-Pruntime=<dir>` for a smaller image.
 
-The icon is `desktop/packaging/icon.png` (512×512) and `icon.ico` (Windows, 16 to 256 px): the
-canoe crossing the full moon above the pines, which Simon picked on r71 for the game and its board.
-It is drawn once, in `icon.svg` at the repo root (the board shows that file itself), and
-`python3 tools/logo_icons.py` makes every raster from it: these two, the window and taskbar icon in
-`desktop/assets/ui/icon_*.png`, and `ui/logo.png` above the title on the start menu. **macOS needs an
-`icon.icns`** and there is none; nothing here can make a real one. On a Mac:
-
-```sh
-mkdir icon.iconset && for s in 16 32 128 256 512; do
-  sips -z $s $s desktop/packaging/icon.png --out icon.iconset/icon_${s}x${s}.png; done
-iconutil -c icns icon.iconset -o desktop/packaging/icon.icns
-```
+The icon is `desktop/packaging/icon.png` (512×512), `icon.ico` (Windows, 16 to 256 px) and
+`icon.icns` (macOS, 16 to 1024 px): the canoe crossing the full moon above the pines, which Simon
+picked on r71 for the game and its board. It is drawn once, in `icon.svg` at the repo root (the
+board shows that file itself), and `python3 tools/logo_icons.py` (ImageMagick and Pillow) makes
+every raster from it: these three, the window and taskbar icon in `desktop/assets/ui/icon_*.png`,
+and `ui/logo.png` above the title on the start menu. The `.icns` is written by the script itself,
+so no Mac or `iconutil` is needed; `python3 tools/icns_sheet.py` draws every image inside it.
 
 ## Project layout
 
