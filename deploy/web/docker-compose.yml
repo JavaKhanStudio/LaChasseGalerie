@@ -13,8 +13,9 @@ services:
       - "8080:80"
     volumes:
       - ./site:/usr/share/nginx/html:ro
-      # The gate kit's zips (r89, kit.sh), kept apart so a page deploy never removes them
-      - ./play:/usr/share/nginx/html/play:ro
+      # The gate kit's zips (r89, kit.sh), kept apart so a page deploy never removes them. Not under
+      # html/: docker cannot make a mount point inside a read-only mount
+      - ./play:/usr/share/nginx/play:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     logging:
       driver: json-file
