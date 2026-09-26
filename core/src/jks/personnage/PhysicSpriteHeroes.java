@@ -164,9 +164,15 @@ public class PhysicSpriteHeroes extends Draw_Hero
 	}
 	
 	int power = 50 ; 
+	/** What swings the axe is a turn of power * swingLever (N.m), the same wherever the hero stands (r109). It
+	 *  used to be the push landing at the world origin, whose lever was the axe's x + y : 15 m is the middle
+	 *  of the canoe, so the swing still feels as it did there. */
+	float swingLever = 15 ; 
+	/** left (D, pad B) sends the axe over the top to the hero's right, and right to its left : see Axe_Probe. */
 	public void pushAxe(boolean left)
 	{
-		axe.bodyAxe.applyForce(new Vector2(left ? -power : power, left ? power : -power), axe.bodyAxe.getLocalCenter(), true);
+		axe.bodyAxe.applyForce(new Vector2(left ? -power : power, left ? power : -power), axe.bodyAxe.getWorldCenter(), true);
+		axe.bodyAxe.applyTorque(left ? -power * swingLever : power * swingLever, true);
 	}
 	
 	public void checkForState(boolean grounding)
