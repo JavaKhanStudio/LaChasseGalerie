@@ -55,6 +55,12 @@ public class Lobby_Main
 				{
 					log("JOINING " + lobby.code + " from " + joiner.address());
 				}
+
+				@Override
+				public void reported(Net_Peer from, String code, String text)
+				{
+					log("REPORT " + (code == null ? "-" : code) + " from " + from.address() + " : " + text);
+				}
 			};
 			String relay = System.getenv("LOBBY_RELAY"), secret = System.getenv("LOBBY_RELAY_SECRET");
 			if (relay != null && !relay.isEmpty() && secret != null && !secret.isEmpty())
@@ -78,7 +84,7 @@ public class Lobby_Main
 					nextCount += 60_000;
 					log("COUNT " + service.lobbies().size() + " lobbies, " + service.joins + " joins, " + service.refusals + " refused, "
 							+ service.rejected + " rejected, " + service.throttled + " throttled, " + front.connections() + " tabs, "
-							+ service.offers + " offers, " + service.answers + " answers");
+							+ service.offers + " offers, " + service.answers + " answers, " + service.reports + " reports");
 				}
 			}
 		}

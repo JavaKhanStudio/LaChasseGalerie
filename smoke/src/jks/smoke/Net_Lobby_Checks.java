@@ -408,6 +408,60 @@ class Net_Lobby_Checks
 		eq(Lobby_Service.ANSWERS_PER_SECOND + 1, inbox.size(), "the next second answers again");
 	}
 
+	/**
+	 * The gate build (r89) : a --report game tells the service's log its NAT verdict under its lobby's code, once ;
+	 * a game without it sends nothing (the rows' lines : ice/gate-reports-say-the-rows) ; a line is one line of
+	 * text ; and one address cannot fill the log.
+	 */
+	static void gateReports() throws Exception
+	{
+		Lobby_Message.Report report = (Lobby_Message.Report) roundTrip(new Lobby_Message.Report("ABC234", "A row x DIRECT"));
+		eq("ABC234", report.code, "REPORT code");
+		eq("A row x DIRECT", report.text, "REPORT text");
+		is(((Lobby_Message.Report) roundTrip(new Lobby_Message.Report(null, "A nat EASY"))).code == null, "a REPORT about no lobby");
+		for (String bad : new String[] { "", "two\nlines", "x".repeat(Lobby_Codec.MAX_REPORT + 1) })
+			try
+			{
+				Lobby_Codec.encode(new Lobby_Message.Report(null, bad));
+				throw new AssertionError("a REPORT of " + bad.length() + " chars was encoded");
+			}
+			catch (IllegalArgumentException expected)
+			{
+			}
+
+		Rig rig = new Rig(8);
+		List<String> log = new ArrayList<String>();
+		rig.service.events = new Lobby_Service.Events()
+		{
+			@Override
+			public void reported(Net_Peer from, String code, String text)
+			{
+				log.add(from.address() + " " + code + " " + text);
+			}
+		};
+		Lobby_Client host = rig.client("host"), quiet = rig.client("quiet");
+		host.reportAs = "A";
+		host.ice().probe(List.of());
+		quiet.ice().probe(List.of());
+		host.host(8);
+		rig.until(() -> host.code() != null, 2000, "no code");
+		quiet.join(host.code());
+		rig.run(500, 50);
+		String code = host.code();
+		is(log.stream().anyMatch(line -> line.startsWith("host " + code + " A nat UNKNOWN no-ipv6 mapped [host] advice: " + host.ice().advice())),
+				"the host's NAT verdict and its advice, under its code : " + log);
+		is(log.stream().noneMatch(line -> line.startsWith("quiet ")), "a game without --report sends nothing : " + log);
+		int lines = log.size();
+		rig.run(3000, 50);
+		eq(lines, log.size(), "nothing new, nothing sent : " + log.subList(lines, log.size()));
+
+		Net_Transport flood = rig.wire.open("flood");
+		for (int i = 0; i < 50; i++)
+			flood.send(flood.resolve("service"), Lobby_Codec.encode(new Lobby_Message.Report(null, "line " + i)));
+		rig.step(10);
+		eq(Lobby_Service.REPORTS_PER_10S, (int) log.stream().filter(line -> line.startsWith("flood ")).count(), "one address's lines per ten seconds");
+	}
+
 	// ---------------------------------------------------------------- the shared socket
 
 	/**

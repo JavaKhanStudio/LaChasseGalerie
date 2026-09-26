@@ -5,8 +5,10 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.function.LongSupplier;
 
@@ -151,6 +153,15 @@ public final class Lobby_Client implements AutoCloseable
 	/** Offers are answered by hand, through {@link #takeOffers()} and {@link #answer} (r85). */
 	private boolean byHand;
 	private final List<Tab> answering = new ArrayList<Tab>();
+
+	/**
+	 * --report (r89) : this machine's name in the lines it sends the service's log, or null to send none. Set,
+	 * the client reports its NAT verdict once the probe is done and every lobby row and tab channel that
+	 * changes, so the real-internet gate is read in VPS_1's log. Only the gate build sets it.
+	 */
+	public String reportAs;
+	private String reportedNat;
+	private final Map<String, String> reportedRows = new HashMap<String, String>();
 
 	private boolean browsing;
 	private Lobby_Message.Listing listing;
@@ -803,6 +814,45 @@ public final class Lobby_Client implements AutoCloseable
 		if (tabs != null)
 			updateTabs();
 		ice.update();
+		if (reportAs != null)
+			report();
+	}
+
+	/** What changed since the last lines, to the service's log : the NAT verdict, each row's route, each tab's channel. */
+	void report()
+	{
+		if (ice.probed())
+		{
+			String nat = "nat " + ice.nat() + (ice.carrierNat() ? " carrier-NAT" : "") + (ice.ipv6() ? " ipv6" : " no-ipv6")
+					+ " mapped " + new java.util.LinkedHashSet<String>(ice.mapped()) + (ice.advice() == null ? "" : " advice: " + ice.advice());
+			if (!nat.equals(reportedNat))
+			{
+				reportedNat = nat;
+				report(nat);
+			}
+		}
+		for (Lobby_Ice.Link link : ice.links())
+		{
+			String row = link.route() + (link.address() == null ? "" : " via " + link.address())
+					+ (link.settledMs() < 0 ? "" : " in " + link.settledMs() + " ms");
+			if (!row.equals(reportedRows.put("row " + link.key, row)))
+				report((hosting ? "host" : "joiner") + " row " + link.key + " " + row);
+		}
+		for (Tab tab : answering)
+		{
+			String row = tab.tab.open() ? "channel open" : tab.answered ? "answered" : "answering";
+			if (!row.equals(reportedRows.put("tab " + tab.tab.peer().address(), row)))
+				report("host tab " + tab.tab.peer().address() + " " + row);
+		}
+	}
+
+	void report(String line)
+	{
+		String text = (reportAs + " " + line).replaceAll("[^\\x20-\\x7E]", "?");
+		if (text.length() > Lobby_Codec.MAX_REPORT)
+			text = text.substring(0, Lobby_Codec.MAX_REPORT);
+		String about = code != null ? code : joined != null ? joined.code : joining;
+		send(new Lobby_Message.Report(about, text));
 	}
 
 	/** Once allocated : offer the relayed address to the host, let the host's ip through, check the host through it. */

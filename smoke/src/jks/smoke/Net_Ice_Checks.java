@@ -606,6 +606,55 @@ class Net_Ice_Checks
 		eq(List.of(key), rig.lost.get(0), "the host's game heard the address it played with go quiet, and only that one");
 	}
 
+	/**
+	 * The gate build (r89) : what the real-internet gate's record is read from. A --report host and joiner log
+	 * their NAT verdict and each row's route to the service ; a network switch reads RECONNECTING, then DIRECT.
+	 */
+	static void gateReportsSayTheRows() throws Exception
+	{
+		Rig rig = new Rig(3);
+		List<String> log = new ArrayList<String>();
+		rig.service.events = new Lobby_Service.Events()
+		{
+			@Override
+			public void reported(Net_Peer from, String code, String text)
+			{
+				log.add(code + " " + text);
+			}
+		};
+		Lobby_Client host = rig.client(HOST_INSIDE, HOST_IP, Nat.Kind.PORT_RESTRICTED);
+		Nat moved = rig.wire.nat(JOINER_IP, Nat.Kind.SYMMETRIC);
+		Lobby_Client joiner = rig.add(rig.wire.open(JOINER_INSIDE, moved));
+		host.reportAs = "A";
+		joiner.reportAs = "C";
+		host.ice().probe(List.of(REFLECTORS));
+		joiner.ice().probe(List.of(REFLECTORS));
+		host.host(8);
+		rig.until(() -> host.code() != null, 5_000, "no code");
+		String code = host.code();
+		joiner.join(code);
+		rig.until(() -> joiner.joined() != null, 5_000, "no JOINED");
+		String key = joiner.publicAddress();
+		joiner.stopJoining();
+		rig.until(() -> host.ice().link(key) != null && host.ice().link(key).route() == Lobby_Ice.Route.DIRECT, Lobby_Ice.GIVE_UP_MS, "never DIRECT");
+		rig.run(PROBE_MS);
+
+		is(log.stream().anyMatch(line -> line.contains(" A nat EASY")), "the host's verdict : " + log);
+		is(log.stream().anyMatch(line -> line.contains(" C nat HARD") && line.contains("advice: ") && line.contains("Wi-Fi")),
+				"the hotspot's verdict names its fix : " + log);
+		is(log.stream().anyMatch(line -> line.startsWith(code + " A host row " + key + " DIRECT via ")), "the host's row DIRECT : " + log);
+		is(log.stream().anyMatch(line -> line.startsWith(code + " C joiner row " + joiner.joined().host.get(0) + " DIRECT via ")), "the joiner's row DIRECT : " + log);
+
+		int before = log.size();
+		moved.reset();
+		rig.until(() -> host.ice().link(key).route() == Lobby_Ice.Route.RECONNECTING, Lobby_Ice.STALE_MS + 1_000, "never RECONNECTING");
+		rig.until(() -> host.ice().link(key).route() == Lobby_Ice.Route.DIRECT, Lobby_Ice.GIVE_UP_MS, "never back");
+		List<String> after = log.subList(before, log.size());
+		is(after.stream().anyMatch(line -> line.startsWith(code + " A host row " + key + " RECONNECTING via ")), "the switch is RECONNECTING : " + after);
+		is(after.stream().anyMatch(line -> line.startsWith(code + " A host row " + key + " DIRECT")), "and then DIRECT again : " + after);
+		System.out.println("NET      the gate's log : " + log);
+	}
+
 	/** A request with no name gets no answer : a player's socket is not a free STUN server for strangers. */
 	static void strangersGetNoAnswer() throws Exception
 	{

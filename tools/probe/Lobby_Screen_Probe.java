@@ -65,6 +65,10 @@ import jks.vue.models.Vue_Menu;
  * and exits 0 when the tab writes <out>/tab_done, or after 60 s of run. -Dprobe.startAfter=<ms> : Start that
  * long after the row opened (1 s by default). -Dprobe.stun=true : its WebRTC gathers through Launcher_Game's STUN
  * servers, as the game does, so a tab on VPS_1's relay can reach it (tabjoin.sh ONLINE=1, r83).
+ *
+ * -Dprobe.report=<name> (r89) : what the gate kit's --report does, under that name : Online play sends its NAT
+ * verdict and its rows' routes to the service's log (REPORT lines). Pass VPS_1's 141.94.115.201:7770 as the
+ * third argument to read them there.
  */
 public class Lobby_Screen_Probe implements ApplicationListener
 {
@@ -97,6 +101,7 @@ public class Lobby_Screen_Probe implements ApplicationListener
 		jks.sounds.GVars_Audio.muted = true ;
 		// A local service unless told otherwise : the game's default is VPS_1's (r78)
 		GVars_Heart.lobbyService = arg.length > 2 ? arg[2] : "127.0.0.1:7770" ;
+		GVars_Heart.reportAs = System.getProperty("probe.report") ;
 		// As Launcher_Game does, without STUN : the probe stays on this machine. notabs : as if the natives did not load.
 		// probe.stun (r83, a tab through VPS_1) : with Launcher_Game's STUN, or a relay-only tab has nothing public to reach
 		java.util.List<String> stun = Boolean.getBoolean("probe.stun") ? jks.lobby.Lobby_Ice.STUN_SERVERS : java.util.Collections.<String>emptyList() ;

@@ -2,56 +2,62 @@
 
 What only three real networks can prove: ICE between two households, the relay for a phone
 hotspot (CGNAT), and a network switch showing RECONNECTING instead of a stale "direct".
+The machines need nothing but the download below: no checkout, no JDK, no terminal.
 Everything one machine can prove is already green: `./gradlew netnat` and `./gradlew netonline`
 (host and joiner through VPS_1's lobby and relay, both rows RELAYED).
 
 The lobby service is on VPS_1 at `141.94.115.201:7770`, the relay at `141.94.115.201:3478`.
-The game's default is VPS_1's since r78; passing `--lobby 141.94.115.201:7770` as below is harmless and
-makes a machine running an older build use it too.
+The game's default is VPS_1's since r78: nothing needs passing.
+
+## What each machine needs: a browser, then a double-click (r89)
+
+**http://141.94.115.201:8080/play/** has the game ready to put on a computer: a zip per system
+(Windows, macOS Apple silicon and Intel, Linux), each with its own Java, so nothing is installed,
+no checkout, no terminal. Unzip, double-click **PLAY**, Menu > Online play. (`tools/gate-kit/build.sh`
+makes the zips, `deploy/web/kit.sh` puts them there.)
+
+That build starts with `--report`: while Online play is open, it sends VPS_1's lobby log one line
+for its NAT verdict (what `./gradlew netnat` printed: EASY / HARD / OPEN, carrier NAT, IPv6, the
+advice) and one for every lobby row that changes route, named after the computer. **So nobody
+collects netnat files or screenshots**: an agent reads the record on VPS_1.
+
+**The phone is only the hotspot.** Machine C is a laptop tethered to a phone on mobile data. Nothing
+runs on the phone: turn its hotspot on, join it from the laptop, that is the CGNAT case.
 
 ## Machines
 
 - **A** — household 1 (this desktop, for example).
 - **B** — household 2, another home's Wi-Fi.
-- **C** — a laptop tethered to a phone on mobile data (the hotspot, the CGNAT case).
+- **C** — a laptop on a phone's hotspot (mobile data).
 
-Each needs a JDK 17+ and either this checkout (`git pull`) or the jar from `./gradlew dist`
-(`desktop/build/libs/LaChasseGalerie-1.0.jar`). `netnat` needs the checkout.
+## Steps (Simon's part)
 
-## Steps
+1. On A, B and C: download the zip from http://141.94.115.201:8080/play/, unzip, double-click PLAY,
+   Menu > Online play. (A can also run this checkout: `./gradlew :desktop:run --args="--menu --report"`.)
+2. **A hosts, B joins** (by code or from the list). Leave them a few seconds.
+3. **C joins A's game too.** A relayed row appears about 2 s after the join.
+4. **The switch.** With C joined, move C from the hotspot to a Wi-Fi (or turn the hotspot off
+   and on). Wait ten seconds.
+5. Optional: press Start and play a minute; note any stutter.
+6. Tell the board it is done (resume r74), with the time you did it. Screenshots are welcome, never
+   needed.
 
-1. On every machine, on the network it is testing, save the probe:
+## The record (the agent's part)
 
-       ./gradlew -q netnat > netnat-<A|B|C>.txt
+    . deploy/vps.sh; vps "sudo docker logs --since 2h lachassegalerie-lobby" | grep -E "OPENED|JOINING|REPORT"
 
-   Expected: A and B say `EASY` (or `OPEN`); C says `HARD` and an advice line naming a fix
-   (for example "on mobile data, join over Wi-Fi").
+A line is `REPORT <code> from <public ip:port> : <computer> <what>`; `<what>` is `nat ...` or
+`host|joiner row <the other end> <ROUTE> [via <address>] [in <ms> ms]`. Expected:
 
-2. Start the game on every machine:
+- A and B: `nat EASY` (or `OPEN`); C: `nat HARD` and an `advice:` naming a fix (join over Wi-Fi).
+- A <-> B: both rows `DIRECT`.
+- A <-> C: `DIRECT` or `RELAYED` — never `CANNOT_CONNECT`.
+- The switch: A's row for C goes `RECONNECTING` (a direct route does after 3.5 s of silence), never
+  a `DIRECT` that stays while carrying nothing; note what it becomes after.
 
-       ./gradlew :desktop:run --args="--menu --lobby 141.94.115.201:7770"
-       # or: java -jar LaChasseGalerie-1.0.jar --menu --lobby 141.94.115.201:7770
-
-   Menu > Online play.
-
-3. **A hosts, B joins** (by code or from the list). Screenshot both lobby screens.
-   Expected: both rows `direct`.
-
-4. **A hosts, C joins.** Screenshot both. Expected: `direct` or `relayed` — never
-   `cannot connect`. A relayed row appears about 2 s after the join.
-
-5. **The switch.** With C joined and its row usable, move C from mobile data to a Wi-Fi (or
-   turn the hotspot off and on). Screenshot A's row within a few seconds.
-   Expected: `reconnecting` (a direct route goes RECONNECTING after 3.5 s of silence), never a
-   `direct` that no longer carries anything. Note what the row becomes afterwards.
-
-6. Optional: press Start on step 3 or 4 and play a minute; note any stutter.
-
-## The record
-
-Attach to r74: the three `netnat-*.txt`, and the screenshots of steps 3-5 with the machine
-named in each caption. Anything that is not the expected verdict is a defect in
-`jks.lobby.Lobby_Ice` or the relay path: file it as a #network task with the screenshot.
+Attach that grep to r74. Anything that is not the expected verdict is a defect in
+`jks.lobby.Lobby_Ice` or the relay path: file it as a #network task with the log lines.
+`nettest`'s `ice/gate-reports-say-the-rows` proves the same lines on the in-memory wire.
 
 ---
 
@@ -74,7 +80,7 @@ Both: the tab let in, player 2 walking right on the host, one JOINING in VPS_1's
 ## Machines
 
 - **A** — the host, at home, the desktop game from this checkout (`git pull`, then
-  `./gradlew :desktop:run --args="--menu"`, or the jar from `./gradlew dist`). The host needs the
+  `./gradlew :desktop:run --args="--menu"`), or the Linux zip from http://141.94.115.201:8080/play/. The host needs the
   WebRTC natives this machine's build ships: a host row that says *cannot take tabs* is a dist
   built on another platform.
 - **T1** — a phone or a laptop on **another household's** Wi-Fi, with Chrome, Firefox or Safari.

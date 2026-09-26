@@ -68,6 +68,8 @@ public final class Lobby_Service
 	/** How long an offer waits for its host's answer : the host answers once its ICE gathering is complete. */
 	public static final long CALL_MS = 30_000;
 	public static final int MAX_CALLS = 4096;
+	/** Lines one address may have logged per ten seconds (r89) : a gate game sends a handful, a forged source no more. */
+	public static final int REPORTS_PER_10S = 10;
 
 	/** One open lobby. */
 	public static final class Lobby
@@ -96,6 +98,8 @@ public final class Lobby_Service
 		default void opened(Lobby lobby) {}
 		default void closed(Lobby lobby, String why) {}
 		default void joining(Lobby lobby, Net_Peer joiner) {}
+		/** A game started with --report said what it saw (r89) ; code is null when it named no lobby. */
+		default void reported(Net_Peer from, String code, String text) {}
 	}
 
 	private final Net_Transport transport;
@@ -110,6 +114,8 @@ public final class Lobby_Service
 	private final Map<Net_Peer, Lobby> byHost = new HashMap<Net_Peer, Lobby>();
 	/** Per address : the second its answers are counted in, and how many it had. */
 	private final Map<String, long[]> answered = new HashMap<String, long[]>();
+	/** Per address : the ten seconds its reports are counted in, and how many it made. */
+	private final Map<String, long[]> reported = new HashMap<String, long[]>();
 	private long lastReap;
 
 	/** The relay HOSTED and JOINED name (r45), and the secret its credentials are signed with ; null for none. */
@@ -118,7 +124,7 @@ public final class Lobby_Service
 	/** Wall-clock seconds, for the credential's expiry : the relay reads it against its own clock, not ours. */
 	public LongSupplier epochSeconds = () -> System.currentTimeMillis() / 1000L;
 
-	public int joins, refusals, rejected, outdated, throttled, offers, answers;
+	public int joins, refusals, rejected, outdated, throttled, offers, answers, reports;
 
 	/** An offer on its way to a host, until its answer is back with the tab. */
 	static final class Call
@@ -270,6 +276,9 @@ public final class Lobby_Service
 			case ANSWER_PART:
 				if (!isTab(from))
 					answerPart(from, (Lobby_Message.Part) message);
+				break;
+			case REPORT:
+				report(from, (Lobby_Message.Report) message);
 				break;
 			default:
 				// What the service sends is not a player's to send it
@@ -443,6 +452,30 @@ public final class Lobby_Service
 		for (Iterator<long[]> it = answered.values().iterator(); it.hasNext();)
 			if (it.next()[0] < now / 1000)
 				it.remove();
+		for (Iterator<long[]> it = reported.values().iterator(); it.hasNext();)
+			if (it.next()[0] < now / 10_000)
+				it.remove();
+	}
+
+	/** A gate game's line, to the log : never answered, and at most {@link #REPORTS_PER_10S} per address. */
+	void report(Net_Peer from, Lobby_Message.Report report)
+	{
+		long window = clock.getAsLong() / 10_000;
+		long[] count = reported.get(from.address());
+		if (count == null)
+			reported.put(from.address(), count = new long[2]);
+		if (count[0] != window)
+		{
+			count[0] = window;
+			count[1] = 0;
+		}
+		if (++count[1] > REPORTS_PER_10S)
+		{
+			throttled++;
+			return;
+		}
+		reports++;
+		events.reported(from, report.code, report.text);
 	}
 
 	void remove(Lobby lobby, String why)

@@ -27,7 +27,9 @@ public abstract class Lobby_Message
 	{
 		OUTDATED, HOST, HOSTED, CLOSE, BROWSE, LISTING, JOIN, JOINED, PEER, REFUSED, PING, PONG,
 		/** A tab's WebRTC signalling (r79, version 4) : whole over the WebSocket front, in parts over UDP. */
-		OFFER, ANSWER, OFFER_PART, ANSWER_PART;
+		OFFER, ANSWER, OFFER_PART, ANSWER_PART,
+		/** What a game in gate mode saw (r89, version 6) : one line for the service's log, never answered. */
+		REPORT;
 
 		static Type of(int code)
 		{
@@ -433,6 +435,35 @@ public abstract class Lobby_Message
 		public Type type()
 		{
 			return Type.PONG;
+		}
+	}
+
+	/**
+	 * Player to service, only from a game started with --report (r89) : one line of what this machine saw - its
+	 * NAT verdict, a lobby row changing route - which the service writes to its log and never answers. It is how
+	 * the real-internet gate is read on VPS_1 instead of collected from every machine as files and screenshots.
+	 */
+	public static final class Report extends Lobby_Message
+	{
+		/** The lobby it is about, or null. */
+		public String code;
+		/** {@link Lobby_Codec#isReport} text : printable ASCII and spaces, 1 to {@link Lobby_Codec#MAX_REPORT}. */
+		public String text;
+
+		public Report()
+		{
+		}
+
+		public Report(String code, String text)
+		{
+			this.code = code;
+			this.text = text;
+		}
+
+		@Override
+		public Type type()
+		{
+			return Type.REPORT;
 		}
 	}
 }

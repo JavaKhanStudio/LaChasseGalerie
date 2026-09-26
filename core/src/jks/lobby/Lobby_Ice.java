@@ -181,6 +181,12 @@ public final class Lobby_Ice
 		return probeStarted != Long.MIN_VALUE && clock.getAsLong() - probeStarted < PROBE_MS && answeredProbes() < probes.size();
 	}
 
+	/** True once a probe ran and has nothing left out : what {@link #nat()} says is all it will learn from it. */
+	public boolean probed()
+	{
+		return probeStarted != Long.MIN_VALUE && !probing();
+	}
+
 	/** Every address a STUN server or the service said this socket comes from. */
 	public List<String> mapped()
 	{

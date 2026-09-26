@@ -25,6 +25,7 @@ import jks.vars.GVars_Heart;
  *   --host [port] host the run for clients on this UDP port (default 7777), and play in it too
  *   --join host:port  be a client of that host : draw its run, send it this machine's buttons
  *   --lobby host:port the lobby service Online play talks to (default VPS_1's, 141.94.115.201:7770)
+ *   --report [name]   Online play tells the lobby service's log what it sees, as name (default this computer's) : the gate build (r89)
  */
 public class Launcher_Game 
 {
@@ -49,6 +50,9 @@ public class Launcher_Game
 				throw new IllegalArgumentException("--lobby needs the service's address, as host:port") ;
 			GVars_Heart.lobbyService = args.get(lobby + 1) ;
 		}
+		int report = args.indexOf("--report") ;
+		if(report >= 0)
+			GVars_Heart.reportAs = report + 1 < args.size() && !args.get(report + 1).startsWith("--") ? args.get(report + 1) : computerName() ;
 		int join = args.indexOf("--join") ;
 		if(join >= 0)
 		{
@@ -75,6 +79,26 @@ public class Launcher_Game
 			config.setTitle("La chasse galerie - host on port " + GVars_Heart.hostPort);
 		
 		new Lwjgl3Application(new Main_Game(), config);
+	}
+	
+	/** What --report calls this machine when not told : its name, then the OS and user, never empty. */
+	static String computerName()
+	{
+		String name = System.getenv("COMPUTERNAME") ;
+		if(name == null || name.isEmpty())
+			name = System.getenv("HOSTNAME") ;
+		if(name == null || name.isEmpty())
+			try
+			{
+				name = java.net.InetAddress.getLocalHost().getHostName() ;
+			}
+			catch(Exception e)
+			{
+				name = null ;
+			}
+		if(name == null || name.isEmpty())
+			name = System.getProperty("user.name", "someone") ;
+		return (name + "/" + System.getProperty("os.name", "?")).replaceAll("\\s+", "-") ;
 	}
 	
 }

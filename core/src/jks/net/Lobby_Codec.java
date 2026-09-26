@@ -34,6 +34,7 @@ import java.util.List;
  *   ANSWER     code c6 | sdp                                    (the WebSocket front only)
  *   OFFER_PART code c6 | call u16 | part u8 | parts u8 | bytes  (service to host, over UDP)
  *   ANSWER_PART                     the same                    (host to service, over UDP)
+ *   REPORT     code c6 | text                                   (r89, version 6 : a --report game to the service's log)
  *
  *   code c6      six characters of {@link #CODE_ALPHABET}, or six zero bytes for none (HOST, REFUSED)
  *   addr         length u8 (1-64) | printable ASCII
@@ -43,6 +44,7 @@ import java.util.List;
  *   tabs         0 u8 for a host that cannot take a browser tab, 1 u8 for one that can  (r85, version 5)
  *   sdp          length u16 (1-{@link #MAX_SDP}) | that many bytes of {@link #isSdp} text
  *   bytes        the rest of the body : 1-{@link #CHUNK_BYTES} bytes of that text, part of a description
+ *   text         length u16 (1-{@link #MAX_REPORT}) | printable ASCII or space
  * </pre>
  * OUTDATED with no body is the one layout no version may change : a service that is newer than a
  * game still has a way to say so. {@link #decode} hands one of another version back instead of refusing it.
@@ -59,13 +61,15 @@ import java.util.List;
 public final class Lobby_Codec
 {
 	/** Bump on ANY change to a layout above, except OUTDATED's, which never changes. */
-	public static final int VERSION = 5;
+	public static final int VERSION = 6;
 	public static final int MAGIC = 'L';
 
 	/** No 0/O, no 1/I : a code is read aloud and typed by a person. 32 letters, six of them : 2^30 codes. */
 	public static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 	public static final int CODE_LENGTH = 6;
 	public static final int MAX_ADDRESS = 64;
+	/** A REPORT's line : one log line, and well inside a packet. */
+	public static final int MAX_REPORT = 512;
 	public static final int MAX_CANDIDATES = 5;
 	/** What one LISTING row takes, and how many a LISTING carries at most : the newest, when more are open. */
 	public static final int ROW_BYTES = CODE_LENGTH + 2, MAX_ROWS = 100;
@@ -164,6 +168,10 @@ public final class Lobby_Codec
 			case ANSWER_PART:
 				byte[] bytes = ((Lobby_Message.Part) message).bytes;
 				body = PART_HEADER + (bytes == null ? 0 : bytes.length);
+				break;
+			case REPORT:
+				String text = ((Lobby_Message.Report) message).text;
+				body = CODE_LENGTH + 2 + (text == null ? 0 : text.length());
 				break;
 			default:
 				body = 0;
@@ -289,6 +297,15 @@ public final class Lobby_Codec
 				out.put((byte) part.part);
 				out.put((byte) part.parts);
 				out.put(part.bytes);
+				break;
+			case REPORT:
+				Lobby_Message.Report report = (Lobby_Message.Report) message;
+				if (!isReport(report.text))
+					throw new IllegalArgumentException("not a line the lobby can log : " + (report.text == null ? null : report.text.length() + " chars"));
+				putCode(out, report.code, true);
+				out.putShort((short) report.text.length());
+				for (int i = 0; i < report.text.length(); i++)
+					out.put((byte) report.text.charAt(i));
 				break;
 			default:
 				// OUTDATED, PING : the header says it all
@@ -448,6 +465,19 @@ public final class Lobby_Codec
 				if (!isSdp(part.bytes, 0, part.bytes.length))
 					throw bad(version, "a part that is not description text");
 				return part;
+			case REPORT:
+				Lobby_Message.Report report = new Lobby_Message.Report();
+				report.code = getCode(in, version, true);
+				int length = in.getShort() & 0xFFFF;
+				if (length < 1 || length > MAX_REPORT)
+					throw bad(version, "a report of " + length + " B");
+				byte[] text = new byte[length];
+				in.get(text);
+				for (byte b : text)
+					if (b < 0x20 || b > 0x7E)
+						throw bad(version, "a report that is not one line of text");
+				report.text = ascii(text, 0, length);
+				return report;
 			default:
 				// OUTDATED with a body : not the frozen layout
 				throw new Net_Rejected(Net_Rejected.Reason.LENGTH, version, "an OUTDATED has no body");
@@ -587,6 +617,17 @@ public final class Lobby_Codec
 			return false;
 		for (int i = 0; i < sdp.length(); i++)
 			if (!isSdpChar(sdp.charAt(i)))
+				return false;
+		return true;
+	}
+
+	/** One line the service may log : printable ASCII and spaces, 1 to {@link #MAX_REPORT} of them. */
+	public static boolean isReport(String text)
+	{
+		if (text == null || text.isEmpty() || text.length() > MAX_REPORT)
+			return false;
+		for (int i = 0; i < text.length(); i++)
+			if (text.charAt(i) < 0x20 || text.charAt(i) > 0x7E)
 				return false;
 		return true;
 	}

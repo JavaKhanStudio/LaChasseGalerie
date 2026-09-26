@@ -135,6 +135,7 @@ public class Vue_Lobby extends AVue_Model
 		{
 			socket = Transport_Udp.open() ;
 			lobby = new Lobby_Client(socket, GVars_Heart.lobbyService, Vue_Lobby::now) ;
+			lobby.reportAs = GVars_Heart.reportAs ;
 			// Once, while the screen opens : it resolves two names, which may take as long as a lookup does
 			lobby.ice().probe(Lobby_Ice.STUN_SERVERS) ;
 		}

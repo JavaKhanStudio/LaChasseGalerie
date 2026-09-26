@@ -94,6 +94,7 @@ public class Net_Run
 		check("lobby/reap-close-and-the-old-code-back", Net_Lobby_Checks::reapCloseAndOldCode);
 		check("lobby/idle-two-minutes-over-loss", Net_Lobby_Checks::idleTwoMinutes);
 		check("lobby/answers-are-throttled", Net_Lobby_Checks::answersAreThrottled);
+		check("lobby/gate-reports-reach-the-log", Net_Lobby_Checks::gateReports);
 		check("lobby/game-packets-wait-for-the-session", Net_Lobby_Checks::gamePacketsWaitForTheSession);
 		check("lobby/one-socket-for-lobby-and-game-over-udp", Net_Lobby_Checks::sharedSocketOverUdp);
 		check("tab/codec-carries-descriptions-whole-and-in-parts", Net_Tab_Checks::codecCarriesDescriptions);
@@ -113,6 +114,7 @@ public class Net_Run
 		check("ice/same-lan-goes-straight", Net_Ice_Checks::sameLanGoesStraight);
 		check("ice/punches-race-over-a-bad-wire", Net_Ice_Checks::punchesRaceOverABadWire);
 		check("ice/reconnecting-is-said", Net_Ice_Checks::reconnectingIsSaid);
+		check("ice/gate-reports-say-the-rows", Net_Ice_Checks::gateReportsSayTheRows);
 		check("ice/strangers-get-no-answer", Net_Ice_Checks::strangersGetNoAnswer);
 		check("relay/turn-codec-reads-the-rfc-5769-signed-vector", Net_Relay_Checks::codecReadsTheRfcSignedVector);
 		check("relay/turn-codec-round-trips-and-refuses", Net_Relay_Checks::codecRoundTripsAndRefuses);

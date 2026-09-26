@@ -37,6 +37,11 @@ public class GVars_Heart
 	 */
 	public static String lobbyService = "141.94.115.201:7770";
 	/**
+	 * --report [name] (r89) : Online play sends what it sees - NAT verdict, each row's route - to the lobby
+	 * service's log under this name (Lobby_Client.reportAs). The gate build's launchers pass it ; null, none sent.
+	 */
+	public static String reportAs;
+	/**
 	 * A lobby this window opened to host from Online play (r43), handed to Main_Game when its host picks
 	 * Start : Main_Game builds its HostSession on the lobby's game view, keeps the lobby open through the
 	 * runs so a latecomer can still find it, and closes both with the server. Null otherwise.
