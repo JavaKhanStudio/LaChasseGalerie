@@ -120,6 +120,11 @@ keyUp only releases LEFT/RIGHT; everything else is a one-shot flag cleared in
 Player_Inputs.act. GVars_Game.inCinematic swallows input but nothing ever sets it true.
 The input processor is an InputMultiplexer with the HUD Stage FIRST: a scene2d actor that
 handles key events will eat the join key before IKM_Game_Keyboard sees it.
+A PHONE (r87, the browser tab only): taps are already scene2d pointer events; GVars_Heart.touch
+(jks.input.Tab_Touch, set by html's HtmlLauncher) says whether the page is under a finger and
+opens the soft keyboard on a hidden <input> for Vue_Lobby's code. Vue_Client's
+jks.vinterface.Touch_Pad writes the same Player_Inputs flags as the keys. Local play (Vue_Game)
+has no touch pad. Phone gate: `TOUCH=1 tools/browser-gate/tabjoin.sh`.
 Gate: `./gradlew :desktop:run --args=--mute`, join from the keyboard AND a gamepad, die,
 rejoin.
 """

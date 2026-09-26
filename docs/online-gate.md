@@ -84,8 +84,8 @@ Both: the tab let in, player 2 walking right on the host, one JOINING in VPS_1's
   WebRTC natives this machine's build ships: a host row that says *cannot take tabs* is a dist
   built on another platform.
 - **T1** — a phone or a laptop on **another household's** Wi-Fi, with Chrome, Firefox or Safari.
-- **T2** — on **mobile data** (the CGNAT case): a laptop tethered to a phone's mobile data, or the
-  phone itself (Wi-Fi off) with a Bluetooth pad or keyboard.
+- **T2** — on **mobile data** (the CGNAT case): the phone itself with Wi-Fi off, or a laptop tethered
+  to a phone's mobile data.
 
 ## Steps
 
@@ -93,17 +93,19 @@ Both: the tab let in, player 2 walking right on the host, one JOINING in VPS_1's
 2. T1: open `http://141.94.115.201:8080/`, press a key or tap, choose **Online play**, type the code
    (or pick the game under Open games), join. Screenshot T1's lobby screen, then A's lobby screen.
    Expected on A: a row `browser : WebRTC data channel open` within a few seconds.
-3. A: Start. T1: any key for a hero, walk. Screenshot T1 and A mid-run.
+3. A: Start. T1: any key (on a phone, any of the touch buttons) for a hero, walk. Screenshot T1 and A mid-run.
    Expected: T1 in the run, its hero moving on both screens; note any stutter.
 4. Repeat 2-3 with **T2** (Wi-Fi off). Expected: the same row, it may take ~5 s; then play.
    If T2 cannot connect, retry once with `http://141.94.115.201:8080/?relay` (relay-only):
    a pass there and a fail without says the tab gathered badly, not that coturn is down.
 5. Optional: T1 and T2 in the same game at once.
 
-**A phone needs a pad or a keyboard.** The game reads no touch at all (no touchDown anywhere in
-core/), so a bare phone cannot leave the menu. A Bluetooth pad (the page reads the Gamepad API)
-picks the game under Open games; typing a code needs keys. That is why T2 is simplest as a laptop on
-the phone's hotspot: the hotspot is the CGNAT, the laptop the keyboard.
+**A bare phone plays by touch** (r87), held sideways: taps pick the menu entries and the games under
+Open games, tapping the code field opens the phone's keyboard, and a run shows ◀ ▶ bottom-left, Jump
+and the two swings bottom-right. That needs a page deployed from r87 on (`deploy/web/deploy.sh`). What
+one machine proved of it: `TOUCH=1 tools/browser-gate/tabjoin.sh` (a phone emulated in headless Chrome).
+What it cannot: that a real phone's keyboard shrinks the page instead of covering the code field
+(`interactive-widget=resizes-content`, Chrome) — screenshot T1's code field while typing.
 
 ## The record
 

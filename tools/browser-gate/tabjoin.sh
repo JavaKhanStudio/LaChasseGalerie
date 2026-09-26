@@ -18,6 +18,9 @@
 #                                              override) and both ends go through VPS_1's lobby ; the host's WebRTC
 #                                              uses STUN, as the game's does. lobby.log is VPS_1's, from the start.
 #   ONLINE=1 RELAY=1 tabjoin.sh --no-build     ... and the tab's call is relay-only (?relay) : coturn on VPS_1 or nothing
+#   TOUCH=1 tabjoin.sh ...                     r87 : the tab is a PHONE on its side, touch only (tabtouch.mjs) : taps Online
+#                                              play, types the code on the soft keyboard, taps the game under Open games,
+#                                              walks with the touch pad. phone_*.png. GO=1 : joins with the keyboard's Go
 #
 # Fails unless the tab plays IN, draws snapshots with its own hero in them, its hero walks right in the
 # tab AND on the host (host.log), the host's row for it said its route, and it joined ONCE (lobby.log, r86). Everything lands in
@@ -75,7 +78,8 @@ pids+=($host)
 
 status=0
 echo "tabjoin: the tab opens $page"
-REFUSED="${REFUSED:-}" node "$here/tabjoin.mjs" "$page" "$out" || status=$?
+tab=tabjoin.mjs; [ -n "${TOUCH:-}" ] && tab=tabtouch.mjs
+REFUSED="${REFUSED:-}" GO="${GO:-}" node "$here/$tab" "$page" "$out" || status=$?
 # The host exits by itself once the tab wrote tab_done
 for _ in $(seq 150); do kill -0 $host 2>/dev/null || break; sleep 0.1; done
 wait $host 2>/dev/null || status=1

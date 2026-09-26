@@ -56,13 +56,16 @@ started outside Gradle, such as the dist jar, needs the wrapper: `tools/offscree
 
 Press any key or gamepad button to join. Press again after dying to jump back in.
 
-| Action          | Keyboard          | Gamepad    |
-|-----------------|-------------------|------------|
-| Move            | ← →               | Left stick |
-| Jump (double)   | Space or ↑        | A          |
-| Swing axe       | D (left), Q (right) | B (left), X (right) |
-| Lower river volume | E              |            |
-| Quit            | Esc               |            |
+| Action          | Keyboard          | Gamepad    | Phone (browser tab) |
+|-----------------|-------------------|------------|---------------------|
+| Move            | ← →               | Left stick | ◀ ▶ bottom-left (slide between them) |
+| Jump (double)   | Space or ↑        | A          | big ▲ bottom-right  |
+| Swing axe       | D (left), Q (right) | B (left), X (right) | the two axes above ▲ (left, right) |
+| Lower river volume | E              |            |                     |
+| Quit            | Esc               |            |                     |
+
+On a phone the page takes taps for the menus, and tapping the code field opens the phone's keyboard. The
+touch buttons show during a run once the page sees a touch screen, and the first tap asks for a hero.
 
 Each hero has four hearts. Hitting a monster with your axe scores a point; a potion heals you, or scores two points
 at full health. Falling into the river or losing every heart costs a death and halves your score.

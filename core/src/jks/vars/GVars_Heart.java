@@ -59,6 +59,11 @@ public class GVars_Heart
 	 * Open games and a code, no Host a game (d7). Null on a desktop.
 	 */
 	public static java.util.function.Supplier<jks.lobby.Lobby_Tab> tabLobby;
+	/**
+	 * A browser tab's touch (r87) : html's launcher sets it. Whether the page is under a finger, which
+	 * shows Vue_Client's Touch_Pad, and the phone's soft keyboard for Vue_Lobby's code. Null on a desktop.
+	 */
+	public static jks.input.Tab_Touch touch;
 
 	/** A hosted lobby and the one socket it and the game share. */
 	public static final class Lobby_Host

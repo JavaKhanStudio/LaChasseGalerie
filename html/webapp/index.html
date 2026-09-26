@@ -2,8 +2,25 @@
 <html>
 <head>
 	<meta charset="utf-8">
+	<!-- A phone lays the page out at its own width, and the canvas is fitted to it (r87). resizes-content : the
+	     soft keyboard shrinks the page instead of covering it, so the code being typed stays in sight (Chrome) -->
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">
 	<title>La chasse-galerie</title>
-	<style>body { margin: 0; background: #101820; }</style>
+	<style>
+		html, body { margin: 0; height: 100%; overflow: hidden; background: #101820; }
+		/* libGDX makes a 1280x720 canvas in a table of that size : both shrink to the screen, centred, never
+		   past 1280 wide. A touch is scaled back into the canvas by libGDX (DefaultGwtInput's CSS ratio). */
+		#embed-html { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; container-type: size; }
+		#embed-html table { width: auto !important; height: auto !important; }
+		#embed-html canvas {
+			display: block;
+			width: min(1280px, 100vw, 100vh * 16 / 9) !important;
+			width: min(1280px, 100cqw, 100cqh * 16 / 9) !important;
+			height: auto !important;
+			touch-action: none;
+			-webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+		}
+	</style>
 	<script type="text/javascript" src="html/html.nocache.js"></script>
 </head>
 <body>

@@ -52,6 +52,7 @@ import jks.story.GVars_Story;
 import jks.vars.GVars_Heart;
 import jks.vinterface.GVars_Interface;
 import jks.vinterface.Score_Screen;
+import jks.vinterface.Touch_Pad;
 import jks.vinterface.ToRender;
 import jks.vue.AVue_Model;
 
@@ -95,6 +96,8 @@ public class Vue_Client extends AVue_Model
 	private Draw_Canoe canoe ;
 	private Sprite star ;
 	private Label status ;
+	/** A phone's buttons (r87), shown while the tab is under a finger : null off a browser tab. */
+	private Touch_Pad touchPad ;
 
 	/** The host's story time and sky scroll the picture showed last tick. */
 	private float shownStory, shownSky ;
@@ -204,6 +207,8 @@ public class Vue_Client extends AVue_Model
 		status.setFontScale(2);
 		status.setPosition(GVars_Interface.mainInterface.getWidth() * 0.03f, GVars_Interface.mainInterface.getHeight() * 0.92f);
 		GVars_Interface.mainInterface.addActor(status);
+		if(GVars_Heart.touch != null)
+			touchPad = new Touch_Pad(GVars_Interface.mainInterface, buttons, this::joinedOrAsked) ;
 
 		Gdx.input.setInputProcessor(new InputMultiplexer(GVars_Interface.mainInterface, keyboard));
 		Controllers.clearListeners();
@@ -280,6 +285,8 @@ public class Vue_Client extends AVue_Model
 
 		showScores(view) ;
 		showStatus() ;
+		if(touchPad != null)
+			touchPad.show(scoreScreen == null && GVars_Heart.touch.seen()) ;
 
 		if(view.over)
 		{
@@ -409,6 +416,8 @@ public class Vue_Client extends AVue_Model
 		GVars_Interface.dispose() ;
 		canoe.dispose() ;
 		star.getTexture().dispose() ;
+		if(touchPad != null)
+			touchPad.dispose() ;
 	}
 
 	/** Says LEAVE to the host, once, whether the view is replaced or the window closes. */
@@ -471,7 +480,7 @@ public class Vue_Client extends AVue_Model
 				text = "Connecting to " + hostAddress + "..." ;
 				break ;
 			case IN :
-				text = client.hasHeroInNewest() ? "" : "Player " + client.player() + " : press a key to join" ;
+				text = client.hasHeroInNewest() ? "" : "Player " + client.player() + (touched() ? " : tap a button to join" : " : press a key to join") ;
 				break ;
 			case ENDED :
 				text = "The host ended the run (" + client.endedBecause() + ")" ;
@@ -484,6 +493,9 @@ public class Vue_Client extends AVue_Model
 	}
 
 	// ---------------------------------------------------------------- the buttons
+
+	private static boolean touched()
+	{return GVars_Heart.touch != null && GVars_Heart.touch.seen() ;}
 
 	/** This tick's Net_Input bits : what is held, and the presses since the last tick, which are then spent. */
 	private int pressed()

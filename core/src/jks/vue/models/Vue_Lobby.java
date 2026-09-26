@@ -11,15 +11,19 @@ import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.controllers.Controllers;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
 
 import jks.input.IKM_Menu_Keyboard;
 import jks.input.IKM_Menu_XBoxController;
+import jks.input.Menu_Picker;
+import jks.input.Tab_Touch;
 import jks.lobby.Lobby_Client;
 import jks.lobby.Lobby_Ice;
 import jks.lobby.Lobby_Tab;
@@ -184,6 +188,17 @@ public class Vue_Lobby extends AVue_Model
 		codeField.setDisabled(true) ;
 		codeField.setMessageText("type a code") ;
 		codeField.setAlignment(Align.center) ;
+		codeField.setName("code") ;
+		// A phone has no keys : tapping the code opens its own keyboard (r87), from inside the tap as it must be
+		codeField.addListener(new ClickListener()
+		{
+			@Override
+			public void clicked(InputEvent event, float x, float y)
+			{
+				if(GVars_Heart.touch != null && GVars_Heart.touch.seen())
+					GVars_Heart.touch.keyboard(typed.toString(), softKeys) ;
+			}
+		}) ;
 		code.add(codeField).width(width * 0.2f).height(height * 0.07f).padRight(width * 0.01f) ;
 		joinButton = button("Join code") ;
 		focus.add(joinButton, picker -> joinGame(typed.toString())) ;
@@ -257,6 +272,9 @@ public class Vue_Lobby extends AVue_Model
 			status.setText("A code is " + Lobby_Codec.CODE_LENGTH + " letters and digits.") ;
 			return ;
 		}
+		// Not in choose() : Open games rebuilds that screen while a phone is still typing
+		if(GVars_Heart.touch != null)
+			GVars_Heart.touch.closeKeyboard() ;
 		if(tab != null)
 			tab.join(normal) ;
 		else
@@ -620,6 +638,33 @@ public class Vue_Lobby extends AVue_Model
 	static String spaced(String code)
 	{return code.length() == 6 ? code.substring(0, 3) + " " + code.substring(3) : code ;}
 
+	/** A phone's soft keyboard (r87) : the hidden field's whole text, kept to the code alphabet, is the code. */
+	private final Tab_Touch.Typed softKeys = new Tab_Touch.Typed()
+	{
+		@Override
+		public void text(String all)
+		{
+			if(mode != Mode.CHOOSE)
+				return ;
+			typed.setLength(0) ;
+			for(char character : all.toUpperCase().toCharArray())
+				if(Lobby_Codec.CODE_ALPHABET.indexOf(character) >= 0 && typed.length() < Lobby_Codec.CODE_LENGTH)
+					typed.append(character) ;
+			codeField.setText(spaced(typed.toString())) ;
+			if(typed.length() == Lobby_Codec.CODE_LENGTH)
+				focus.focus(joinButton) ;
+		}
+
+		@Override
+		public void enter()
+		{
+			if(mode != Mode.CHOOSE)
+				return ;
+			focus.focus(joinButton) ;
+			focus.pick(Menu_Picker.POINTER) ;
+		}
+	} ;
+
 	/** Letters and digits of the code alphabet go into the code wherever the focus is ; Backspace takes one out. */
 	private final InputAdapter typing = new InputAdapter()
 	{
@@ -687,6 +732,8 @@ public class Vue_Lobby extends AVue_Model
 	public void dispose()
 	{
 		Controllers.removeListener(padListener);
+		if(GVars_Heart.touch != null)
+			GVars_Heart.touch.closeKeyboard() ;
 		stage.dispose();
 		if(handedOver)
 			return ;
