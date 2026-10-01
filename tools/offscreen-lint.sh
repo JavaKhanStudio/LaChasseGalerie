@@ -10,7 +10,8 @@
 # offscreen.gradle refuses a JavaExec that is neither offscreen nor headless; this is the same rail for scripts. A
 # script OPENS A WINDOW when a line that is not a comment runs `java ... -cp|-classpath|-jar`, an installDist
 # `build/install/.../bin/`, godot without --headless, or Chrome/Chromium/Firefox without --headless. Such a script
-# passes when it also runs `cage --` or tools/offscreen.sh, or calls a tools/*.sh that does, or carries a line
+# passes when it also runs `cage --`, `gamescope --backend headless` (on one line) or tools/offscreen.sh, or calls a
+# tools/*.sh that does, or carries a line
 # `# on-screen: <why>` for a window opened on purpose (the board's "Play it" launcher).
 # A nested X server on a fixed display (`Xwayland :9`, `Xvfb :1`) fails in any script: two runs at once collide; take a
 # free display number (tools/nested-x.sh, beside it in the skill, does).
@@ -40,7 +41,8 @@ OPENERS = [
     ('runs a browser', re.compile(r'(\$\{?CHROME\}?|\$\{?FIREFOX\}?|(?<![\w/.-])(google-chrome|chromium|chromium-browser|firefox))"?\s+[-"$]'), True),
 ]
 FIXED_X = re.compile(r'\b(Xwayland|Xvfb|Xephyr)\s+:\d')
-WRAPS = re.compile(r'\bcage\s+--|(^|[\s"\'/])offscreen\.sh\b')
+# A bare gamescope opens a window on the screen; only its headless backend is offscreen.
+WRAPS = re.compile(r'\bcage\s+--|(^|[\s"\'/])offscreen\.sh\b|\bgamescope\b.*\s--backend[\s=]headless\b')
 CALLS = re.compile(r'(?:^|[\s"\'(;&|])(?:\$\{?\w+\}?/|\./)?tools/([\w.-]+\.sh)\b')
 MARKER = re.compile(r'^\s*#\s*on-screen:\s*\S')
 HEREDOC = re.compile(r'<<-?\s*([\'"]?)(\w+)\1')
@@ -76,7 +78,7 @@ wrapped_memo = {}
 
 
 def wrapped(path, seen=()):
-    """Runs cage or offscreen.sh itself, or calls a tools/*.sh that does."""
+    """Runs cage, headless gamescope or offscreen.sh itself, or calls a tools/*.sh that does."""
     key = os.path.realpath(path)
     if key in wrapped_memo:
         return wrapped_memo[key]
