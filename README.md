@@ -48,9 +48,15 @@ early length, so read past it.
 
 When you run it, or click the board's "Play it" button, it opens on your screen.
 `ATELIER_OFFSCREEN=1` sends your run offscreen anyway, and `ATELIER_NO_OFFSCREEN=1` keeps an
-agent's run on screen, sound included. Without cage it opens on the screen as before.
+agent's run on screen, sound included. Without cage your run opens on the screen as before; an
+agent's stops with an error instead.
 The mechanism is in `gradle/offscreen.gradle`, copied from the Atelier skill `run-offscreen`. Anything
 started outside Gradle, such as the dist jar, needs the wrapper: `tools/offscreen.sh <command>`.
+
+Two checks keep it that way. Every `JavaExec` calls `rootProject.offscreen(it, ...)` or, when it
+opens no window, `rootProject.headless(it)`; the build stops on one that does neither.
+`tools/offscreen-lint.sh` fails a `tools/*.sh` that runs java outside cage, unless the script
+carries a `# on-screen: <why>` line; the publish gate runs it first.
 
 ## Controls
 

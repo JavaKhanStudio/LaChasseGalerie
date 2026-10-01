@@ -12,6 +12,7 @@ dependencies {
 }
 
 tasks.register('smoke', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Plays 60s of the game loop headless with joining and dying players, twice in one JVM.'
     mainClass = 'jks.smoke.Smoke_Run'
@@ -30,6 +31,7 @@ tasks.register('smoke', JavaExec) {
 // THEN plays the sessions for real : netsession (the game headless behind a host, clients in the same
 // JVM) and netprocs (a host JVM and two client JVMs over UDP). About 15 s in all.
 tasks.register('nettest', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Checks the transport, codec, mirror and session rules, then plays host and clients in one JVM and across three.'
     mainClass = 'jks.smoke.Net_Run'
@@ -45,6 +47,7 @@ tasks.register('nettest', JavaExec) {
 // players and encodes the snapshot a host would send every tick; fails if one passes 1200 B.
 // ./gradlew netcensus -Pplayers=8 -Pseconds=600 -Pseed=2
 tasks.register('netcensus', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Measures the biggest snapshot an N-player headless run makes, against the payload cap.'
     mainClass = 'jks.smoke.Net_Census'
@@ -58,6 +61,7 @@ tasks.register('netcensus', JavaExec) {
 // and world-less clients apply it, exactly and through the codec; fails on the first entity they
 // disagree on. ./gradlew netmirror -Pplayers=8 -Pseconds=90 -Pseed=1
 tasks.register('netmirror', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Applies every tick of a headless run to world-less clients and checks they agree with the world.'
     mainClass = 'jks.smoke.Net_Mirror'
@@ -70,6 +74,7 @@ tasks.register('netmirror', JavaExec) {
 // ./gradlew netnat : this machine's network as the game sees it, against the real public STUN servers (r42).
 // Needs the internet, so it is not in nettest. Run it on the network you want to know about.
 tasks.register('netnat', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Probes the public STUN servers from one socket and prints the NAT verdict and the advice a lobby would show.'
     mainClass = 'jks.smoke.Net_Nat'
@@ -79,6 +84,7 @@ tasks.register('netnat', JavaExec) {
 // ./gradlew netrelay : the relay client through a REAL relay, two sockets on this machine (r45). Needs the
 // internet and RELAY, RELAY_USER, RELAY_PASS in the environment : deploy/relay/netrelay.sh mints them on VPS_1.
 tasks.register('netrelay', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Allocates on a real TURN relay and sends the biggest packets both ways through it.'
     mainClass = 'jks.smoke.Net_Relay'
@@ -88,6 +94,7 @@ tasks.register('netrelay', JavaExec) {
 // ./gradlew netonline -Plobby=ip:port : the online path through the REAL lobby service and relay (r45), a host
 // and a joiner held to the relay on this machine. Needs the internet; the default is VPS_1's service.
 tasks.register('netonline', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Hosts and joins through a real lobby service, the joiner through its relay, and sends game packets both ways.'
     mainClass = 'jks.smoke.Net_Online'
@@ -98,6 +105,7 @@ tasks.register('netonline', JavaExec) {
 // ./gradlew netwsonline -Plobby=ip:port -Pws=ip:port : a tab's signalling through the REAL lobby service (r79) : a
 // java.net.http WebSocket on its front offers 3 kB to a UDP host and gets the answer back. Needs the internet.
 tasks.register('netwsonline', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'A WebSocket tab and a UDP host signal through a real lobby service: browse, join, offer, answer.'
     mainClass = 'jks.smoke.Net_Tab_Online'
@@ -109,6 +117,7 @@ tasks.register('netwsonline', JavaExec) {
 // no hero of its own, three world-less ClientSessions over the in-memory wire with latency and loss;
 // fails when a client draws an entity away from where the host had it. ./gradlew netsession -Pseconds=60 -Pseed=1
 tasks.register('netsession', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Plays a headless host and three clients in one JVM and checks the clients track the host.'
     mainClass = 'jks.smoke.Net_Session'
@@ -123,6 +132,7 @@ tasks.register('netsession', JavaExec) {
 // clients still in, starts a new run under the same session, and at the end of that one closes the server.
 // Plays the long middle of each run without the wire, so about 15 s. ./gradlew netending -Pseed=2
 tasks.register('netending', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Plays a hosted run to its score screen, a new run, and closing the server, with two clients.'
     mainClass = 'jks.smoke.Net_Ending'
@@ -136,6 +146,7 @@ tasks.register('netending', JavaExec) {
 // ./gradlew netprocs : phase 1.4 across processes. A host JVM runs the game headless on a UDP port the
 // OS picks; two client JVMs that never load the game join it over 127.0.0.1 in real time for 8 s.
 tasks.register('netprocs', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Plays a headless host JVM and two client JVMs over UDP on loopback, in real time.'
     mainClass = 'jks.smoke.Net_Procs'
@@ -151,6 +162,7 @@ tasks.register('netprocs', JavaExec) {
 // it plays on, and two client JVMs that know only the service and the code.
 evaluationDependsOn(':lobby')
 tasks.register('netlobby', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Plays netprocs through a lobby service JVM: the clients find the host by code alone.'
     mainClass = 'jks.smoke.Net_Procs'
@@ -169,6 +181,7 @@ tasks.register('netlobby', JavaExec) {
 // WebSocket front) play one session ; then the host again WITHOUT libwebrtc's natives, as a dist built on
 // another platform : it plays the UDP client and leaves the tab unanswered.
 tasks.register('nettab', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Plays a host JVM with a UDP client JVM and a WebRTC tab JVM through a lobby service, then with no WebRTC natives.'
     mainClass = 'jks.smoke.Net_Procs'
@@ -185,6 +198,7 @@ tasks.register('nettab', JavaExec) {
 // ./gradlew axeprobe : r104. One hero walks each way, stops, and swings each way from rest; fails when
 // a swing from rest leaves the axe where it was.
 tasks.register('axeprobe', JavaExec) {
+    rootProject.headless(it)    // headless game and sockets: no window
     group = 'verification'
     description = 'Swings a resting axe each way after a walk each way, and fails if one does not turn it.'
     mainClass = 'jks.smoke.Axe_Probe'

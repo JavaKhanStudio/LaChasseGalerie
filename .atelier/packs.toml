@@ -349,6 +349,9 @@ sized from it once at init (#background).
 `run` IS WRAPPED: gradle/offscreen.gradle, applied from the root build.gradle, sends a board
 agent's window into cage and its sound into desktop/build/audio/run.wav. It is a copy of the
 Atelier skill run-offscreen — change it there first unless the change is about this project.
+A new JavaExec calls rootProject.offscreen(it, 'unattended') or rootProject.headless(it), or the
+build stops naming it. tools/offscreen-lint.sh (first step of tools/publish_gate.sh) fails a
+tools/*.sh that runs java outside cage or tools/offscreen.sh; `# on-screen: <why>` exempts one.
 org.gradle.configuration-cache=true: a build script that reads the environment or a file at
 configuration time is cached; `./gradlew --no-configuration-cache` when a change seems ignored.
 `dist` is a fat jar that EXCLUDES META-INF signatures; LaChasseGalerie-1.0.jar must run from any

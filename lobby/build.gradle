@@ -16,3 +16,7 @@ dependencies {
 application {
     mainClass = 'jks.lobby.Lobby_Main'
 }
+
+tasks.named('run', JavaExec) {
+    rootProject.headless(it)    // the lobby service has no libGDX and opens no window
+}

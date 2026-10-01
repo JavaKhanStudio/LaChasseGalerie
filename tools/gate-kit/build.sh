@@ -18,6 +18,7 @@
 # once into build/gate-kit/jre-cache. The jar carries every desktop native
 # libGDX and LWJGL have; WebRTC's only for the machine that built it (rtc/),
 # so a host on another system cannot take BROWSER tabs - desktop players, yes.
+# on-screen: the java line is the players' play.sh, written into the kit; this script runs no game
 set -euo pipefail
 root=$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)
 out=$root/build/gate-kit

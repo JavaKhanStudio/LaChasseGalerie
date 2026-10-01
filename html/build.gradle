@@ -42,6 +42,7 @@ def gwtWar = layout.buildDirectory.dir('gwt/war')
 def gwtWork = layout.buildDirectory.dir('gwt/work')
 
 tasks.register('gwtCompile', JavaExec) {
+    rootProject.headless(it)    // a compiler: no window
     group = 'build'
     description = 'Compiles the game to JavaScript (GWT). -Pdraft for a fast unoptimized compile.'
     mainClass = 'com.google.gwt.dev.Compiler'

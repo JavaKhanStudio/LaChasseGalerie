@@ -18,11 +18,18 @@
 //                                                  (ATELIER_AGENT set); on the screen for
 //                                                  anyone else, including the board's own
 //                                                  "Play it" buttons
+//   rootProject.headless(task)                     a JavaExec that opens no window (a
+//                                                  packer, a code generator)
+//
+// Every JavaExec of the build is one or the other, or the build stops before running anything:
+// a new module's `run` task (the application plugin makes one) is how a window reached Simon's
+// screen again after the first fix (parallax r144).
 //
 // ATELIER_NO_OFFSCREEN=1 puts the windows back when you want to watch, and the sound with
-// them; ATELIER_OFFSCREEN=1 sends an 'unattended' task offscreen for you too. Without cage
-// (Windows, macOS, a Linux machine that lacks it) everything opens on the screen as it always
-// did, but the sound still goes to a file.
+// them; ATELIER_OFFSCREEN=1 sends an 'unattended' task offscreen for you too. A board agent on
+// a Linux machine without cage FAILS rather than open the window on the screen; anyone else
+// without cage (Windows, macOS, Simon's own run) gets the window as always, and the sound
+// still goes to a file.
 //
 // Everything is a class rather than a script closure so that it works with the configuration
 // cache, which cannot store a reference back into a build script.
@@ -117,6 +124,11 @@ class AtelierOffscreenAction implements Action<Task>
 		Map<String, String> display = service.get().display()
 		if (display == null)
 		{
+			// An agent falling back to the screen is the very thing this file stops (parallax r144).
+			if (env.ATELIER_AGENT)
+				throw new GradleException("offscreen: cage not found, and ${task.path} would open its windows " +
+					'on the screen. Install cage (dnf install cage), or set ATELIER_NO_OFFSCREEN=1 only when ' +
+					'Simon asked to watch.')
 			task.logger.warn("offscreen: cage not found, so ${task.path} opens its windows on your screen")
 			return
 		}
@@ -153,9 +165,31 @@ class AtelierOffscreenAction implements Action<Task>
 def atelierOffscreenDisplay = gradle.sharedServices.registerIfAbsent('atelierOffscreenDisplay', AtelierOffscreenDisplay) {}
 
 ext.offscreen = { Task task, String when ->
+	task.ext.offscreenChecked = 'offscreen'
 	task.usesService(atelierOffscreenDisplay)
 	task.doFirst(new AtelierOffscreenAction(
 		service: atelierOffscreenDisplay,
 		when: when,
 		audioDir: task.project.layout.buildDirectory.dir('audio').get().asFile))
+}
+
+ext.headless = { Task task ->
+	task.ext.offscreenChecked = 'headless'
+}
+
+// Every JavaExec says which it is. Realizing them here runs their configuration, where
+// offscreen/headless is called. With the configuration cache reused, this does not run, and
+// need not: the cache was stored by a build that passed it.
+gradle.projectsEvaluated {
+	List<String> unchecked = []
+	rootProject.allprojects { p ->
+		p.tasks.withType(JavaExec).toList().each { t ->
+			if (!t.ext.has('offscreenChecked'))
+				unchecked << t.path
+		}
+	}
+	if (unchecked)
+		throw new GradleException("${unchecked.join(', ')}: a JavaExec that is neither " +
+			"rootProject.offscreen(it, 'unattended') (it may open a window: an agent's goes to cage) " +
+			"nor rootProject.headless(it) (it opens none). See gradle/offscreen.gradle.")
 }
