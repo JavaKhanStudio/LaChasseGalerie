@@ -1,5 +1,7 @@
 package jks.vinterface;
 
+import java.util.function.Supplier;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
@@ -29,7 +31,11 @@ import jks.input.Player_Inputs;
  *
  * Icons only, drawn here : the skin's fonts carry ASCII and nothing like an arrow, and a word does not fit
  * a thumb's button. The Stage is the HUD's, first in the multiplexer, so a touch on a button never reaches
- * the keyboard listener behind it ; a touch anywhere else falls through as before.
+ * the keyboard listener behind it.
+ *
+ * With no hero, a tap ANYWHERE asks for one (r102, Simon : "click to resurrect") : the river behind the
+ * buttons is a backdrop that takes it. With a hero the backdrop lets a touch go. Pause, top right, is
+ * Escape's : a phone has no other way to Resume, leave or quit (r102).
  */
 public class Touch_Pad
 {
@@ -38,7 +44,7 @@ public class Touch_Pad
 	{boolean joinedOrAsked() ;}
 
 	/** In the HUD's 1280x720 world : big enough for a thumb on a phone held sideways, where 720 is ~400 px. */
-	private static final float MARGIN = 24, ARROW = 150, JUMP = 180, SWING = 110, GAP = 16 ;
+	private static final float MARGIN = 24, ARROW = 150, JUMP = 180, SWING = 110, GAP = 16, PAUSE = 90 ;
 	/** The ice shows the game through it : the pad sits over the river. */
 	private static final float ALPHA = 0.8f ;
 	/**
@@ -47,7 +53,8 @@ public class Touch_Pad
 	 */
 	private static final Color PRESSED = new Color(0.62f, 0.78f, 0.9f, 1f) ;
 
-	private final Player_Inputs buttons ;
+	/** The player this pad drives : the same one forever on a client, whoever the touch device is now offline. */
+	private final Supplier<Player_Inputs> buttons ;
 	private final Joined joined ;
 	private final Texture icons ;
 	private final Texture axe ;
@@ -56,10 +63,22 @@ public class Touch_Pad
 	/** The pointer steering, -1 while no thumb is on Left or Right. */
 	private int steering = -1 ;
 
-	public Touch_Pad(Stage stage, Player_Inputs buttons, Joined joined)
+	public Touch_Pad(Stage stage, Supplier<Player_Inputs> buttons, Joined joined, Runnable pause)
 	{
 		this.buttons = buttons ;
 		this.joined = joined ;
+
+		// Under everything else of the pad : a tap the buttons do not take, while there is no hero, joins
+		Actor river = new Actor() ;
+		river.setName("touch-anywhere") ;
+		river.setBounds(0, 0, stage.getWidth(), stage.getHeight()) ;
+		river.addListener(new InputListener()
+		{
+			@Override
+			public boolean touchDown(InputEvent event, float x, float y, int pointer, int button)
+			{return !joined.joinedOrAsked() ;}
+		}) ;
+		pad.addActor(river) ;
 
 		icons = arrows() ;
 		axe = new Texture(Gdx.files.internal("tools/double_axe.png")) ;
@@ -68,6 +87,7 @@ public class Touch_Pad
 		TextureRegion leftArrow = new TextureRegion(rightArrow) ;
 		leftArrow.flip(true, false) ;
 		TextureRegion upArrow = new TextureRegion(icons, 128, 0, 128, 128) ;
+		TextureRegion bars = new TextureRegion(icons, 256, 0, 128, 128) ;
 
 		ButtonStyle ice = GVars_Interface.baseSkin.get(ButtonStyle.class) ;
 		left = button(ice, leftArrow, ARROW * 0.5f) ;
@@ -90,20 +110,39 @@ public class Touch_Pad
 		Button jump = button(ice, upArrow, JUMP * 0.5f) ;
 		jump.setName("touch-jump") ;
 		jump.setBounds(width - MARGIN - JUMP, MARGIN, JUMP, JUMP) ;
-		jump.addListener(press(() -> buttons.jumpPressed = true)) ;
+		jump.addListener(press(() -> buttons.get().jumpPressed = true)) ;
 		pad.addActor(jump) ;
 
 		Button swingRight = swing(ice, rightArrow, false) ;
 		swingRight.setName("touch-swing-right") ;
 		swingRight.setBounds(width - MARGIN - SWING, MARGIN + JUMP + GAP, SWING, SWING) ;
-		swingRight.addListener(press(() -> buttons.powerRight = true)) ;
+		swingRight.addListener(press(() -> buttons.get().powerRight = true)) ;
 		pad.addActor(swingRight) ;
 
 		Button swingLeft = swing(ice, leftArrow, true) ;
 		swingLeft.setName("touch-swing-left") ;
 		swingLeft.setBounds(width - MARGIN - SWING * 2 - GAP, MARGIN + JUMP + GAP, SWING, SWING) ;
-		swingLeft.addListener(press(() -> buttons.powerLeft = true)) ;
+		swingLeft.addListener(press(() -> buttons.get().powerLeft = true)) ;
 		pad.addActor(swingLeft) ;
+
+		// Smaller than a thumb's buttons and out of their way : it is pressed once, not played on
+		Button paused = button(ice, bars, PAUSE * 0.5f) ;
+		paused.setName("touch-pause") ;
+		paused.setBounds(width - MARGIN - PAUSE, stage.getHeight() - MARGIN - PAUSE, PAUSE, PAUSE) ;
+		paused.addListener(new InputListener()
+		{
+			@Override
+			public boolean touchDown(InputEvent event, float x, float y, int pointer, int button)
+			{return true ;}
+
+			@Override
+			public void touchUp(InputEvent event, float x, float y, int pointer, int button)
+			{
+				if(event.getListenerActor().hit(x, y, true) != null)
+					pause.run() ;
+			}
+		}) ;
+		pad.addActor(paused) ;
 
 		pad.getColor().a = ALPHA ;
 		pad.setVisible(false) ;
@@ -158,8 +197,12 @@ public class Touch_Pad
 	private void steer(float x)
 	{
 		boolean toRight = x >= MARGIN + ARROW + GAP / 2 ;
-		buttons.rightPressed = toRight ;
-		buttons.leftPressed = !toRight ;
+		Player_Inputs held = buttons.get() ;
+		if(held != null)
+		{
+			held.rightPressed = toRight ;
+			held.leftPressed = !toRight ;
+		}
 		pressed(left, !toRight) ;
 		pressed(right, toRight) ;
 	}
@@ -167,8 +210,13 @@ public class Touch_Pad
 	private void letGo()
 	{
 		steering = -1 ;
-		buttons.leftPressed = false ;
-		buttons.rightPressed = false ;
+		// Offline, a hero that died under the thumb took its inputs with it
+		Player_Inputs held = buttons.get() ;
+		if(held != null)
+		{
+			held.leftPressed = false ;
+			held.rightPressed = false ;
+		}
 		pressed(left, false) ;
 		pressed(right, false) ;
 	}
@@ -223,13 +271,15 @@ public class Touch_Pad
 		return button ;
 	}
 
-	/** A right-pointing and an up-pointing triangle, side by side, in the colour of the skin's button text. */
+	/** A right-pointing and an up-pointing triangle and a pause's two bars, side by side, in the colour of the skin's button text. */
 	private static Texture arrows()
 	{
-		Pixmap pixmap = new Pixmap(256, 128, Pixmap.Format.RGBA8888) ;
+		Pixmap pixmap = new Pixmap(384, 128, Pixmap.Format.RGBA8888) ;
 		pixmap.setColor(GVars_Interface.baseSkin.getColor("button")) ;
 		pixmap.fillTriangle(24, 12, 24, 116, 112, 64) ;
 		pixmap.fillTriangle(128 + 12, 104, 128 + 116, 104, 128 + 64, 16) ;
+		pixmap.fillRectangle(256 + 28, 16, 26, 96) ;
+		pixmap.fillRectangle(256 + 74, 16, 26, 96) ;
 		Texture texture = new Texture(pixmap) ;
 		texture.setFilter(TextureFilter.Linear, TextureFilter.Linear) ;
 		pixmap.dispose() ;

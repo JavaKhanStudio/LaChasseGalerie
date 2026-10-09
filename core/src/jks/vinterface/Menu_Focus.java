@@ -67,7 +67,7 @@ public class Menu_Focus
 		{
 			@Override
 			public void changed(ChangeEvent event, Actor actor)
-			{pick(index, Menu_Picker.POINTER) ;}
+			{pick(index, Menu_Picker.pointer()) ;}
 		});
 		button.addListener(new InputListener()
 		{

@@ -122,11 +122,16 @@ The input processor is an InputMultiplexer with the HUD Stage FIRST: a scene2d a
 handles key events will eat the join key before IKM_Game_Keyboard sees it.
 A PHONE (r87, the browser tab only): taps are already scene2d pointer events; GVars_Heart.touch
 (jks.input.Tab_Touch, set by html's HtmlLauncher) says whether the page is under a finger and
-opens the soft keyboard on a hidden <input> for Vue_Lobby's code. Vue_Client's
-jks.vinterface.Touch_Pad writes the same Player_Inputs flags as the keys. Local play (Vue_Game)
-has no touch pad. Held upright, index.html turns the game a quarter clockwise (r103) and html's
+opens the soft keyboard on a hidden <input> for Vue_Lobby's code. jks.vinterface.Touch_Pad
+writes the same Player_Inputs flags as the keys, in Vue_Client AND Vue_Game (r102). Offline the
+pad is its own device, GVars_Controller.TOUCH (a key of localDevices beside the pads and null);
+a finger's menu pick is Menu_Picker.FINGER (Menu_Picker.pointer() when touch.seen()), which
+joins the run it starts. With no hero a tap ANYWHERE joins (the pad's touch-anywhere backdrop);
+its ‖ button is Escape. Hide the pad under a pause or score screen (show(false)) or a thumb
+held on Left stays steering after Resume. Held upright, index.html turns the game a quarter clockwise (r103) and html's
 Turned_Input maps a touch through the turn: whatever places a touch on the canvas must allow
-for it (tabtouch.mjs's where()). Phone gate: `TOUCH=1 tools/browser-gate/tabjoin.sh`.
+for it (tabtouch.mjs's where()). Phone gates: `TOUCH=1 tools/browser-gate/tabjoin.sh`
+(online), `tools/browser-gate/tablocal.sh` (Local play).
 Gate: `./gradlew :desktop:run --args=--mute`, join from the keyboard AND a gamepad, die,
 rejoin.
 """

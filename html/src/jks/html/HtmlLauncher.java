@@ -23,10 +23,12 @@ import jks.input.Tab_Touch;
 import jks.lobby.Lobby_Tab;
 import jks.net.Net_Snapshot;
 import jks.online.ClientSession;
+import jks.personnage.ScoreLabel;
 import jks.sounds.GVars_Audio;
 import jks.vars.GVars_Game;
 import jks.vars.GVars_Heart;
 import jks.vue.models.Vue_Client;
+import jks.vue.models.Vue_Game;
 
 /**
  * The browser's entry point, standing exactly where desktop/src/jks/launcher/Launcher_Game does.
@@ -45,7 +47,7 @@ import jks.vue.models.Vue_Client;
  * Held upright, the page turns the game sideways (r103) and {@link Turned_Input} maps a touch through the turn.
  *
  * It also sets window.lcg, what tools/browser-gate/ reads : lcg.frames() and lcg.heroes() (gate.mjs),
- * lcg.vue() and lcg.online() (tabjoin.mjs), and lcg.touch() and lcg.find() (tabtouch.mjs).
+ * lcg.vue() and lcg.online() (tabjoin.mjs), lcg.touch() and lcg.find() (tabtouch.mjs), and lcg.local() (tablocal.mjs).
  */
 public class HtmlLauncher extends GwtApplication
 {
@@ -86,6 +88,22 @@ public class HtmlLauncher extends GwtApplication
 	/** Heroes in the game : 0 until a key or a pad joins a player. */
 	static int heroes()
 	{return GVars_Game.heroes == null ? 0 : GVars_Game.heroes.size();}
+
+	/**
+	 * A local run (r102) : "heroes x deaths paused", x the first hero's in metres or "-" with none, deaths every
+	 * player's, paused whether the pause screen is up ; "" off a Vue_Game. tablocal.mjs reads it.
+	 */
+	static String local()
+	{
+		if(!(GVars_Heart.vue instanceof Vue_Game) || GVars_Game.heroes == null)
+			return "" ;
+		String x = GVars_Game.heroes.isEmpty() ? "-" : String.valueOf(GVars_Game.heroes.get(0).body.getPosition().x) ;
+		int deaths = 0 ;
+		for(ScoreLabel label : GVars_Game.playerRegister.values())
+			deaths += label.deathNumber ;
+		boolean paused = ((Vue_Game) GVars_Heart.vue).pauseChoices() != null ;
+		return GVars_Game.heroes.size() + " " + x + " " + deaths + " " + paused ;
+	}
 
 	/** The view on screen, by its class : Vue_Menu, Vue_Lobby, Vue_Client. */
 	static String vue()
@@ -241,6 +259,7 @@ public class HtmlLauncher extends GwtApplication
 			heroes: $entry(function() { return @jks.html.HtmlLauncher::heroes()(); }),
 			vue: $entry(function() { return @jks.html.HtmlLauncher::vue()(); }),
 			online: $entry(function() { return @jks.html.HtmlLauncher::online()(); }),
+			local: $entry(function() { return @jks.html.HtmlLauncher::local()(); }),
 			touch: $entry(function() { return @jks.html.HtmlLauncher::touch()(); }),
 			find: $entry(function(key) { return @jks.html.HtmlLauncher::find(Ljava/lang/String;)(key); })
 		};

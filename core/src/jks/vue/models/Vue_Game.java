@@ -22,6 +22,7 @@ import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.Box2DDebugRenderer;
 import com.badlogic.gdx.physics.box2d.Joint;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 
 import jks.camera.GVars_Camera;
 import jks.debug.GVars_Debug;
@@ -50,6 +51,7 @@ import jks.vinterface.Menu_Focus;
 import jks.vinterface.Pause_Screen;
 import jks.vinterface.Score_Screen;
 import jks.vinterface.ToRender;
+import jks.vinterface.Touch_Pad;
 import jks.vue.AVue_Model;
 
 public class Vue_Game extends AVue_Model
@@ -72,6 +74,11 @@ public class Vue_Game extends AVue_Model
     private boolean hostedPause ;
     /** What a local pause stopped, so Resume plays only that again. */
     private boolean musicStopped, ambianceStopped ;
+    
+    /** A phone's buttons (r102), its own player beside the keyboard and the pads. Null off a browser tab. */
+    private Touch_Pad touchPad ;
+    /** "Tap to join" over the river, while the pad shows and its player has no hero. */
+    private Label tapToJoin ;
     
     /** A run nobody in particular asked for : --menu off, or a mouse click. Everyone joins by hand. */
     public Vue_Game()
@@ -97,6 +104,16 @@ public class Vue_Game extends AVue_Model
     		toRender.add(new ShowFPS());
     	
     	listen() ;
+    	if(GVars_Heart.touch != null)
+    	{
+    		touchPad = new Touch_Pad(GVars_Interface.mainInterface, () -> GVars_Controller.getLocalPlayer(GVars_Controller.TOUCH), Vue_Game::joinedOrAsked, this::pause) ;
+    		tapToJoin = new Label("Tap to join", GVars_Interface.baseSkin) ;
+    		tapToJoin.setFontScale(2) ;
+    		tapToJoin.setPosition(GVars_Interface.mainInterface.getWidth() * 0.03f, GVars_Interface.mainInterface.getHeight() * 0.92f) ;
+    		tapToJoin.setName("tap-to-join") ;
+    		tapToJoin.setVisible(false) ;
+    		GVars_Interface.mainInterface.addActor(tapToJoin) ;
+    	}
 		GVars_AudioManager.PlayAmbiance(Enum_Ambiance.WATER);
 		
 		star1 = new Sprite(new Texture("stars/Stars Small_1.png")) ; 
@@ -107,6 +124,19 @@ public class Vue_Game extends AVue_Model
 		starter.joinTheRun();
     }
 
+    /**
+     * The touch pad's first tap, and its first after a death : a hero for the phone, and nothing else, as a
+     * key's (r102). Over the song's end nobody joins, as Game_Simulation.spawn refuses a key's.
+     */
+    private static boolean joinedOrAsked()
+    {
+    	if(GVars_Controller.getLocalPlayer(GVars_Controller.TOUCH) != null)
+    		return true ; 
+    	if(!GVars_Story.runOver())
+    		GVars_Game.addPlayer(GVars_Controller.identify(GVars_Controller.TOUCH)) ; 
+    	return false ; 
+    }
+    
     /** This window's keyboard and pads play the run : at its start, and on Resume. */
     private void listen()
     {
@@ -216,6 +246,7 @@ public class Vue_Game extends AVue_Model
 				return ; 
 		}
 		
+		showTouchPad() ; 
 		cleanUp() ; 
 		Gvars_Physic.act(delta);
     	GVars_Story.act(delta);
@@ -233,6 +264,16 @@ public class Vue_Game extends AVue_Model
     	
     	GVars_Parralax.scroll(delta, screenMovementSpeed, 0);
     	GVars_Parralax.act(delta);	
+	}
+	
+	/** The pad while a finger is on the page and the run is playing : hidden, it lets go of Left and Right. */
+	private void showTouchPad()
+	{
+		if(touchPad == null)
+			return ; 
+		boolean shown = pauseScreen == null && scoreScreen == null && GVars_Heart.touch.seen() ; 
+		touchPad.show(shown) ; 
+		tapToJoin.setVisible(shown && GVars_Controller.getLocalPlayer(GVars_Controller.TOUCH) == null) ; 
 	}
 	
 	/**
@@ -262,7 +303,10 @@ public class Vue_Game extends AVue_Model
 		}
 		
 		if(scoreScreen == null)
+		{
 			openScoreScreen() ; 
+			showTouchPad() ; 
+		}
 		
 		// The pick made since the last update. Once it ran, this view may be the old one
 		if(scoreScreen.focus.runPicked())
@@ -328,6 +372,7 @@ public class Vue_Game extends AVue_Model
 			pauseScreen.choice("Quit", picker -> Gdx.app.exit()) ; 
 		}
 		pauseScreen.listen() ; 
+		showTouchPad() ; 
 	}
 	
 	private void resume()
@@ -384,6 +429,8 @@ public class Vue_Game extends AVue_Model
 		if(scoreScreen != null)
 			scoreScreen.dispose();
 		closePause() ; 
+		if(touchPad != null)
+			touchPad.dispose() ; 
 		star1.getTexture().dispose();
 		star1 = null ;
 		if(debugRenderer != null)

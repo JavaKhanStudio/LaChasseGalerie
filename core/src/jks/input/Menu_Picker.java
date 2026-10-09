@@ -3,9 +3,10 @@ package jks.input;
 import com.badlogic.gdx.controllers.Controller;
 
 import jks.vars.GVars_Game;
+import jks.vars.GVars_Heart;
 
 /**
- * Whose hand took a choice in a menu : a pad, the keyboard, or a pointer that is nobody's hand.
+ * Whose hand took a choice in a menu : a pad, the keyboard, a phone's finger, or a pointer that is nobody's hand.
  *
  * It exists because of d9 : the gesture that starts a run IS the join gesture. Whoever picked
  * Local play is player 1 and never presses a second time, so the choice has to carry who made it
@@ -21,17 +22,23 @@ public class Menu_Picker
 	public static final Menu_Picker POINTER = new Menu_Picker(null, false) ;
 	/** The keyboard, which the game already knows as the device with no controller. */
 	public static final Menu_Picker KEYBOARD = new Menu_Picker(null, true) ;
+	/** A finger on a page under one (r102) : the phone's touch pad is a player, and plays the run it picked. */
+	public static final Menu_Picker FINGER = new Menu_Picker(GVars_Controller.TOUCH, true) ;
+
+	/** A tap or a click : a finger when the page is under one, otherwise a pointer that joins nobody. */
+	public static Menu_Picker pointer()
+	{return GVars_Heart.touch != null && GVars_Heart.touch.seen() ? FINGER : POINTER ;}
 
 	public static Menu_Picker pad(Controller controller)
 	{return new Menu_Picker(controller, true) ;}
 
-	/** The pad that picked, or null for the keyboard and for a pointer. */
-	public final Controller pad ;
+	/** The device that picked, as GVars_Controller knows it : a pad, TOUCH, or null for the keyboard and for a pointer. */
+	private final Object device ;
 	private final boolean player ;
 
-	private Menu_Picker(Controller pad, boolean player)
+	private Menu_Picker(Object device, boolean player)
 	{
-		this.pad = pad ;
+		this.device = device ;
 		this.player = player ;
 	}
 
@@ -47,6 +54,6 @@ public class Menu_Picker
 		if(!player)
 			return ;
 
-		GVars_Game.addPlayer(GVars_Controller.identify(pad)) ;
+		GVars_Game.addPlayer(GVars_Controller.identify(device)) ;
 	}
 }

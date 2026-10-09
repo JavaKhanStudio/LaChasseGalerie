@@ -211,7 +211,7 @@ public class Vue_Client extends AVue_Model
 		status.setPosition(GVars_Interface.mainInterface.getWidth() * 0.03f, GVars_Interface.mainInterface.getHeight() * 0.92f);
 		GVars_Interface.mainInterface.addActor(status);
 		if(GVars_Heart.touch != null)
-			touchPad = new Touch_Pad(GVars_Interface.mainInterface, buttons, this::joinedOrAsked) ;
+			touchPad = new Touch_Pad(GVars_Interface.mainInterface, () -> buttons, this::joinedOrAsked, this::pause) ;
 
 		listen() ;
 		GVars_AudioManager.PlayAmbiance(Enum_Ambiance.WATER);
@@ -327,7 +327,7 @@ public class Vue_Client extends AVue_Model
 		showScores(view) ;
 		showStatus() ;
 		if(touchPad != null)
-			touchPad.show(scoreScreen == null && GVars_Heart.touch.seen()) ;
+			touchPad.show(scoreScreen == null && pauseScreen == null && GVars_Heart.touch.seen()) ;
 
 		if(view.over)
 		{
@@ -530,7 +530,7 @@ public class Vue_Client extends AVue_Model
 				text = "Connecting to " + hostAddress + "..." ;
 				break ;
 			case IN :
-				text = client.hasHeroInNewest() ? "" : "Player " + client.player() + (touched() ? " : tap a button to join" : " : press a key to join") ;
+				text = client.hasHeroInNewest() ? "" : "Player " + client.player() + (touched() ? " : tap to join" : " : press a key to join") ;
 				break ;
 			case ENDED :
 				text = "The host ended the run (" + client.endedBecause() + ")" ;
