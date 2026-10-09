@@ -6,7 +6,8 @@
 // Online play; on the lobby screen it taps the code field, which must open the soft keyboard (a hidden
 // input: lcg.touch()), types the host's code into it and checks the field shows it, then taps the host's
 // game under Open games. Once in, the touch pad must be on screen: it taps Jump for a hero, holds Right, taps
-// Jump and both swings. Writes phone_1_menu.png, phone_2_code.png, phone_3_run.png, phone_4_portrait.png and
+// Jump and both swings; then held upright, the game must be turned sideways and a thumb on Left walk the hero
+// left (r103). Writes phone_1_menu.png, phone_2_code.png, phone_3_run.png, phone_4_portrait.png and
 // tab.json, then <outdir>/tab_done so the host probe stops. GO=1 joins with the keyboard's Go key instead.
 import puppeteer from 'puppeteer-core';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -39,8 +40,14 @@ const where = async (page, key) => page.evaluate((key) => {
 	const [x, y, w, h, ...text] = found.split(' ');
 	const canvas = document.querySelector('canvas');
 	const box = canvas.getBoundingClientRect();
+	const cx = +x + w / 2, cy = +y + h / 2;
+	// Upright, the page turns the game a quarter clockwise (r103) : its x runs down the screen, its y right to left
+	if (box.height > box.width) {
+		const s = box.height / canvas.width;
+		return { x: box.right - cy * s, y: box.top + cx * s, w: h * s, h: w * s, text: text.join(' ') };
+	}
 	const sx = box.width / canvas.width, sy = box.height / canvas.height;
-	return { x: box.x + (+x + w / 2) * sx, y: box.y + (+y + h / 2) * sy, w: w * sx, h: h * sy, text: text.join(' ') };
+	return { x: box.x + cx * sx, y: box.y + cy * sy, w: w * sx, h: h * sy, text: text.join(' ') };
 }, key);
 const find = async (page, key, timeout = 5000) => {
 	for (const t0 = Date.now(); Date.now() - t0 < timeout; await sleep(100)) {
@@ -179,10 +186,33 @@ run: try {
 	if (walked.x === null || still.x === null) fail(`the hero is gone after the walk: ${walked.x} -> ${still.x}`);
 	else if (Math.abs(still.x - walked.x) > 0.3) fail(`the hero went on walking after the thumb lifted: ${walked.x} -> ${still.x}`);
 
-	// The same page held upright, for the record : a 16:9 game on a tall screen
+	// The same page held upright (r103) : the game is turned sideways, as big as on its side, and a thumb on
+	// Left walks the hero left, which only a touch mapped through the turn does
 	await page.setViewport({ ...phone, width: phone.height, height: phone.width, isLandscape: false });
 	await sleep(800);
-	await page.screenshot({ path: `${out}/phone_4_portrait.png` });
+	report.portrait = await page.evaluate(() => {
+		const box = document.querySelector('canvas').getBoundingClientRect();
+		return { x: box.x, y: box.y, width: box.width, height: box.height };
+	});
+	const p = report.portrait;
+	if (!(p.height > p.width)) fail(`upright, the game is not turned: ${JSON.stringify(p)}`);
+	else if (p.x < -0.5 || p.y < -0.5 || p.x + p.width > phone.height + 0.5 || p.y + p.height > phone.width + 0.5 || p.width < phone.height - 1)
+		fail(`upright, the turned game does not fill the phone's width: ${JSON.stringify(p)}`);
+	const before = await online(page);
+	const left = await find(page, 'touch-left');
+	report.taps.push({ key: 'touch-left (upright)', x: Math.round(left.x), y: Math.round(left.y), w: Math.round(left.w), h: Math.round(left.h) });
+	await page.touchscreen.touchStart(left.x, left.y);
+	let nearest = before.x;
+	for (let i = 0; i < 4; i++) {
+		await sleep(100);
+		const now = await online(page);
+		if (now.x !== null) nearest = Math.min(nearest, now.x);
+		if (i === 2) await page.screenshot({ path: `${out}/phone_4_portrait.png` });
+	}
+	await page.touchscreen.touchEnd();
+	report.portraitWalk = [before.x, nearest];
+	say(`upright, canvas ${p.width.toFixed(0)}x${p.height.toFixed(0)} turned; a thumb on Left took the hero from x ${before.x} to ${nearest}`);
+	if (!(before.x - nearest > 0.3)) fail(`upright, a thumb on Left did not walk the hero left: ${before.x} -> ${nearest}`);
 
 	const errors = report.console.filter((l) => l.startsWith('pageerror') || l.startsWith('error'));
 	if (errors.length) say(`console errors (not fatal):\n  ${errors.join('\n  ')}`);

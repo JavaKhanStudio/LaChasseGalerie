@@ -124,7 +124,9 @@ A PHONE (r87, the browser tab only): taps are already scene2d pointer events; GV
 (jks.input.Tab_Touch, set by html's HtmlLauncher) says whether the page is under a finger and
 opens the soft keyboard on a hidden <input> for Vue_Lobby's code. Vue_Client's
 jks.vinterface.Touch_Pad writes the same Player_Inputs flags as the keys. Local play (Vue_Game)
-has no touch pad. Phone gate: `TOUCH=1 tools/browser-gate/tabjoin.sh`.
+has no touch pad. Held upright, index.html turns the game a quarter clockwise (r103) and html's
+Turned_Input maps a touch through the turn: whatever places a touch on the canvas must allow
+for it (tabtouch.mjs's where()). Phone gate: `TOUCH=1 tools/browser-gate/tabjoin.sh`.
 Gate: `./gradlew :desktop:run --args=--mute`, join from the keyboard AND a gamepad, die,
 rejoin.
 """

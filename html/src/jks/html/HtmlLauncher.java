@@ -1,5 +1,6 @@
 package jks.html;
 
+import com.google.gwt.dom.client.CanvasElement;
 import com.google.gwt.user.client.Window;
 
 import com.badlogic.gdx.ApplicationListener;
@@ -8,6 +9,7 @@ import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.backends.gwt.GwtApplication;
 import com.badlogic.gdx.backends.gwt.GwtApplicationConfiguration;
+import com.badlogic.gdx.backends.gwt.GwtInput;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
@@ -40,6 +42,7 @@ import jks.vue.models.Vue_Client;
  *
  * A phone (r87) : GVars_Heart.touch is {@link Touch}, what the page knows of touch and its soft keyboard.
  * index.html fits the 1280x720 canvas to the screen ; libGDX already scales a touch back into the canvas.
+ * Held upright, the page turns the game sideways (r103) and {@link Turned_Input} maps a touch through the turn.
  *
  * It also sets window.lcg, what tools/browser-gate/ reads : lcg.frames() and lcg.heroes() (gate.mjs),
  * lcg.vue() and lcg.online() (tabjoin.mjs), and lcg.touch() and lcg.find() (tabtouch.mjs).
@@ -52,6 +55,10 @@ public class HtmlLauncher extends GwtApplication
 		// 1280x720, like the desktop window : spawns and the HUD are computed from it (#gameplay)
 		return new GwtApplicationConfiguration(1280, 720);
 	}
+
+	@Override
+	protected GwtInput createInput(CanvasElement canvas, GwtApplicationConfiguration config)
+	{return new Turned_Input(canvas, config) ;}
 
 	/** The service's WebSocket front on VPS_1 (r79), ws:// : where Online play goes with no lobby= parameter. */
 	public static final String LOBBY_FRONT = "141.94.115.201:7771" ;

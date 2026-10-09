@@ -20,6 +20,16 @@
 			touch-action: none;
 			-webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 		}
+		/* Held upright, a phone gets the game turned sideways all the same (r103) : the box is laid out landscape,
+		   a screen's height wide, and turned a quarter clockwise, its top on the right, so turning the phone left
+		   puts it the right way up. jks.html.Turned_Input maps a touch through the turn. */
+		@media (orientation: portrait) and (pointer: coarse) {
+			#embed-html {
+				inset: auto; top: 0; left: 100vw;
+				width: 100vh; width: 100dvh; height: 100vw;
+				transform-origin: 0 0; transform: rotate(90deg);
+			}
+		}
 	</style>
 	<script type="text/javascript" src="html/html.nocache.js"></script>
 </head>
