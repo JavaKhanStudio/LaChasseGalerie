@@ -359,6 +359,9 @@ Atelier skill run-offscreen — change it there first unless the change is about
 A new JavaExec calls rootProject.offscreen(it, 'unattended') or rootProject.headless(it), or the
 build stops naming it. tools/offscreen-lint.sh (first step of tools/publish_gate.sh) fails a
 tools/*.sh that runs java outside cage or tools/offscreen.sh; `# on-screen: <why>` exempts one.
+A PICTURE of an agent's run: `tools/offscreen-shot.sh build/shots/run.png 10,30 ./gradlew
+:desktop:run --console=plain` writes run-1.png, run-2.png (exit 3 on a blank frame), then
+`atelier attach <ref> build/shots/run-2.png`; a sound change attaches desktop/build/audio/run.wav.
 org.gradle.configuration-cache=true: a build script that reads the environment or a file at
 configuration time is cached; `./gradlew --no-configuration-cache` when a change seems ignored.
 `dist` is a fat jar that EXCLUDES META-INF signatures; LaChasseGalerie-1.0.jar must run from any

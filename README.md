@@ -53,6 +53,17 @@ agent's stops with an error instead.
 The mechanism is in `gradle/offscreen.gradle`, copied from the Atelier skill `run-offscreen`. Anything
 started outside Gradle, such as the dist jar, needs the wrapper: `tools/offscreen.sh <command>`.
 
+Nobody sees that window, the agent included. To hand back a picture of it, run the game through
+`tools/offscreen-shot.sh`, which shoots the window after each wait (seconds from the launch,
+compile included) and stops the game. Then attach the PNG to the ticket:
+
+```bash
+tools/offscreen-shot.sh build/shots/run.png 10,30 ./gradlew :desktop:run --console=plain
+atelier attach <ref> build/shots/run-2.png
+```
+
+When the sound is the work, attach `desktop/build/audio/run.wav` the same way.
+
 Two checks keep it that way. Every `JavaExec` calls `rootProject.offscreen(it, ...)` or, when it
 opens no window, `rootProject.headless(it)`; the build stops on one that does neither.
 `tools/offscreen-lint.sh` fails a `tools/*.sh` that runs java outside cage, unless the script
