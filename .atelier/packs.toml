@@ -4,6 +4,7 @@
 # tables belong in this file: label, description, context, color, sort.
 
 [tags.gameplay]
+visual = true          # a screen: its close needs a Chose: line (r1559, r1584)
 label = "Gameplay"
 description = "The run's timeline, spawns, heroes, monsters, the axe, potions, score"
 color = "#ff7070"
@@ -94,6 +95,7 @@ crash: a scratch copy that kept the destroy queue failed at frame 194), then PLA
 """
 
 [tags.input]
+visual = true          # a screen: its close needs a Chose: line (r1559, r1584)
 label = "Input & players"
 description = "Joining, keyboard and gamepads, controller mappings"
 color = "#6ee787"
