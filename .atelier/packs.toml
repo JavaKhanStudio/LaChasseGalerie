@@ -137,6 +137,7 @@ rejoin.
 """
 
 [tags.background]
+visual = true          # a screen: its close needs a Chose: line (r1559, r1584)
 label = "Parallax background"
 description = "The night river scene and the parallax-background library it draws with"
 color = "#e879f9"
@@ -173,6 +174,7 @@ Gate: `./gradlew :desktop:run --args=--mute` and LOOK — past 37s for the take-
 """
 
 [tags.hud]
+visual = true          # a screen: its close needs a Chose: line (r1559, r1584)
 label = "HUD"
 description = "The scene2d score table, skin and debug FPS overlay"
 color = "#ff9f43"
