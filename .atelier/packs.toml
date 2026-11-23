@@ -47,6 +47,8 @@ Gates: `./gradlew smoke` (smoke/src/jks/smoke/Smoke_Run.java: 60s of the real lo
 in about 1.5s, 3 players joining and dying, fails on a monster chasing a removed hero), then
 PLAY it: `./gradlew :desktop:run --args=--mute`. The smoke stubs GL and cannot see anything
 drawn.
+SEE IT: tools/offscreen-shot.sh build/shots/run.png 40 ./gradlew :desktop:run --args=--mute (waits 40 s, off screen; 10,40 writes run-1.png, run-2.png), then atelier attach <ref> build/shots/run.png
+THE ROUND (board skill §4, r4524): an ask's first picture is framed close on its subject, captioned "Shows: <it>" (a closer camera, or magick <shot> -crop WxH+X+Y +repage <lead>); then the takes; at most one context picture.
 """
 
 [tags.physics]
@@ -136,6 +138,8 @@ for it (tabtouch.mjs's where()). Phone gates: `TOUCH=1 tools/browser-gate/tabjoi
 (online), `tools/browser-gate/tablocal.sh` (Local play).
 Gate: `./gradlew :desktop:run --args=--mute`, join from the keyboard AND a gamepad, die,
 rejoin.
+SEE IT: tools/offscreen-shot.sh build/shots/run.png 40 ./gradlew :desktop:run --args=--mute (waits 40 s, off screen; 10,40 writes run-1.png, run-2.png), then atelier attach <ref> build/shots/run.png
+THE ROUND (board skill §4, r4524): an ask's first picture is framed close on its subject, captioned "Shows: <it>" (a closer camera, or magick <shot> -crop WxH+X+Y +repage <lead>); then the takes; at most one context picture.
 """
 
 [tags.background]
@@ -173,6 +177,8 @@ must keep the same one (parallax r27).
 ColdNightModel's numbers are EXACT conversions of the old library's (decal_X = pad_X*100*H/W,
 speedXAtRest = -speed/ratio, r9 handoff), not approximations. Do not re-tune them.
 Gate: `./gradlew :desktop:run --args=--mute` and LOOK — past 37s for the take-off.
+SEE IT: tools/offscreen-shot.sh build/shots/run.png 40 ./gradlew :desktop:run --args=--mute (waits 40 s, off screen; 10,40 writes run-1.png, run-2.png), then atelier attach <ref> build/shots/run.png
+THE ROUND (board skill §4, r4524): an ask's first picture is framed close on its subject, captioned "Shows: <it>" (a closer camera, or magick <shot> -crop WxH+X+Y +repage <lead>); then the takes; at most one context picture.
 """
 
 [tags.hud]
@@ -224,6 +230,8 @@ Gate: `./gradlew :desktop:run --args=--mute`, join two players, and look at it w
 AND with --fullscreen. Unattended, 1920x1080 is `gamescope --backend headless -W 1920 -H 1080
 -w 1920 -h 1080 -- env ALSOFT_DRIVERS=null java ...` (cage clamps every window to 1280x720);
 tools/probe/Lobby_Screen_Probe.java shows the whole command.
+SEE IT: tools/offscreen-shot.sh build/shots/run.png 40 ./gradlew :desktop:run --args=--mute (waits 40 s, off screen; 10,40 writes run-1.png, run-2.png), then atelier attach <ref> build/shots/run.png
+THE ROUND (board skill §4, r4524): an ask's first picture is framed close on its subject, captioned "Shows: <it>" (a closer camera, or magick <shot> -crop WxH+X+Y +repage <lead>); then the takes; at most one context picture.
 """
 
 [tags.audio]
